@@ -32,9 +32,19 @@
                     {{ activity.name }}
                 </div>
                 <div class="activity-details" id="details-{{ activity.id }}">
-                    <!-- Ajoutez ici des informations dynamiques associées -->
-                    <p>ID de l'activité : {{ activity.id }}</p>
-                    <p>Description : {{ activity.description or 'Pas de description' }}</p>
+                    <p>Description : {{ activity.description or 'Aucune description' }}</p>
+                    <h4>Données déclenchantes :</h4>
+                    <ul>
+                        {% for relation in activity.incoming_relations %}
+                            <li>{{ relation.source_activity.name }} - {{ relation.description }}</li>
+                        {% endfor %}
+                    </ul>
+                    <h4>Données nourrissantes :</h4>
+                    <ul>
+                        {% for relation in activity.outgoing_relations %}
+                            <li>{{ relation.target_activity.name }} - {{ relation.description }}</li>
+                        {% endfor %}
+                    </ul>
                 </div>
             </div>
         {% endfor %}
@@ -43,14 +53,12 @@
     <script>
         function toggleDetails(activityId) {
             const detailsElement = document.getElementById(`details-${activityId}`);
-            // Vérifie l'état actuel et ajuste correctement l'affichage
-            if (detailsElement.style.display === "" || detailsElement.style.display === "none") {
+            if (detailsElement.style.display === "none" || detailsElement.style.display === "") {
                 detailsElement.style.display = "block";
             } else {
                 detailsElement.style.display = "none";
             }
         }
     </script>
-    
 </body>
 </html>

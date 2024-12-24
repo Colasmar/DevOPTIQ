@@ -35,5 +35,8 @@ if __name__ == '__main__':
         except Exception as e:
             print(f"Erreur lors de la connexion à la base de données : {e}")
 
-    app.run(debug=True)
+        # Ajout du code pour recréer les tables
+        db.create_all()
+        print("Tables créées ou mises à jour avec succès !")
 
+    app.run(debug=True)
