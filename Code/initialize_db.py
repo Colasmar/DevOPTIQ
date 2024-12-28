@@ -18,8 +18,9 @@ from Code.scripts.extract_visio import create_app
 from Code.models.models import Activity  # Pour tester l'insertion
 
 # Chemin absolu vers la base de données
-db_directory = os.path.abspath(os.path.join("C:", "Temp", "instance"))
+db_directory = os.path.join(current_dir, "instance")
 db_path = os.path.join(db_directory, "optiq.db")
+
 
 # Créer le répertoire 'instance' s'il n'existe pas
 if not os.path.exists(db_directory):
