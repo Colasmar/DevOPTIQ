@@ -1,6 +1,10 @@
+import sys
+print("sys.path:", sys.path)  # Debug : Vérifier les chemins accessibles
+
+
 from flask import Blueprint, jsonify, request
-from extensions import db
-from models.models import Activity
+from Code.extensions import db
+from Code.models.models import Activity
 
 activities_bp = Blueprint('activities', __name__)
 

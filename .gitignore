@@ -4,3 +4,7 @@ __pycache__/
 *.pyc
 Code/instance/
 
+# Exclure les fichiers temporaires ou système
+*.log
+*.tmp
+.DS_Store

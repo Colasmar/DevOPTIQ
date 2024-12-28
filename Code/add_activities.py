@@ -1,5 +1,5 @@
-from extensions import db
-from models.models import Activity
+from Code.extensions import db
+from Code.models.models import Activity
 from app import app
 
 with app.app_context():

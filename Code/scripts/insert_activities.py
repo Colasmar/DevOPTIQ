@@ -1,5 +1,5 @@
-from extensions import db
-from models.models import Activity, Relation
+from Code.extensions import db
+from Code.models.models import Activity, Relation
 from app import app
 
 def insert_data():
