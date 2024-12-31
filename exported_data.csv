@@ -1,0 +1,66 @@
+Type,ID,Name
+Activity,117,afdec© 2001 - 2020
+Activity,118,the colored rectangles represent activities. the color represents the activity typology as determined by the dominant skills involved. the text gives the meaning of what is done in the activity
+Activity,119,activity
+Activity,120,"the arrow indicates direction and the color indicates the source activity.
+when the color is black, that means that the data comes from the customer.
+the text on the line is the date flowing between the activities."
+Activity,121,broken line : nourishing or blocking data.
+Activity,122,solid line : trigger or start up data.
+Activity,123,"a diamond is a decision. 
+when the decision is positive, the line continues straight on relative to the trigger line. when the decision is negative, the line moves 90° left or right.
+when ther is only one line that means that the business use this way only if necessary"
+Activity,124,"a flag shaped activity represents an action performed by a customer or a supplier. it is triggered by a document (either paper. or digital).
+the color of the result activity is usually similar to the triggering activity. 
+
+note that the piloting process is interupted when going through these activities."
+Activity,125,result
+Activity,126,"an activity is hatched when it is executed by a supplier or a customer. it indicates that the responsibility of the process continuity is delegated to a third party. tasks are not described.
+like others activities, the color is determined by the type of skills (see color palette on the left)"
+Activity,127,customer or supplier activity
+Activity,128,"this shape means that the activity is executed by another entity as part of a collaborative network. this entity will be responsible for the continuity of the process. it can be placed in an internal subcontractor swimlane or for a shared service, in it’s customer swimlane.
+like others activities, the color is determined by the type of skills (see color palette on the left).
+the shape can have a shadow to indicate to indicate the subcontractor department that performs it. in this case, the shadow is of the same color as the main competence of the department.
+
+when the same activity is repeated in the line, the shape is rounded"
+Activity,129,another entity activity
+Activity,130,"an activity is shaded when owned by the organization but produced as part of a community production (means that, normaly, this activity is under the responsability of the community manager). this shape is internal and in one of the colored swimlane.
+like others activities, the color is determined by the type of skills (see color palette on the left)"
+Activity,131,activity by community member
+Activity,132,"a map is read from left to right. the flow of activity does not go back. neither does it jump forward. the map is seen as a flat sphere. thus, some information produced later (to the right) will be necessary when reproducing certain activities (to the left). this connection is established through return circles.
+the return circle has the same name and color as the activity it represents.
+the color of the data line depends on which activity is originating the output involved."
+Activity,133,return to an activity
+Activity,134,"this symbol indicates that the activity includes an approval step. 
+the colour of the symbol is the color of the skill able to approve."
+Activity,135,"when the map is complexe and/or collaborative, this symbol links to a secondary map."
+Activity,136,name of the map
+Activity,137,another entity activity (second time)
+Activity,138,treatment of rfq
+Activity,139,existing part available 2d drawing
+Activity,140,product proposal confirmation
+Activity,141,complex project
+Activity,142,local project
+Activity,143,manage pre feasibility with cft
+Activity,144,create project in v2
+Activity,145,a1
+Activity,146,"b1,b3,b5,c1"
+Activity,147,new project
+Activity,152,packaging 3d concept
+Activity,153,risk assessment by hod cfd
+Activity,154,request for risk assessment
+Activity,155,presentation to hod cfd
+Activity,156,business risk presentation
+Activity,157,nea project
+Activity,158,name ??
+Activity,160,design to realize
+Activity,200,request for capycity
+Activity,201,capacity confirmation
+Activity,202,local capacity confirmation
+Activity,203,confirm clips avaibility & volum
+Activity,204,request for avaibility & volum for clips
+Activity,205,clips avaibility and volum confirmer
+Activity,206,local parts
+Activity,211,"b1,b3,b5"
+Activity,212,b1 b5
+Activity,213,localization to launch

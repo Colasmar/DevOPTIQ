@@ -1,5 +1,6 @@
 import os
 import sys
+import csv
 from vsdx import VisioFile
 from flask import Flask
 
@@ -34,74 +35,58 @@ def import_from_visio(vsdx_path):
         print(f"Erreur : Le fichier Visio '{vsdx_path}' est introuvable.")
         return
 
+    activities = []
+
     with VisioFile(vsdx_path) as visio:
         for page in visio.pages:
             print(f"Analyse de la page : {page.name}")
             for shape in page.child_shapes:
-                shape_text = shape.text.strip() if shape.text else None
+                # Diagnostic : afficher les informations clés
+                shape_text = shape.text.strip() if shape.text else "None"
+                shape_name = getattr(shape, 'shape_name', 'None')
+                layer_name = getattr(shape, 'layer', 'None')
 
-                # Ignorer les formes sans texte pertinent
-                if not shape_text:
+                print(f"Shape Text: {shape_text}")
+                print(f"Shape Name: {shape_name}")
+                print(f"Layer Name: {layer_name}")
+
+                # Exclure les formes sans texte ou dans certains calques
+                if shape_text == "None" or layer_name == "Légende":
                     continue
 
                 # Ajouter ou mettre à jour une activité
                 activity = _create_or_update_activity(shape_text)
+                activities.append(activity)
 
-                # Analyser les connexions
-                for connection in shape.connects:
-                    try:
-                        # Vérifier si la connexion a un attribut 'to_shape'
-                        if hasattr(connection, "to_shape") and connection.to_shape:
-                            target_text = connection.to_shape.text.strip() if connection.to_shape.text else None
-                        else:
-                            target_text = None
-
-                        source_text = shape_text
-
-                        if target_text:
-                            _create_or_update_relation(source_text, target_text)
-
-                    except Exception as e:
-                        print(f"Erreur lors de l'analyse d'une connexion : {e}")
-                        continue
+    # Exporter les données pour vérification
+    _export_data_to_csv(activities)
 
 
 def _create_or_update_activity(activity_text):
     """Ajoute ou met à jour une activité dans la base."""
-    existing = Activity.query.filter_by(name=activity_text).first()
+    normalized_text = activity_text.strip().lower()
+    existing = Activity.query.filter_by(name=normalized_text).first()
     if not existing:
-        new_activity = Activity(name=activity_text)
+        new_activity = Activity(name=normalized_text)
         db.session.add(new_activity)
         db.session.commit()
-        print(f"Nouvelle activité ajoutée : {activity_text}")
-        return new_activity
+        print(f"Nouvelle activité ajoutée : {normalized_text}")
+        return {"id": new_activity.id, "name": normalized_text}
     else:
-        print(f"Activité existante trouvée : {activity_text}")
-        return existing
+        print(f"Activité existante trouvée : {normalized_text}")
+        return {"id": existing.id, "name": normalized_text}
 
-def _create_or_update_relation(source_text, target_text):
-    """Ajoute ou met à jour une relation entre deux activités."""
-    source_activity = Activity.query.filter_by(name=source_text).first()
-    target_activity = Activity.query.filter_by(name=target_text).first()
+def _export_data_to_csv(activities):
+    """Exporte les activités dans un fichier CSV."""
+    export_path = os.path.join(project_root, 'exported_data.csv')
+    with open(export_path, mode='w', newline='', encoding='utf-8') as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(["Type", "ID", "Name"])
 
-    if not source_activity or not target_activity:
-        print(f"Impossible de créer la relation : Source '{source_text}' ou Target '{target_text}' non trouvée.")
-        return
+        for activity in activities:
+            writer.writerow(["Activity", activity["id"], activity["name"]])
 
-    # Vérifier si la relation existe déjà
-    existing_relation = Relation.query.filter_by(source_id=source_activity.id, target_id=target_activity.id).first()
-    if not existing_relation:
-        new_relation = Relation(
-            source_id=source_activity.id,
-            target_id=target_activity.id,
-            type="unknown",
-            description=f"Relation entre {source_text} et {target_text}"
-        )
-        db.session.add(new_relation)
-        db.session.commit()
-        print(f"Nouvelle relation ajoutée : {source_text} -> {target_text}")
-    else:
-        print(f"Relation existante entre {source_text} et {target_text}.")
+    print(f"Données exportées vers {export_path}")
 
 if __name__ == "__main__":
     # Initialiser l'application Flask
