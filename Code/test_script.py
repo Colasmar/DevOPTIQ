@@ -14,93 +14,144 @@ def analyze_visio_file():
 
         for page in doc.pages:
             print(f"Analyzing page: {page.name}\n")
-            activities = []
+
+            # 1) On prépare trois listes : données déclenchantes, nourrissantes, activités
             declenchante_data = []
             nourrissante_data = []
+            activities = []
 
             shape_by_id = {sh.ID: sh for sh in page.all_shapes}
+
+            # --- ÉTAPE A : Classer les formes ---
             for shape in page.all_shapes:
-                master_name = shape.master_page.name if shape.master_page else "No Master"
+                master_raw = shape.master_page.name if shape.master_page else "No Master"
+                master_name = master_raw.lower()
                 text = (shape.text or "").strip()
 
-                # Exclude irrelevant shapes based on master name or empty text
-                if master_name.lower() in ["swimlane", "couloir color", "separator", "cff container", "phase list", "document", "feedback", "rounded process", "no master"] or not text:
+                # Filtres pour ignorer les shapes "inutiles"
+                if (
+                    not text or
+                    master_name in [
+                        "swimlane", "couloir color", "separator",
+                        "cff container", "phase list", "document",
+                        "feedback", "rounded process", "no master"
+                    ]
+                ):
                     continue
 
-                # Identify data vs activity
-                if master_name.lower().startswith(('t', 'd')):
+                # Distinction : T ou D => Déclenchante, N => Nourrissante, sinon => Activité
+                if master_name.startswith(('t', 'd')):
                     declenchante_data.append(shape)
-                elif master_name.lower().startswith('n'):
+                elif master_name.startswith('n'):
                     nourrissante_data.append(shape)
                 else:
-                    # Process connections to determine type and direction
-                    incoming_declenchante = []
-                    incoming_nourrissante = []
-                    outgoing_values = []
+                    activities.append(shape)
 
-                    if hasattr(shape, 'connects') and shape.connects:
-                        for connect in shape.connects:
-                            from_id, to_id = connect.from_id, connect.to_id
-                            source = shape_by_id.get(from_id)
-                            target = shape_by_id.get(to_id)
-
-                            if source and target:
-                                source_text = (source.text or "").strip()
-                                target_text = (target.text or "").strip()
-                                connection_type = "Declenchante" if source.master_page and source.master_page.name.lower().startswith(('t', 'd')) else "Nourrissante"
-
-                                # Determine direction of connection
-                                if shape.ID == to_id:  # Incoming connection
-                                    if connection_type == "Declenchante":
-                                        incoming_declenchante.append(source_text)
-                                    else:
-                                        incoming_nourrissante.append(source_text)
-                                elif shape.ID == from_id:  # Outgoing connection
-                                    outgoing_values.append(target_text)
-
-                    # Store activity details
-                    activities.append({
-                        "id": shape.ID,
-                        "text": text,
-                        "master": master_name,
-                        "incoming_declenchante": incoming_declenchante,
-                        "incoming_nourrissante": incoming_nourrissante,
-                        "outgoing_values": outgoing_values
-                    })
-
-            # Display results for activities
+            # --- ÉTAPE B : Analyser chaque activité ---
+            activity_info_list = []
             for activity in activities:
-                print(f"Activity: {activity['text']} (ID={activity['id']}, Master={activity['master']})")
-                print(f" - Données déclenchantes entrantes : {', '.join(activity['incoming_declenchante']) if activity['incoming_declenchante'] else 'None'}")
-                print(f" - Données nourrissantes entrantes : {', '.join(activity['incoming_nourrissante']) if activity['incoming_nourrissante'] else 'None'}")
-                print(f" - Valeurs ajoutées sortantes : {', '.join(activity['outgoing_values']) if activity['outgoing_values'] else 'None'}\n")
+                a_id = activity.ID
+                a_text = (activity.text or "").strip()
+                a_master = (activity.master_page.name if activity.master_page else "??")
 
-            # Display results for data
+                incoming_declenchante = []
+                incoming_nourrissante = []
+                outgoing_values = []
+
+                # Si l'activité a des connexions
+                if hasattr(activity, 'connects') and activity.connects:
+                    for conn in activity.connects:
+                        from_id, to_id = conn.from_id, conn.to_id
+                        src = shape_by_id.get(from_id)
+                        dst = shape_by_id.get(to_id)
+                        if not (src and dst):
+                            continue
+
+                        src_master = (src.master_page.name.lower() if src.master_page else "")
+                        dst_master = (dst.master_page.name.lower() if dst.master_page else "")
+
+                        # SI l'activité est la cible => flux entrant
+                        if a_id == to_id:
+                            # => la source, c'est 'src'
+                            # On regarde son type (déclenchante, nourrissante...)
+                            if src_master.startswith(('t', 'd')):
+                                incoming_declenchante.append(src.text.strip())
+                            elif src_master.startswith('n'):
+                                incoming_nourrissante.append(src.text.strip())
+                            else:
+                                # autre activité -> flux entrant ?
+                                pass
+
+                        # SI l'activité est la source => flux sortant
+                        elif a_id == from_id:
+                            outgoing_values.append(dst.text.strip())
+
+                activity_info_list.append({
+                    "id": a_id,
+                    "text": a_text,
+                    "master": a_master,
+                    "incoming_declenchante": incoming_declenchante,
+                    "incoming_nourrissante": incoming_nourrissante,
+                    "outgoing_values": outgoing_values
+                })
+
+            # --- ÉTAPE C : Affichage des activités ---
+            for info in activity_info_list:
+                print(f"Activity: {info['text']} (ID={info['id']}, Master={info['master']})")
+                d_in = ", ".join(info['incoming_declenchante']) or "None"
+                n_in = ", ".join(info['incoming_nourrissante']) or "None"
+                val_out = ", ".join(info['outgoing_values']) or "None"
+                print(f" - Données déclenchantes entrantes : {d_in}")
+                print(f" - Données nourrissantes entrantes : {n_in}")
+                print(f" - Valeurs ajoutées sortantes     : {val_out}\n")
+
+            # --- ÉTAPE D : Affichage des données déclenchantes ---
             print("Données déclenchantes:")
             for data in declenchante_data:
-                from_shapes = [conn.from_id for conn in data.connects if conn.from_id != data.ID]
-                to_shapes = [conn.to_id for conn in data.connects if conn.to_id != data.ID]
+                dt_text = (data.text or "").strip()
+                dt_id = data.ID
 
-                from_texts = [shape_by_id[fs].text.strip() for fs in from_shapes if fs in shape_by_id]
-                to_texts = [shape_by_id[ts].text.strip() for ts in to_shapes if ts in shape_by_id]
+                from_shapes = []
+                to_shapes = []
 
-                if from_texts or to_texts:
-                    print(f"Donnée déclenchante : {data.text.strip()}")
-                    print(f"  Depuis : {', '.join(from_texts)}")  # Correct origin
-                    print(f"  Vers : {', '.join(to_texts)}")  # Correct destination
+                if hasattr(data, 'connects') and data.connects:
+                    for conn in data.connects:
+                        f_id, t_id = conn.from_id, conn.to_id
+                        # Si la donnée est la source => flux "data -> other"
+                        if f_id == dt_id and t_id != dt_id and t_id in shape_by_id:
+                            to_shapes.append(shape_by_id[t_id].text.strip())
+                        # Si la donnée est la cible => flux "other -> data"
+                        elif t_id == dt_id and f_id != dt_id and f_id in shape_by_id:
+                            from_shapes.append(shape_by_id[f_id].text.strip())
 
+                if from_shapes or to_shapes:
+                    print(f"Donnée déclenchante : {dt_text} (ID={dt_id})")
+                    print(f"  Depuis : {', '.join(from_shapes) or 'None'}")
+                    print(f"  Vers   : {', '.join(to_shapes) or 'None'}")
+
+            # --- ÉTAPE E : Affichage des données nourrissantes ---
             print("\nDonnées nourrissantes:")
             for data in nourrissante_data:
-                from_shapes = [conn.from_id for conn in data.connects if conn.from_id != data.ID]
-                to_shapes = [conn.to_id for conn in data.connects if conn.to_id != data.ID]
+                dt_text = (data.text or "").strip()
+                dt_id = data.ID
 
-                from_texts = [shape_by_id[fs].text.strip() for fs in from_shapes if fs in shape_by_id]
-                to_texts = [shape_by_id[ts].text.strip() for ts in to_shapes if ts in shape_by_id]
+                from_shapes = []
+                to_shapes = []
 
-                if from_texts or to_texts:
-                    print(f"Donnée nourrissante : {data.text.strip()}")
-                    print(f"  Depuis : {', '.join(from_texts)}")  # Correct origin
-                    print(f"  Vers : {', '.join(to_texts)}")  # Correct destination
+                if hasattr(data, 'connects') and data.connects:
+                    for conn in data.connects:
+                        f_id, t_id = conn.from_id, conn.to_id
+                        # Si la donnée est la source => flux "data -> other"
+                        if f_id == dt_id and t_id != dt_id and t_id in shape_by_id:
+                            to_shapes.append(shape_by_id[t_id].text.strip())
+                        # Si la donnée est la cible => flux "other -> data"
+                        elif t_id == dt_id and f_id != dt_id and f_id in shape_by_id:
+                            from_shapes.append(shape_by_id[f_id].text.strip())
+
+                if from_shapes or to_shapes:
+                    print(f"Donnée nourrissante : {dt_text} (ID={dt_id})")
+                    print(f"  Depuis : {', '.join(from_shapes) or 'None'}")
+                    print(f"  Vers   : {', '.join(to_shapes) or 'None'}")
 
     except PermissionError as e:
         print(f"Permission error ignored: {e}")
@@ -110,6 +161,7 @@ def analyze_visio_file():
                 doc.close_vsdx()
             except PermissionError as e:
                 print(f"Permission error during closure ignored: {e}")
+
 
 if __name__ == "__main__":
     analyze_visio_file()
