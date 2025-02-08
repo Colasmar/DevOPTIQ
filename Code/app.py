@@ -9,15 +9,14 @@ if current_dir not in sys.path:
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from Code.extensions import db
-from Code.models.models import Activity
-from Code.routes.ui_routes import ui_bp
-from Code.routes.activities import activities_bp
-from flask import Flask, render_template
-from sqlalchemy import text
+from flask import Flask, jsonify
+from sqlalchemy import text, inspect
 
+from Code.extensions import db
+from Code.models.models import Activities, Connections, Data
 
 def create_app():
+    """Initialisation de l'application Flask avec configuration et extensions."""
     app = Flask(__name__)
 
     # Configuration de la base de données
@@ -30,12 +29,36 @@ def create_app():
     if not os.path.exists(instance_path):
         os.makedirs(instance_path)
 
-    # Initialisation des extensions
+    # Initialisation de l'extension SQLAlchemy
     db.init_app(app)
 
-    # Enregistrement des blueprints
-    app.register_blueprint(activities_bp)
-    app.register_blueprint(ui_bp)
+    # Route pour déboguer la création de la base de données
+    @app.route('/debug-create-db', methods=['GET'])
+    def debug_create_db():
+        try:
+            with app.app_context():
+                # Liste des tables avant la création
+                inspector = inspect(db.engine)
+                before_tables = inspector.get_table_names()
+                print(f"Tables avant la création : {before_tables}")
+
+                # Création des tables
+                db.create_all()
+
+                # Liste des tables après la création
+                after_tables = inspector.get_table_names()
+                print(f"Tables après la création : {after_tables}")
+
+                return jsonify({
+                    "message": "Base de données créée avec succès.",
+                    "tables_before": before_tables,
+                    "tables_after": after_tables,
+                })
+        except Exception as e:
+            return jsonify({
+                "message": "Erreur lors de la création de la base de données.",
+                "error": str(e)
+            })
 
     return app
 
@@ -44,16 +67,4 @@ def create_app():
 app = create_app()
 
 if __name__ == '__main__':
-    with app.app_context():
-        try:
-            # Vérification de la connexion à la base de données
-            db.session.execute(text('SELECT 1'))
-            print("Connexion à la base de données réussie.")
-        except Exception as e:
-            print(f"Erreur lors de la connexion à la base de données : {e}")
-
-        # Création ou mise à jour des tables
-        db.create_all()
-        print("Tables créées ou mises à jour avec succès !")
-
     app.run(debug=True)
