@@ -43,6 +43,10 @@ def create_app():
 # Déclarer explicitement 'app' pour l'import
 app = create_app()
 
+@app.route('/')
+def home():
+    return "Bienvenue sur mon application Flask !"
+
 if __name__ == '__main__':
     with app.app_context():
         try:
