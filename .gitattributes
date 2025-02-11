@@ -1,0 +1,5 @@
+# Indique que tous les fichiers texte doivent avoir des fins de ligne normalisées
+* text=auto
+
+# Pour forcer les fichiers Python (ou d'autres) à utiliser LF dans le dépôt
+*.py text eol=lf

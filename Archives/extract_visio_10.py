@@ -15,21 +15,22 @@ LAYER_MAPPING = {
     "1": "Activity",
     "9": "N link",    # Nourrissante (ligne pointillée)
     "10": "T link",   # Déclenchante (ligne pleine)
-    "6": "Result",    # Résultat (drapeau) -> sera traité comme activité
+    "6": "Result",    # Résultat (drapeau) -> sera traité comme activité avec is_result=True
     "8": "Return"     # Retour (rond)
 }
 
 # Calques à ignorer
 IGNORE_LAYERS = ["légende", "Color"]
 
-# Global mapping pour les activités (clé : ID Visio standardisé, valeur : ID en base)
-activity_mapping = {}
-# Liste pour résumer les connexions créées (pour le rapport final)
-connection_summaries = []
+# Global mappings
+activity_mapping = {}    # Pour les formes insérées dans Activities (incluant les activités de résultat)
+# Pour les formes Return, on stocke leur texte qui indique le nom de l'activité associée
+return_mapping = {}      # Clé : ID Visio standardisé d'une forme Return, Valeur : le texte (nom) inscrit dans la forme
+connection_summaries = []  # Liste des tuples (data_name, data_type, source_activity, target_activity)
 
 def get_entity_name(entity_id):
     """
-    Renvoie le nom de l'entité dans Activities (prioritaire), sinon "inconnue".
+    Renvoie le nom de l'activité correspondant à l'ID dans Activities.
     """
     act = Activities.query.get(entity_id)
     if act:
@@ -55,29 +56,20 @@ def reset_database():
     db.session.query(Activities).delete()
     db.session.commit()
     activity_mapping.clear()
+    return_mapping.clear()
     connection_summaries.clear()
     print("INFO : La base de données a été réinitialisée avec succès.")
 
 def get_layer(shape):
     """
     Extrait la valeur du calque d'une forme à partir de son XML.
-    Retourne le libellé normalisé.
+    Cherche la cellule avec N="LayerMember".
+    Retourne le libellé normalisé si possible.
     """
     cell = shape.xml.find(".//{*}Cell[@N='LayerMember']")
     if cell is not None:
         value = cell.get("V")
         return LAYER_MAPPING.get(value, value)
-    return None
-
-def get_fill_pattern(shape):
-    """
-    Extrait la valeur du FillPattern depuis la ShapeSheet.
-    Cherche la cellule dont N vaut "FillPattern" et retourne sa valeur (en chaîne),
-    ou None si non trouvée.
-    """
-    cell = shape.xml.find(".//{*}Cell[@N='FillPattern']")
-    if cell is not None:
-        return cell.get("V")
     return None
 
 def process_visio_file(vsdx_path):
@@ -101,10 +93,9 @@ def process_shape(shape):
         return
 
     if layer == "Activity":
-        # Pour le calque Activity, on vérifie également le FillPattern
         add_activity(shape, is_result=False)
     elif layer == "Result":
-        # Les formes du calque "Result" seront traitées comme des activités de résultat
+        # Traiter les formes Result comme des activités avec is_result True
         add_activity(shape, is_result=True)
     elif layer == "Return":
         add_return(shape)
@@ -123,21 +114,13 @@ def standardize_id(visio_id):
 def add_activity(shape, is_result=False):
     """
     Ajoute une activité dans Activities.
-    Pour les formes du calque "Activity", on vérifie si le FillPattern vaut "2".
-    Si c'est le cas, on considère l'activité comme une activité de résultat (is_result = True).
+    Le flag is_result permet de différencier une activité de résultat.
     """
     name = shape.text.strip() if shape.text else ("Résultat sans nom" if is_result else "Activité sans nom")
-    
-    # Pour une forme du calque Activity, si FillPattern vaut "2", on force is_result à True.
-    if not is_result:
-        fill_pattern = get_fill_pattern(shape)
-        if fill_pattern == "2":
-            is_result = True
-
     try:
         act = Activities(name=name, is_result=is_result)
         db.session.add(act)
-        db.session.flush()  # Pour obtenir act.id
+        db.session.flush()  # pour obtenir act.id
         key = standardize_id(shape.ID)
         activity_mapping[key] = act.id
         type_str = "Activité de résultat" if is_result else "Activité"
@@ -149,19 +132,24 @@ def add_activity(shape, is_result=False):
 def add_return(shape):
     """
     Traite une forme de type "Return".
-    Enregistre la donnée dans Data avec le type "Retour".
+    Enregistre la forme dans Data (avec type "Retour") et ajoute dans return_mapping
+    le mapping entre l'ID Visio et le nom inscrit dans la forme.
     """
     name = shape.text.strip() if shape.text else "Return sans nom"
+    special_type = "Retour"
     try:
-        existing = Data.query.filter_by(name=name, type="Retour").first()
+        existing = Data.query.filter_by(name=name, type=special_type).first()
         if existing:
             d = existing
             print(f"INFO : Return réutilisé : {name}")
         else:
-            d = Data(name=name, type="Retour")
+            d = Data(name=name, type=special_type)
             db.session.add(d)
             db.session.flush()
             print(f"INFO : Return ajouté : {name}")
+        key = standardize_id(shape.ID)
+        # Enregistrer dans return_mapping : on stocke le nom du retour
+        return_mapping[key] = name
     except IntegrityError:
         db.session.rollback()
         print(f"INFO : Problème avec le Return : {name}")
@@ -169,14 +157,13 @@ def add_return(shape):
 def add_data_and_connections(shape):
     """
     Traite une forme connecteur ("T link" ou "N link").
-    Crée ou réutilise une donnée dans Data et crée une connexion entre la source et la destination.
+    Crée ou réutilise une donnée dans Data et crée une connexion fusionnée entre la source et la destination.
     """
     data_name = shape.text.strip() if shape.text else "Donnée sans nom"
     layer = get_layer(shape)
     data_type = "déclenchante" if layer == "T link" else "nourrissante"
     conns = analyze_connections(shape)
     try:
-        # Vérifier si la donnée existe déjà (pour éviter les doublons)
         existing = Data.query.filter_by(name=data_name, type=data_type, layer=layer).first()
         if existing:
             data_record = existing
@@ -186,11 +173,17 @@ def add_data_and_connections(shape):
             db.session.add(data_record)
             db.session.flush()
             print(f"INFO : Donnée ajoutée : {data_name} ({data_type})")
-
+        
         def resolve_id(visio_id):
             if not visio_id:
                 return None
             key = standardize_id(visio_id)
+            # Priorité : si l'ID correspond à un Return, utiliser le nom du retour pour retrouver l'activité associée
+            if key in return_mapping:
+                act = Activities.query.filter_by(name=return_mapping[key]).first()
+                if act:
+                    return act.id
+            # Sinon, rechercher dans activity_mapping
             return activity_mapping.get(key, None)
 
         source_db_id = resolve_id(conns.get("from_id"))
@@ -200,7 +193,7 @@ def add_data_and_connections(shape):
         s_name = get_entity_name(source_db_id) if source_db_id else "inconnue"
         t_name = get_entity_name(target_db_id) if target_db_id else "inconnue"
 
-        # Vérifier que la connexion ne relie pas une activité à elle-même
+        # Ne pas créer de connexion si la source et la destination sont identiques
         if s_name.strip().lower() == t_name.strip().lower():
             print(f"WARNING: Source et target identiques ('{s_name}') pour donnée '{data_record.name}'. Connexion ignorée.")
             db.session.commit()
@@ -222,10 +215,11 @@ def add_data_and_connections(shape):
                 db.session.flush()
                 s_name = get_entity_name(source_db_id)
                 t_name = get_entity_name(target_db_id)
-                connection_summaries.append((data_record.name, data_record.type, s_name, t_name))
+                summary = (data_record.name, data_record.type, s_name, t_name)
+                if summary not in connection_summaries:
+                    connection_summaries.append(summary)
                 print(f"INFO : Connexion ajoutée entre {s_name} et {t_name} pour donnée {data_name}")
         else:
-            # Cas partiel : création de connexions output ou input
             if conns.get("from_id"):
                 sid = resolve_id(conns.get("from_id"))
                 if sid:
@@ -243,7 +237,9 @@ def add_data_and_connections(shape):
                         db.session.add(conn)
                         db.session.flush()
                         s_name = get_entity_name(sid)
-                        connection_summaries.append((data_record.name, data_record.type, s_name, "inconnue"))
+                        summary = (data_record.name, data_record.type, s_name, "inconnue")
+                        if summary not in connection_summaries:
+                            connection_summaries.append(summary)
                         print(f"INFO : Connexion output ajoutée entre {s_name} et donnée {data_name}")
             if conns.get("to_id"):
                 tid = resolve_id(conns.get("to_id"))
@@ -262,7 +258,9 @@ def add_data_and_connections(shape):
                         db.session.add(conn)
                         db.session.flush()
                         t_name = get_entity_name(tid)
-                        connection_summaries.append((data_record.name, data_record.type, "inconnue", t_name))
+                        summary = (data_record.name, data_record.type, "inconnue", t_name)
+                        if summary not in connection_summaries:
+                            connection_summaries.append(summary)
                         print(f"INFO : Connexion input ajoutée entre donnée {data_name} et {t_name}")
         db.session.commit()
     except IntegrityError:
@@ -272,7 +270,8 @@ def add_data_and_connections(shape):
 def analyze_connections(shape):
     """
     Analyse le XML d'une forme pour extraire les IDs de connexion.
-    Recherche les cellules dont N vaut "BeginX" et "EndX" et retourne {"from_id": ..., "to_id": ...}.
+    Recherche les cellules dont l'attribut N vaut "BeginX" et "EndX".
+    Retourne un dictionnaire {"from_id": ..., "to_id": ...}.
     """
     conns = {"from_id": None, "to_id": None}
     for cell in shape.xml.findall(".//{*}Cell"):
@@ -287,7 +286,7 @@ def analyze_connections(shape):
 def extract_shape_id(f_val):
     """
     Extrait l'ID d'une forme connectée à partir de la chaîne f_val.
-    Cherche la sous-chaîne après "Sheet." et convertit en entier.
+    Cherche la sous-chaîne après "Sheet." et la convertit en entier.
     """
     if f_val and "Sheet." in f_val:
         try:
