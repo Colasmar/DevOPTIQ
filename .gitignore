@@ -7,4 +7,5 @@ Code/instance/
 # Exclure les fichiers temporaires ou système
 *.log
 *.tmp
-.DS_Store
+.DS_StorPyt
+Z-Dev bis/
