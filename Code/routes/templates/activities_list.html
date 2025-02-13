@@ -4,75 +4,36 @@
     <meta charset="UTF-8">
     <title>Liste des activités</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-        }
-        .activity-container {
-            border: 1px solid #aaa;
-            margin-bottom: 20px;
-            overflow: hidden;
-        }
-        .activity-header {
-            background-color: #add8e6; /* Bleu ciel */
-            padding: 5px;
-            font-size: 0.9em; /* Police légèrement réduite */
+        body { font-family: Arial, sans-serif; }
+        .update-btn {
+            background-color: green;
+            color: white;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
             cursor: pointer;
-            display: flex;
-            align-items: center;
+            margin-bottom: 20px;
         }
-        .activity-header h2 {
-            margin: 0;
-            flex-grow: 1;
-        }
-        .toggle-icon {
-            font-size: 1em;
-            margin-right: 5px;
-        }
-        .activity-details {
-            padding: 5px;
-            display: none; /* Masqué par défaut */
-        }
-        .connections-container {
-            display: flex;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            margin-top: 10px;
-        }
-        .connections-container > div {
-            width: 48%;
-        }
-        .conn-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 10px;
-        }
-        .conn-table th, .conn-table td {
-            border: 1px solid #ccc;
-            padding: 4px;
-            text-align: left;
-        }
-        /* En-tête du tableau en bleu pâle */
-        .conn-table th {
-            background-color: #cce5ff;
-        }
-        /* Style : nom de la donnée en gras si déclenchante, en italique si nourrissante */
-        .declenchante {
-            font-weight: bold;
-        }
-        .nourrissante {
-            font-style: italic;
-        }
-        .tasks-section {
-            margin-top: 10px;
-        }
-        .task-form {
-            margin-top: 5px;
-            border: 1px solid #ccc;
-            padding: 5px;
-        }
+        .activity-container { border: 1px solid #aaa; margin-bottom: 20px; overflow: hidden; }
+        .activity-header { background-color: #add8e6; padding: 5px; font-size: 0.9em; cursor: pointer; display: flex; align-items: center; }
+        .activity-header h2 { margin: 0; flex-grow: 1; }
+        .toggle-icon { font-size: 1em; margin-right: 5px; }
+        .activity-details { padding: 5px; display: none; }
+        .connections-container { display: flex; justify-content: space-between; flex-wrap: wrap; margin-top: 10px; }
+        .connections-container > div { width: 48%; }
+        .conn-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        .conn-table th, .conn-table td { border: 1px solid #ccc; padding: 4px; text-align: left; }
+        .conn-table th { background-color: #cce5ff; }
+        .declenchante { font-weight: bold; }
+        .nourrissante { font-style: italic; }
+        .tasks-section { margin-top: 10px; }
+        .task { border: 1px solid #ddd; padding: 5px; margin-bottom: 5px; }
+        .task-tools { margin-left: 15px; }
+        .task-form, .tool-form { margin-top: 5px; border: 1px solid #ccc; padding: 5px; }
     </style>
 </head>
 <body>
+    <button id="update-cartography-button" class="update-btn">Mettre à jour la cartographie</button>
     <h1>Liste des activités</h1>
     {% for item in activity_data %}
         <div class="activity-container">
@@ -85,7 +46,7 @@
                 <div class="connections-container">
                     <div class="incoming-connections">
                         <h3>Connexions entrantes</h3>
-                        {% if item.incoming %}
+                        {% if item.incoming and item.incoming|length > 0 %}
                             <table class="conn-table">
                                 <tr>
                                     <th>Nom de la donnée</th>
@@ -106,7 +67,7 @@
                     </div>
                     <div class="outgoing-connections">
                         <h3>Connexions sortantes</h3>
-                        {% if item.outgoing %}
+                        {% if item.outgoing and item.outgoing|length > 0 %}
                             <table class="conn-table">
                                 <tr>
                                     <th>Nom de la donnée</th>
@@ -129,18 +90,43 @@
                 <!-- Section des tâches -->
                 <div class="tasks-section">
                     <h3>Tâches</h3>
-                    <div id="tasks-container-{{ item.activity.id }}">
-                        {% if item.tasks %}
-                            <ul id="tasks-list-{{ item.activity.id }}">
-                                {% for task in item.tasks %}
-                                    <li>{{ task.name }}{% if task.description %} - {{ task.description }}{% endif %}</li>
-                                {% endfor %}
-                            </ul>
-                        {% else %}
-                            <ul id="tasks-list-{{ item.activity.id }}"></ul>
-                            <p id="no-tasks-message-{{ item.activity.id }}">Aucune tâche enregistrée.</p>
-                        {% endif %}
-                    </div>
+                    {% if item.tasks and item.tasks|length > 0 %}
+                        <ul id="tasks-list-{{ item.activity.id }}">
+                            {% for task in item.tasks %}
+                                <li class="task" id="task-{{ task.id }}">
+                                    <strong>{{ task.name }}</strong>{% if task.description %} - {{ task.description }}{% endif %}
+                                    <!-- Affichage des outils associés -->
+                                    <div class="task-tools" id="tools-for-task-{{ task.id }}">
+                                        {% if task.tools and task.tools|length > 0 %}
+                                            <ul>
+                                                {% for tool in task.tools %}
+                                                    <li>{{ tool.name }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                        {% else %}
+                                            <p id="no-tools-msg-{{ task.id }}">Aucun outil associé.</p>
+                                        {% endif %}
+                                    </div>
+                                    <button onclick="showToolForm('{{ task.id }}')">Ajouter des outils</button>
+                                    <div id="tool-form-{{ task.id }}" class="tool-form" style="display: none;">
+                                        <div>
+                                            <label for="existing-tools-{{ task.id }}">Outils existants:</label>
+                                            <select id="existing-tools-{{ task.id }}" multiple style="width: 100%;"></select>
+                                        </div>
+                                        <div>
+                                            <label for="new-tools-{{ task.id }}">Nouveaux outils (séparés par des virgules):</label>
+                                            <input type="text" id="new-tools-{{ task.id }}" placeholder="Ex: Outil1, Outil2" style="width: 100%;" />
+                                        </div>
+                                        <button onclick="submitTools('{{ task.id }}')">Enregistrer</button>
+                                        <button onclick="hideToolForm('{{ task.id }}')">Annuler</button>
+                                    </div>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p id="no-tasks-message-{{ item.activity.id }}">Aucune tâche enregistrée.</p>
+                    {% endif %}
+                    <!-- Bouton d'ajout de tâche toujours affiché -->
                     <button onclick="showTaskForm('{{ item.activity.id }}')">Ajouter une tâche</button>
                     <div id="task-form-{{ item.activity.id }}" class="task-form" style="display:none;">
                         <input type="text" id="task-name-{{ item.activity.id }}" placeholder="Nom de la tâche" />
@@ -153,10 +139,23 @@
         </div>
     {% endfor %}
     <script>
+        // Bouton de mise à jour de la cartographie
+        document.getElementById('update-cartography-button').addEventListener('click', function() {
+            fetch('/activities/update-cartography')
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                alert(data.message);
+                location.reload();
+            })
+            .catch(function(error) {
+                alert("Erreur lors de la mise à jour de la cartographie: " + error.message);
+            });
+        });
         function toggleDetails(detailsId, headerElem) {
             var detailsElem = document.getElementById(detailsId);
             var iconElem = headerElem.querySelector('.toggle-icon');
-            if (detailsElem.style.display === "none" || detailsElem.style.display === "") {
+            var currentDisplay = window.getComputedStyle(detailsElem).display;
+            if (currentDisplay === "none") {
                 detailsElem.style.display = "block";
                 iconElem.textContent = "▼";
             } else {
@@ -164,6 +163,7 @@
                 iconElem.textContent = "▶";
             }
         }
+        // Gestion du formulaire d'ajout de tâche
         function showTaskForm(activityId) {
             document.getElementById('task-form-' + activityId).style.display = 'block';
         }
@@ -177,37 +177,111 @@
                 alert("Le nom de la tâche est requis.");
                 return;
             }
-            fetch('/tasks/add', {
+            fetch('/activities/' + activityId + '/tasks/add', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    activity_id: activityId,
                     name: taskName,
                     description: taskDesc
                 })
             })
-            .then(response => {
+            .then(function(response) {
                 if (response.ok) return response.json();
                 throw new Error("Erreur lors de l'ajout de la tâche.");
             })
-            .then(data => {
-                // Mise à jour dynamique de la liste des tâches
+            .then(function(data) {
                 var tasksList = document.getElementById('tasks-list-' + activityId);
-                var noTasksMsg = document.getElementById('no-tasks-message-' + activityId);
-                if (noTasksMsg) {
-                    noTasksMsg.parentNode.removeChild(noTasksMsg);
+                if (!tasksList) {
+                    var noTasksMsg = document.getElementById('no-tasks-message-' + activityId);
+                    if (noTasksMsg) { noTasksMsg.parentNode.removeChild(noTasksMsg); }
+                    tasksList = document.createElement('ul');
+                    tasksList.id = 'tasks-list-' + activityId;
+                    var tasksSection = document.getElementById('task-form-' + activityId).parentNode;
+                    tasksSection.appendChild(tasksList);
                 }
                 var li = document.createElement('li');
-                li.textContent = data.name + (data.description ? " - " + data.description : "");
+                li.className = 'task';
+                li.id = 'task-' + data.id;
+                li.innerHTML = '<strong>' + data.name + '</strong>' + (data.description ? ' - ' + data.description : '') +
+                    '<div class="task-tools" id="tools-for-task-' + data.id + '"><p id="no-tools-msg-' + data.id + '">Aucun outil associé.</p></div>' +
+                    '<button onclick="showToolForm(\'' + data.id + '\')">Ajouter des outils</button>' +
+                    '<div id="tool-form-' + data.id + '" class="tool-form" style="display: none;">' +
+                        '<div><label for="existing-tools-' + data.id + '">Outils existants:</label>' +
+                        '<select id="existing-tools-' + data.id + '" multiple style="width: 100%;"></select></div>' +
+                        '<div><label for="new-tools-' + data.id + '">Nouveaux outils (séparés par des virgules):</label>' +
+                        '<input type="text" id="new-tools-' + data.id + '" placeholder="Ex: Outil1, Outil2" style="width: 100%;" /></div>' +
+                        '<button onclick="submitTools(\'' + data.id + '\')">Enregistrer</button>' +
+                        '<button onclick="hideToolForm(\'' + data.id + '\')">Annuler</button>' +
+                    '</div>';
                 tasksList.appendChild(li);
-                // Réinitialiser et masquer le formulaire
                 document.getElementById('task-name-' + activityId).value = "";
                 document.getElementById('task-desc-' + activityId).value = "";
                 hideTaskForm(activityId);
             })
-            .catch(error => {
+            .catch(function(error) {
+                alert(error.message);
+            });
+        }
+        // Fonctions pour gérer le formulaire d'ajout d'outils
+        function showToolForm(taskId) {
+            document.getElementById('tool-form-' + taskId).style.display = 'block';
+            fetch('/tools/all')
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                var selectElem = document.getElementById('existing-tools-' + taskId);
+                selectElem.innerHTML = "";
+                data.forEach(function(tool) {
+                    var option = document.createElement('option');
+                    option.value = tool.id;
+                    option.text = tool.name;
+                    selectElem.appendChild(option);
+                });
+            })
+            .catch(function(error) {
+                console.error("Erreur lors du chargement des outils existants:", error);
+            });
+        }
+        function hideToolForm(taskId) {
+            document.getElementById('tool-form-' + taskId).style.display = 'none';
+        }
+        function submitTools(taskId) {
+            var selectElem = document.getElementById('existing-tools-' + taskId);
+            var newToolsInput = document.getElementById('new-tools-' + taskId);
+            var existingToolIds = Array.from(selectElem.selectedOptions).map(function(option) { return parseInt(option.value); });
+            var newTools = newToolsInput.value.split(",").map(function(item) { return item.trim(); }).filter(function(item) { return item.length > 0; });
+            var payload = {
+                task_id: parseInt(taskId),
+                existing_tool_ids: existingToolIds,
+                new_tools: newTools
+            };
+            fetch('/tools/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(function(response) {
+                if (response.ok) return response.json();
+                return response.json().then(function(err) { throw new Error(err.error || "Erreur lors de l'ajout des outils."); });
+            })
+            .then(function(data) {
+                var toolsContainer = document.getElementById('tools-for-task-' + taskId);
+                var noToolsMsg = document.getElementById('no-tools-msg-' + taskId);
+                if (noToolsMsg) { noToolsMsg.parentNode.removeChild(noToolsMsg); }
+                var ul = toolsContainer.querySelector('ul');
+                if (!ul) {
+                    ul = document.createElement('ul');
+                    toolsContainer.appendChild(ul);
+                }
+                data.added_tools.forEach(function(tool) {
+                    var li = document.createElement('li');
+                    li.textContent = tool.name;
+                    ul.appendChild(li);
+                });
+                selectElem.selectedIndex = -1;
+                newToolsInput.value = "";
+                hideToolForm(taskId);
+            })
+            .catch(function(error) {
                 alert(error.message);
             });
         }

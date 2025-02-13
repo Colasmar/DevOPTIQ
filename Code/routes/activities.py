@@ -1,8 +1,11 @@
+import os
+import io
+import contextlib
 from flask import Blueprint, jsonify, request, render_template
 from Code.extensions import db
-from Code.models.models import Activities, Connections, Data
+from Code.models.models import Activities, Connections, Data, Task
+from Code.scripts.extract_visio import reset_database, process_visio_file, print_summary
 
-# Le blueprint est défini avec le dossier de templates situé dans Code/routes/templates/
 activities_bp = Blueprint('activities', __name__, url_prefix='/activities', template_folder='templates')
 
 def resolve_return_activity_name(data_record):
@@ -72,6 +75,48 @@ def create_activity():
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
+@activities_bp.route('/<int:activity_id>/tasks/add', methods=['POST'])
+def add_task_to_activity(activity_id):
+    data = request.get_json()
+    if not data or 'name' not in data:
+        return jsonify({"error": "Invalid input. 'name' is required."}), 400
+    try:
+        new_task = Task(
+            name=data['name'],
+            description=data.get('description', ""),
+            activity_id=activity_id
+        )
+        db.session.add(new_task)
+        db.session.commit()
+        return jsonify({
+            "id": new_task.id,
+            "name": new_task.name,
+            "description": new_task.description or ""
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+@activities_bp.route('/update-cartography', methods=['GET'])
+def update_cartography():
+    """
+    Exécute le script extract_visio.py pour mettre à jour la cartographie.
+    Cela réinitialise la base et ré-extrait les données depuis example.vsdx.
+    Le résumé des opérations effectuées est renvoyé dans la réponse JSON.
+    """
+    try:
+        vsdx_path = os.path.join("Code", "example.vsdx")
+        reset_database()
+        process_visio_file(vsdx_path)
+        # Capture la sortie de print_summary() dans une chaîne de caractères
+        summary_output = io.StringIO()
+        with contextlib.redirect_stdout(summary_output):
+            print_summary()
+        summary_text = summary_output.getvalue()
+        return jsonify({"message": "Cartographie mise à jour", "summary": summary_text}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @activities_bp.route('/view', methods=['GET'])
 def view_activities():
     try:
@@ -114,8 +159,14 @@ def view_activities():
                     'data_name': data_name,
                     'target_name': target_name
                 })
-            # Récupération des tâches associées à l'activité
-            tasks = [{'id': t.id, 'name': t.name, 'description': t.description, 'order': t.order} for t in activity.tasks]
+            # Récupération des tâches associées à l'activité, avec leurs outils associés
+            tasks = [{
+                'id': t.id,
+                'name': t.name,
+                'description': t.description,
+                'order': t.order,
+                'tools': [{'id': tool.id, 'name': tool.name, 'description': tool.description} for tool in t.tools]
+            } for t in activity.tasks]
             activity_data.append({
                 'activity': activity,
                 'incoming': incoming_list,
@@ -125,3 +176,8 @@ def view_activities():
         return render_template('activities_list.html', activity_data=activity_data)
     except Exception as e:
         return f"Erreur lors de l'affichage des activités: {e}", 500
+
+if __name__ == '__main__':
+    # Pour exécuter directement ce module en mode test (ce qui utilisera le contexte Flask)
+    from Code.app import app
+    app.run(debug=True)
