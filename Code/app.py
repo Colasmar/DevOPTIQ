@@ -29,6 +29,12 @@ def create_app():
     db.init_app(app)
     migrate = Migrate(app, db)
 
+    # Enregistrement des blueprints
+    from Code.routes.activities import activities_bp
+    app.register_blueprint(activities_bp)
+    from Code.routes.tasks import tasks_bp
+    app.register_blueprint(tasks_bp)
+
     # Optionnel : route de débogage pour vérifier la création des tables
     @app.route('/debug-create-db', methods=['GET'])
     def debug_create_db():

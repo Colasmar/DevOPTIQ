@@ -5,7 +5,9 @@ class Activities(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=True)
-    is_result = db.Column(db.Boolean, nullable=False, default=False)  # Champ ajouté pour distinguer les activités résultat
+    is_result = db.Column(db.Boolean, nullable=False, default=False)
+    # Ajout de la relation avec les tâches, ordonnée par 'order'
+    tasks = db.relationship('Task', backref='activity', lazy=True, order_by='Task.order')
 
 class Connections(db.Model):
     __tablename__ = 'connections'
@@ -31,3 +33,11 @@ class Data(db.Model):
     type = db.Column(db.String(50), nullable=False)
     description = db.Column(db.Text, nullable=True)
     layer = db.Column(db.String(50), nullable=True)
+
+class Task(db.Model):
+    __tablename__ = 'tasks'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    order = db.Column(db.Integer, nullable=True)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)

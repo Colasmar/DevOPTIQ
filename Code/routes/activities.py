@@ -6,23 +6,13 @@ from Code.models.models import Activities, Connections, Data
 activities_bp = Blueprint('activities', __name__, url_prefix='/activities', template_folder='templates')
 
 def resolve_return_activity_name(data_record):
-    """
-    Si le record Data est de type "Retour", tente de trouver une activité dans Activities
-    dont le nom correspond. Sinon, retourne simplement le nom du record Data.
-    """
     if data_record and data_record.type and data_record.type.lower() == 'retour':
-        # Recherche une activité dont le nom correspond exactement
         activity = Activities.query.filter_by(name=data_record.name).first()
         if activity:
             return activity.name
     return data_record.name if data_record and data_record.name else "[Nom non renseigné]"
 
 def resolve_data_name_for_incoming(conn):
-    """
-    Pour une connexion entrante (où l'activité est la cible) :
-      - Si le type est 'input', récupère le record Data via source_id.
-      - Sinon, si une description est présente dans la connexion, on l'utilise.
-    """
     if conn.type and conn.type.lower() == 'input':
         data_record = Data.query.get(conn.source_id)
         if data_record and data_record.name:
@@ -32,11 +22,6 @@ def resolve_data_name_for_incoming(conn):
     return "[Nom non renseigné]"
 
 def resolve_data_name_for_outgoing(conn):
-    """
-    Pour une connexion sortante (où l'activité est la source) :
-      - Si le type est 'output', récupère le record Data via target_id.
-      - Sinon, si une description est présente dans la connexion, on l'utilise.
-    """
     if conn.type and conn.type.lower() == 'output':
         data_record = Data.query.get(conn.target_id)
         if data_record and data_record.name:
@@ -46,11 +31,6 @@ def resolve_data_name_for_outgoing(conn):
     return "[Nom non renseigné]"
 
 def resolve_activity_name(record_id):
-    """
-    Tente de retrouver le nom d'une activité à partir de son identifiant.
-    Si introuvable dans Activities, vérifie dans Data ;
-    si le record Data est de type "Retour", tente de retrouver une activité correspondante.
-    """
     activity = Activities.query.get(record_id)
     if activity:
         return activity.name
@@ -65,9 +45,6 @@ def resolve_activity_name(record_id):
 
 @activities_bp.route('/', methods=['GET'])
 def get_activities():
-    """
-    Récupère toutes les activités et les renvoie au format JSON.
-    """
     try:
         activities = Activities.query.all()
         return jsonify([
@@ -79,10 +56,6 @@ def get_activities():
 
 @activities_bp.route('/', methods=['POST'])
 def create_activity():
-    """
-    Crée une nouvelle activité à partir d'une requête JSON.
-    Le champ 'name' est obligatoire.
-    """
     data = request.get_json()
     if not data or 'name' not in data:
         return jsonify({"error": "Invalid input. 'name' is required."}), 400
@@ -101,20 +74,11 @@ def create_activity():
 
 @activities_bp.route('/view', methods=['GET'])
 def view_activities():
-    """
-    Récupère la liste des activités (hors activités de résultat) avec leurs connexions entrantes et sortantes.
-    Pour chaque activité, les connexions entrantes (où l'activité est la cible) et sortantes (où l'activité est la source)
-    sont traitées pour afficher :
-      - Le type de connexion (affiché en "Déclenchante" ou "Nourrissante")
-      - Le nom de la donnée associée (résolu via les fonctions de résolution)
-      - La provenance (pour les entrantes) ou la destination (pour les sortantes), résolues via resolve_activity_name.
-    """
     try:
-        # Récupérer uniquement les activités qui ne sont pas de type résultat
         activities = Activities.query.filter_by(is_result=False).all()
         activity_data = []
         for activity in activities:
-            # Traitement des connexions entrantes (où activity.id == target_id)
+            # Traitement des connexions entrantes
             incoming_conns = Connections.query.filter(Connections.target_id == activity.id).all()
             incoming_list = []
             for conn in incoming_conns:
@@ -128,11 +92,11 @@ def view_activities():
                 data_name = resolve_data_name_for_incoming(conn)
                 source_name = resolve_activity_name(conn.source_id)
                 incoming_list.append({
-                    'type': display_type,
+                    'type': conn.type,
                     'data_name': data_name,
                     'source_name': source_name
                 })
-            # Traitement des connexions sortantes (où activity.id == source_id)
+            # Traitement des connexions sortantes
             outgoing_conns = Connections.query.filter(Connections.source_id == activity.id).all()
             outgoing_list = []
             for conn in outgoing_conns:
@@ -146,14 +110,17 @@ def view_activities():
                 data_name = resolve_data_name_for_outgoing(conn)
                 target_name = resolve_activity_name(conn.target_id)
                 outgoing_list.append({
-                    'type': display_type,
+                    'type': conn.type,
                     'data_name': data_name,
                     'target_name': target_name
                 })
+            # Récupération des tâches associées à l'activité
+            tasks = [{'id': t.id, 'name': t.name, 'description': t.description, 'order': t.order} for t in activity.tasks]
             activity_data.append({
                 'activity': activity,
                 'incoming': incoming_list,
-                'outgoing': outgoing_list
+                'outgoing': outgoing_list,
+                'tasks': tasks
             })
         return render_template('activities_list.html', activity_data=activity_data)
     except Exception as e:
