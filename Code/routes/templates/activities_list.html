@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Liste des activités</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .activity-container {
+            border: 1px solid #aaa;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        .activity-header {
+            background-color: #add8e6; /* Bleu ciel */
+            padding: 5px;
+            font-size: 0.9em; /* Police légèrement réduite */
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+        .activity-header h2 {
+            margin: 0;
+            flex-grow: 1;
+        }
+        .toggle-icon {
+            font-size: 1em;
+            margin-right: 5px;
+        }
+        .activity-details {
+            padding: 5px;
+            display: none; /* Masqué par défaut */
+        }
+        .connections-container {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .connections-container > div {
+            width: 48%;
+        }
+        .conn-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+        }
+        .conn-table th, .conn-table td {
+            border: 1px solid #ccc;
+            padding: 4px;
+            text-align: left;
+        }
+        /* En-tête du tableau en bleu pâle */
+        .conn-table th {
+            background-color: #cce5ff;
+        }
+        /* Style : nom de la donnée en gras si déclenchante, en italique si nourrissante */
+        .declenchante {
+            font-weight: bold;
+        }
+        .nourrissante {
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <h1>Liste des activités</h1>
+    {% for item in activity_data %}
+        <div class="activity-container">
+            <div class="activity-header" onclick="toggleDetails('details-{{ item.activity.id }}', this)">
+                <span class="toggle-icon" id="icon-{{ item.activity.id }}">▶</span>
+                <h2>{{ item.activity.name }}</h2>
+            </div>
+            <div class="activity-details" id="details-{{ item.activity.id }}">
+                <p>{{ item.activity.description or "" }}</p>
+                <div class="connections-container">
+                    <div class="incoming-connections">
+                        <h3>Connexions entrantes</h3>
+                        {% if item.incoming %}
+                            <table class="conn-table">
+                                <tr>
+                                    <th>Nom de la donnée</th>
+                                    <th>Provenance</th>
+                                </tr>
+                                {% for conn in item.incoming %}
+                                    <tr>
+                                        <td class="{{ 'declenchante' if conn.type|lower == 'déclenchante' else ('nourrissante' if conn.type|lower == 'nourrissante' else '') }}">
+                                            {{ conn.data_name }}
+                                        </td>
+                                        <td>{{ conn.source_name }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </table>
+                        {% else %}
+                            <p>Aucune connexion entrante.</p>
+                        {% endif %}
+                    </div>
+                    <div class="outgoing-connections">
+                        <h3>Connexions sortantes</h3>
+                        {% if item.outgoing %}
+                            <table class="conn-table">
+                                <tr>
+                                    <th>Nom de la donnée</th>
+                                    <th>Vers</th>
+                                </tr>
+                                {% for conn in item.outgoing %}
+                                    <tr>
+                                        <td class="{{ 'declenchante' if conn.type|lower == 'déclenchante' else ('nourrissante' if conn.type|lower == 'nourrissante' else '') }}">
+                                            {{ conn.data_name }}
+                                        </td>
+                                        <td>{{ conn.target_name }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </table>
+                        {% else %}
+                            <p>Aucune connexion sortante.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endfor %}
+    <script>
+        function toggleDetails(detailsId, headerElem) {
+            var detailsElem = document.getElementById(detailsId);
+            var iconElem = headerElem.querySelector('.toggle-icon');
+            if (detailsElem.style.display === "none" || detailsElem.style.display === "") {
+                detailsElem.style.display = "block";
+                iconElem.textContent = "▼";
+            } else {
+                detailsElem.style.display = "none";
+                iconElem.textContent = "▶";
+            }
+        }
+    </script>
+</body>
+</html>

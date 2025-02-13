@@ -11,7 +11,7 @@ def resolve_return_activity_name(data_record):
     dont le nom correspond. Sinon, retourne simplement le nom du record Data.
     """
     if data_record and data_record.type and data_record.type.lower() == 'retour':
-        # Recherche une activité dont le nom correspond exactement
+        # On tente de trouver une activité dont le nom est identique
         activity = Activities.query.filter_by(name=data_record.name).first()
         if activity:
             return activity.name
@@ -20,36 +20,38 @@ def resolve_return_activity_name(data_record):
 def resolve_data_name_for_incoming(conn):
     """
     Pour une connexion entrante (où l'activité est la cible) :
-      - Si le type est 'input', récupère le record Data via source_id.
-      - Sinon, si une description est présente dans la connexion, on l'utilise.
+      - Si le type est 'input' (cas partiel lié à un retour), on récupère le record Data par source_id,
+        et si c’est de type Retour, on tente d’en extraire le nom d’activité associé.
+      - Sinon, si une description est présente dans la connexion, on l’utilise.
     """
     if conn.type and conn.type.lower() == 'input':
         data_record = Data.query.get(conn.source_id)
-        if data_record and data_record.name:
+        if data_record:
             return resolve_return_activity_name(data_record)
     if conn.description:
-         return conn.description
+        return conn.description
     return "[Nom non renseigné]"
 
 def resolve_data_name_for_outgoing(conn):
     """
     Pour une connexion sortante (où l'activité est la source) :
-      - Si le type est 'output', récupère le record Data via target_id.
-      - Sinon, si une description est présente dans la connexion, on l'utilise.
+      - Si le type est 'output' (cas partiel lié à un retour), on récupère le record Data par target_id,
+        et si c’est de type Retour, on tente d’en extraire le nom d’activité associé.
+      - Sinon, si une description est présente dans la connexion, on l’utilise.
     """
     if conn.type and conn.type.lower() == 'output':
         data_record = Data.query.get(conn.target_id)
-        if data_record and data_record.name:
+        if data_record:
             return resolve_return_activity_name(data_record)
     if conn.description:
-         return conn.description
+        return conn.description
     return "[Nom non renseigné]"
 
 def resolve_activity_name(record_id):
     """
     Tente de retrouver le nom d'une activité à partir de son identifiant.
-    Si introuvable dans Activities, vérifie dans Data ;
-    si le record Data est de type "Retour", tente de retrouver une activité correspondante.
+    Si introuvable dans Activities, on vérifie dans Data ;
+    si ce record Data est de type "Retour", on tente de retrouver une activité correspondante.
     """
     activity = Activities.query.get(record_id)
     if activity:
@@ -105,7 +107,7 @@ def view_activities():
     Récupère la liste des activités (hors activités de résultat) avec leurs connexions entrantes et sortantes.
     Pour chaque activité, les connexions entrantes (où l'activité est la cible) et sortantes (où l'activité est la source)
     sont traitées pour afficher :
-      - Le type de connexion (affiché en "Déclenchante" ou "Nourrissante")
+      - Le type de connexion (transformé en "Déclenchante" ou "Nourrissante" dans le cas de connexions partielles)
       - Le nom de la donnée associée (résolu via les fonctions de résolution)
       - La provenance (pour les entrantes) ou la destination (pour les sortantes), résolues via resolve_activity_name.
     """

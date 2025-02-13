@@ -1,5 +1,6 @@
 import os
 import sys
+from flask import Flask
 from vsdx import VisioFile
 from sqlalchemy.exc import IntegrityError
 
@@ -23,8 +24,6 @@ IGNORE_LAYERS = ["légende", "Color"]
 
 # Global mapping pour les activités (clé : ID Visio standardisé, valeur : ID en base)
 activity_mapping = {}
-# Global mapping pour les retours (clé : ID Visio standardisé, valeur : texte de la forme)
-return_mapping = {}
 # Liste pour résumer les connexions créées (pour le rapport final)
 connection_summaries = []
 
@@ -39,7 +38,6 @@ def get_entity_name(entity_id):
 
 def create_app():
     """Crée une application Flask minimale avec contexte DB."""
-    from flask import Flask
     app = Flask(__name__)
     instance_path = os.path.abspath(os.path.join("Code", "instance"))
     if not os.path.exists(instance_path):
@@ -57,7 +55,6 @@ def reset_database():
     db.session.query(Activities).delete()
     db.session.commit()
     activity_mapping.clear()
-    return_mapping.clear()
     connection_summaries.clear()
     print("INFO : La base de données a été réinitialisée avec succès.")
 
@@ -104,8 +101,10 @@ def process_shape(shape):
         return
 
     if layer == "Activity":
+        # Pour le calque Activity, on vérifie également le FillPattern
         add_activity(shape, is_result=False)
     elif layer == "Result":
+        # Les formes du calque "Result" seront traitées comme des activités de résultat
         add_activity(shape, is_result=True)
     elif layer == "Return":
         add_return(shape)
@@ -124,13 +123,17 @@ def standardize_id(visio_id):
 def add_activity(shape, is_result=False):
     """
     Ajoute une activité dans Activities.
-    Pour les formes du calque "Activity", si FillPattern vaut "2", force is_result=True.
+    Pour les formes du calque "Activity", on vérifie si le FillPattern vaut "2".
+    Si c'est le cas, on considère l'activité comme une activité de résultat (is_result = True).
     """
     name = shape.text.strip() if shape.text else ("Résultat sans nom" if is_result else "Activité sans nom")
+    
+    # Pour une forme du calque Activity, si FillPattern vaut "2", on force is_result à True.
     if not is_result:
         fill_pattern = get_fill_pattern(shape)
         if fill_pattern == "2":
             is_result = True
+
     try:
         act = Activities(name=name, is_result=is_result)
         db.session.add(act)
@@ -146,20 +149,19 @@ def add_activity(shape, is_result=False):
 def add_return(shape):
     """
     Traite une forme de type "Return".
-    Enregistre la donnée dans Data avec le type "Retour" et met à jour le mapping des retours.
+    Enregistre la donnée dans Data avec le type "Retour".
     """
     name = shape.text.strip() if shape.text else "Return sans nom"
     try:
         existing = Data.query.filter_by(name=name, type="Retour").first()
         if existing:
+            d = existing
             print(f"INFO : Return réutilisé : {name}")
         else:
             d = Data(name=name, type="Retour")
             db.session.add(d)
             db.session.flush()
             print(f"INFO : Return ajouté : {name}")
-        key = standardize_id(shape.ID)
-        return_mapping[key] = name
     except IntegrityError:
         db.session.rollback()
         print(f"INFO : Problème avec le Return : {name}")
@@ -174,6 +176,7 @@ def add_data_and_connections(shape):
     data_type = "déclenchante" if layer == "T link" else "nourrissante"
     conns = analyze_connections(shape)
     try:
+        # Vérifier si la donnée existe déjà (pour éviter les doublons)
         existing = Data.query.filter_by(name=data_name, type=data_type, layer=layer).first()
         if existing:
             data_record = existing
@@ -183,25 +186,21 @@ def add_data_and_connections(shape):
             db.session.add(data_record)
             db.session.flush()
             print(f"INFO : Donnée ajoutée : {data_name} ({data_type})")
-        
+
         def resolve_id(visio_id):
             if not visio_id:
                 return None
             key = standardize_id(visio_id)
-            if key in activity_mapping:
-                return activity_mapping[key]
-            elif key in return_mapping:
-                act = Activities.query.filter(Activities.name.ilike(return_mapping[key])).first()
-                if act:
-                    return act.id
-            return None
+            return activity_mapping.get(key, None)
 
         source_db_id = resolve_id(conns.get("from_id"))
         target_db_id = resolve_id(conns.get("to_id"))
 
+        # Récupération des noms pour le résumé
         s_name = get_entity_name(source_db_id) if source_db_id else "inconnue"
         t_name = get_entity_name(target_db_id) if target_db_id else "inconnue"
 
+        # Vérifier que la connexion ne relie pas une activité à elle-même
         if s_name.strip().lower() == t_name.strip().lower():
             print(f"WARNING: Source et target identiques ('{s_name}') pour donnée '{data_record.name}'. Connexion ignorée.")
             db.session.commit()
@@ -217,8 +216,7 @@ def add_data_and_connections(shape):
                 conn = Connections(
                     source_id=source_db_id,
                     target_id=target_db_id,
-                    type=data_type,
-                    description=data_record.name  # Ajout de la description pour la connexion complète
+                    type=data_type
                 )
                 db.session.add(conn)
                 db.session.flush()
@@ -227,6 +225,7 @@ def add_data_and_connections(shape):
                 connection_summaries.append((data_record.name, data_record.type, s_name, t_name))
                 print(f"INFO : Connexion ajoutée entre {s_name} et {t_name} pour donnée {data_name}")
         else:
+            # Cas partiel : création de connexions output ou input
             if conns.get("from_id"):
                 sid = resolve_id(conns.get("from_id"))
                 if sid:
