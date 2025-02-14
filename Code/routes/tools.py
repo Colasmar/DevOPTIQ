@@ -9,11 +9,9 @@ def add_tools_to_task():
     data = request.get_json()
     if not data or 'task_id' not in data:
         return jsonify({"error": "task_id is required"}), 400
-    
     task = Task.query.get(data['task_id'])
     if not task:
         return jsonify({"error": "Task not found"}), 404
-    
     added_tools = []
     try:
         if 'existing_tool_ids' in data and isinstance(data['existing_tool_ids'], list):
@@ -37,7 +35,6 @@ def add_tools_to_task():
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
-    
     return jsonify({"task_id": task.id, "added_tools": added_tools}), 200
 
 @tools_bp.route('/all', methods=['GET'])

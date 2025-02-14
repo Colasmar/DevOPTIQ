@@ -3,7 +3,7 @@ import io
 import contextlib
 from flask import Blueprint, jsonify, request, render_template
 from Code.extensions import db
-from Code.models.models import Activities, Connections, Data, Task
+from Code.models.models import Activities, Connections, Data, Task, Tool
 from Code.scripts.extract_visio import reset_database, process_visio_file, print_summary
 
 activities_bp = Blueprint('activities', __name__, url_prefix='/activities', template_folder='templates')
@@ -21,7 +21,7 @@ def resolve_data_name_for_incoming(conn):
         if data_record and data_record.name:
             return resolve_return_activity_name(data_record)
     if conn.description:
-         return conn.description
+        return conn.description
     return "[Nom non renseigné]"
 
 def resolve_data_name_for_outgoing(conn):
@@ -30,7 +30,7 @@ def resolve_data_name_for_outgoing(conn):
         if data_record and data_record.name:
             return resolve_return_activity_name(data_record)
     if conn.description:
-         return conn.description
+        return conn.description
     return "[Nom non renseigné]"
 
 def resolve_activity_name(record_id):
@@ -97,18 +97,62 @@ def add_task_to_activity(activity_id):
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
+@activities_bp.route('/<int:activity_id>/tasks/<int:task_id>', methods=['DELETE'])
+def delete_task(activity_id, task_id):
+    task = Task.query.filter_by(id=task_id, activity_id=activity_id).first()
+    if not task:
+        return jsonify({"error": "Task not found for this activity"}), 404
+    try:
+        db.session.delete(task)
+        db.session.commit()
+        return jsonify({"message": "Task deleted"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+@activities_bp.route('/tasks/<int:task_id>/tools/<int:tool_id>', methods=['DELETE'])
+def delete_tool_from_task(task_id, tool_id):
+    task = Task.query.get(task_id)
+    if not task:
+        return jsonify({"error": "Task not found"}), 404
+    tool = None
+    for t in task.tools:
+        if t.id == tool_id:
+            tool = t
+            break
+    if not tool:
+        return jsonify({"error": "Tool not associated with task"}), 404
+    try:
+        task.tools.remove(tool)
+        db.session.commit()
+        return jsonify({"message": "Tool removed from task"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+@activities_bp.route('/<int:activity_id>/tasks/reorder', methods=['POST'])
+def reorder_tasks(activity_id):
+    data = request.get_json()
+    new_order = data.get('order')
+    if not new_order:
+        return jsonify({"error": "order list is required"}), 400
+    try:
+        for idx, task_id in enumerate(new_order):
+            task = Task.query.filter_by(id=task_id, activity_id=activity_id).first()
+            if task:
+                task.order = idx
+        db.session.commit()
+        return jsonify({"message": "Order updated"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
 @activities_bp.route('/update-cartography', methods=['GET'])
 def update_cartography():
-    """
-    Exécute le script extract_visio.py pour mettre à jour la cartographie.
-    Cela réinitialise la base et ré-extrait les données depuis example.vsdx.
-    Le résumé des opérations effectuées est renvoyé dans la réponse JSON.
-    """
     try:
         vsdx_path = os.path.join("Code", "example.vsdx")
         reset_database()
         process_visio_file(vsdx_path)
-        # Capture la sortie de print_summary() dans une chaîne de caractères
         summary_output = io.StringIO()
         with contextlib.redirect_stdout(summary_output):
             print_summary()
@@ -123,7 +167,6 @@ def view_activities():
         activities = Activities.query.filter_by(is_result=False).all()
         activity_data = []
         for activity in activities:
-            # Traitement des connexions entrantes
             incoming_conns = Connections.query.filter(Connections.target_id == activity.id).all()
             incoming_list = []
             for conn in incoming_conns:
@@ -141,7 +184,6 @@ def view_activities():
                     'data_name': data_name,
                     'source_name': source_name
                 })
-            # Traitement des connexions sortantes
             outgoing_conns = Connections.query.filter(Connections.source_id == activity.id).all()
             outgoing_list = []
             for conn in outgoing_conns:
@@ -159,25 +201,25 @@ def view_activities():
                     'data_name': data_name,
                     'target_name': target_name
                 })
-            # Récupération des tâches associées à l'activité, avec leurs outils associés
-            tasks = [{
+            # Tri des tâches par ordre (order) si défini
+            tasks = sorted(activity.tasks, key=lambda x: x.order if x.order is not None else 0)
+            tasks_list = [{
                 'id': t.id,
                 'name': t.name,
                 'description': t.description,
                 'order': t.order,
                 'tools': [{'id': tool.id, 'name': tool.name, 'description': tool.description} for tool in t.tools]
-            } for t in activity.tasks]
+            } for t in tasks]
             activity_data.append({
                 'activity': activity,
                 'incoming': incoming_list,
                 'outgoing': outgoing_list,
-                'tasks': tasks
+                'tasks': tasks_list
             })
         return render_template('activities_list.html', activity_data=activity_data)
     except Exception as e:
         return f"Erreur lors de l'affichage des activités: {e}", 500
 
 if __name__ == '__main__':
-    # Pour exécuter directement ce module en mode test (ce qui utilisera le contexte Flask)
     from Code.app import app
     app.run(debug=True)
