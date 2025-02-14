@@ -10,12 +10,8 @@ if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
 from flask import Flask, jsonify
-from sqlalchemy import inspect
 from flask_migrate import Migrate
-
 from Code.extensions import db
-# Import explicite des modèles pour les enregistrer dans l'instance db
-from Code.models.models import Activities, Connections, Data
 
 def create_app():
     app = Flask(__name__)
@@ -29,22 +25,21 @@ def create_app():
     db.init_app(app)
     migrate = Migrate(app, db)
 
-    # Optionnel : route de débogage pour vérifier la création des tables
-    @app.route('/debug-create-db', methods=['GET'])
-    def debug_create_db():
-        with app.app_context():
-            inspector = inspect(db.engine)
-            before = inspector.get_table_names()
-            db.create_all()
-            after = inspector.get_table_names()
-            return jsonify({"before": before, "after": after})
+    # Enregistrement des blueprints
+    from Code.routes.activities import activities_bp
+    app.register_blueprint(activities_bp)
+    # Si vous avez un blueprint pour les tâches, l'enregistrer également (si applicable)
+    # from Code.routes.tasks import tasks_bp
+    # app.register_blueprint(tasks_bp)
+    from Code.routes.tools import tools_bp
+    app.register_blueprint(tools_bp)
+
+    @app.route('/')
+    def home():
+        return "Bienvenue sur mon application Flask !"
     return app
 
 app = create_app()
-
-@app.route('/')
-def home():
-    return "Bienvenue sur mon application Flask !"
 
 if __name__ == '__main__':
     app.run(debug=True)

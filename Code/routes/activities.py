@@ -1,56 +1,39 @@
+import os
+import io
+import contextlib
 from flask import Blueprint, jsonify, request, render_template
 from Code.extensions import db
-from Code.models.models import Activities, Connections, Data
+from Code.models.models import Activities, Connections, Data, Task, Tool
+from Code.scripts.extract_visio import reset_database, process_visio_file, print_summary
 
-# Le blueprint est défini avec le dossier de templates situé dans Code/routes/templates/
 activities_bp = Blueprint('activities', __name__, url_prefix='/activities', template_folder='templates')
 
 def resolve_return_activity_name(data_record):
-    """
-    Si le record Data est de type "Retour", tente de trouver une activité dans Activities
-    dont le nom correspond. Sinon, retourne simplement le nom du record Data.
-    """
     if data_record and data_record.type and data_record.type.lower() == 'retour':
-        # Recherche une activité dont le nom correspond exactement
         activity = Activities.query.filter_by(name=data_record.name).first()
         if activity:
             return activity.name
     return data_record.name if data_record and data_record.name else "[Nom non renseigné]"
 
 def resolve_data_name_for_incoming(conn):
-    """
-    Pour une connexion entrante (où l'activité est la cible) :
-      - Si le type est 'input', récupère le record Data via source_id.
-      - Sinon, si une description est présente dans la connexion, on l'utilise.
-    """
     if conn.type and conn.type.lower() == 'input':
         data_record = Data.query.get(conn.source_id)
         if data_record and data_record.name:
             return resolve_return_activity_name(data_record)
     if conn.description:
-         return conn.description
+        return conn.description
     return "[Nom non renseigné]"
 
 def resolve_data_name_for_outgoing(conn):
-    """
-    Pour une connexion sortante (où l'activité est la source) :
-      - Si le type est 'output', récupère le record Data via target_id.
-      - Sinon, si une description est présente dans la connexion, on l'utilise.
-    """
     if conn.type and conn.type.lower() == 'output':
         data_record = Data.query.get(conn.target_id)
         if data_record and data_record.name:
             return resolve_return_activity_name(data_record)
     if conn.description:
-         return conn.description
+        return conn.description
     return "[Nom non renseigné]"
 
 def resolve_activity_name(record_id):
-    """
-    Tente de retrouver le nom d'une activité à partir de son identifiant.
-    Si introuvable dans Activities, vérifie dans Data ;
-    si le record Data est de type "Retour", tente de retrouver une activité correspondante.
-    """
     activity = Activities.query.get(record_id)
     if activity:
         return activity.name
@@ -65,9 +48,6 @@ def resolve_activity_name(record_id):
 
 @activities_bp.route('/', methods=['GET'])
 def get_activities():
-    """
-    Récupère toutes les activités et les renvoie au format JSON.
-    """
     try:
         activities = Activities.query.all()
         return jsonify([
@@ -79,10 +59,6 @@ def get_activities():
 
 @activities_bp.route('/', methods=['POST'])
 def create_activity():
-    """
-    Crée une nouvelle activité à partir d'une requête JSON.
-    Le champ 'name' est obligatoire.
-    """
     data = request.get_json()
     if not data or 'name' not in data:
         return jsonify({"error": "Invalid input. 'name' is required."}), 400
@@ -99,22 +75,98 @@ def create_activity():
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
+@activities_bp.route('/<int:activity_id>/tasks/add', methods=['POST'])
+def add_task_to_activity(activity_id):
+    data = request.get_json()
+    if not data or 'name' not in data:
+        return jsonify({"error": "Invalid input. 'name' is required."}), 400
+    try:
+        new_task = Task(
+            name=data['name'],
+            description=data.get('description', ""),
+            activity_id=activity_id
+        )
+        db.session.add(new_task)
+        db.session.commit()
+        return jsonify({
+            "id": new_task.id,
+            "name": new_task.name,
+            "description": new_task.description or ""
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+@activities_bp.route('/<int:activity_id>/tasks/<int:task_id>', methods=['DELETE'])
+def delete_task(activity_id, task_id):
+    task = Task.query.filter_by(id=task_id, activity_id=activity_id).first()
+    if not task:
+        return jsonify({"error": "Task not found for this activity"}), 404
+    try:
+        db.session.delete(task)
+        db.session.commit()
+        return jsonify({"message": "Task deleted"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+@activities_bp.route('/tasks/<int:task_id>/tools/<int:tool_id>', methods=['DELETE'])
+def delete_tool_from_task(task_id, tool_id):
+    task = Task.query.get(task_id)
+    if not task:
+        return jsonify({"error": "Task not found"}), 404
+    tool = None
+    for t in task.tools:
+        if t.id == tool_id:
+            tool = t
+            break
+    if not tool:
+        return jsonify({"error": "Tool not associated with task"}), 404
+    try:
+        task.tools.remove(tool)
+        db.session.commit()
+        return jsonify({"message": "Tool removed from task"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+@activities_bp.route('/<int:activity_id>/tasks/reorder', methods=['POST'])
+def reorder_tasks(activity_id):
+    data = request.get_json()
+    new_order = data.get('order')
+    if not new_order:
+        return jsonify({"error": "order list is required"}), 400
+    try:
+        for idx, task_id in enumerate(new_order):
+            task = Task.query.filter_by(id=task_id, activity_id=activity_id).first()
+            if task:
+                task.order = idx
+        db.session.commit()
+        return jsonify({"message": "Order updated"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+@activities_bp.route('/update-cartography', methods=['GET'])
+def update_cartography():
+    try:
+        vsdx_path = os.path.join("Code", "example.vsdx")
+        reset_database()
+        process_visio_file(vsdx_path)
+        summary_output = io.StringIO()
+        with contextlib.redirect_stdout(summary_output):
+            print_summary()
+        summary_text = summary_output.getvalue()
+        return jsonify({"message": "Cartographie mise à jour", "summary": summary_text}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @activities_bp.route('/view', methods=['GET'])
 def view_activities():
-    """
-    Récupère la liste des activités (hors activités de résultat) avec leurs connexions entrantes et sortantes.
-    Pour chaque activité, les connexions entrantes (où l'activité est la cible) et sortantes (où l'activité est la source)
-    sont traitées pour afficher :
-      - Le type de connexion (affiché en "Déclenchante" ou "Nourrissante")
-      - Le nom de la donnée associée (résolu via les fonctions de résolution)
-      - La provenance (pour les entrantes) ou la destination (pour les sortantes), résolues via resolve_activity_name.
-    """
     try:
-        # Récupérer uniquement les activités qui ne sont pas de type résultat
         activities = Activities.query.filter_by(is_result=False).all()
         activity_data = []
         for activity in activities:
-            # Traitement des connexions entrantes (où activity.id == target_id)
             incoming_conns = Connections.query.filter(Connections.target_id == activity.id).all()
             incoming_list = []
             for conn in incoming_conns:
@@ -128,11 +180,10 @@ def view_activities():
                 data_name = resolve_data_name_for_incoming(conn)
                 source_name = resolve_activity_name(conn.source_id)
                 incoming_list.append({
-                    'type': display_type,
+                    'type': conn.type,
                     'data_name': data_name,
                     'source_name': source_name
                 })
-            # Traitement des connexions sortantes (où activity.id == source_id)
             outgoing_conns = Connections.query.filter(Connections.source_id == activity.id).all()
             outgoing_list = []
             for conn in outgoing_conns:
@@ -146,15 +197,29 @@ def view_activities():
                 data_name = resolve_data_name_for_outgoing(conn)
                 target_name = resolve_activity_name(conn.target_id)
                 outgoing_list.append({
-                    'type': display_type,
+                    'type': conn.type,
                     'data_name': data_name,
                     'target_name': target_name
                 })
+            # Tri des tâches par ordre (order) si défini
+            tasks = sorted(activity.tasks, key=lambda x: x.order if x.order is not None else 0)
+            tasks_list = [{
+                'id': t.id,
+                'name': t.name,
+                'description': t.description,
+                'order': t.order,
+                'tools': [{'id': tool.id, 'name': tool.name, 'description': tool.description} for tool in t.tools]
+            } for t in tasks]
             activity_data.append({
                 'activity': activity,
                 'incoming': incoming_list,
-                'outgoing': outgoing_list
+                'outgoing': outgoing_list,
+                'tasks': tasks_list
             })
         return render_template('activities_list.html', activity_data=activity_data)
     except Exception as e:
         return f"Erreur lors de l'affichage des activités: {e}", 500
+
+if __name__ == '__main__':
+    from Code.app import app
+    app.run(debug=True)
