@@ -13,7 +13,7 @@
   <!-- SortableJS pour le drag & drop -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
   
-  <!-- jQuery nécessaire pour les fonctions dans optiq.js -->
+  <!-- jQuery nécessaire pour les fonctions -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
@@ -52,15 +52,17 @@
   </div>
   {% endfor %}
 
-  <!-- Inclusion du modal de traduction softskills -->
+  <!-- Inclusion des modaux pour la traduction et la gestion des compétences -->
   {% include "translate_softskills_modal.html" %}
-
-  <!-- Script principal -->
-  <script src="/static/optiq.js"></script>
-
-  <!-- Logique IA et Modal pour les compétences -->
   {% include "skills_section.html" %}
   {% include "competency_modal.html" %}
+
+  <!-- Inclusion des nouveaux fichiers JavaScript modulaires -->
+  <script src="/static/js/tasks.js"></script>
+  <script src="/static/js/tools.js"></script>
+  <script src="/static/js/softskills.js"></script>
+  <script src="/static/js/translate_softskills.js"></script>
+  <script src="/static/js/main.js"></script>
 
   <script>
     // Bouton "Mettre à jour la cartographie"
