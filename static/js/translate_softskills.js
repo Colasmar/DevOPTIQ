@@ -19,7 +19,8 @@ function openTranslateSoftskillsModal(activityId) {
       alert("Identifiant de l'activité introuvable.");
       return;
     }
-    let userInput = document.getElementById('translateSoftskillsInput').value.trim();
+    let userInputElem = document.getElementById('translateSoftskillsInput');
+    let userInput = userInputElem.value.trim();
     if (!userInput) {
       alert("Veuillez saisir du texte.");
       return;
@@ -33,6 +34,8 @@ function openTranslateSoftskillsModal(activityId) {
         response.forEach(function(item) {
           addSoftskillItemToDOM(activityId, item.habilete, item.niveau);
         });
+        // Vider le champ de saisie après soumission
+        userInputElem.value = "";
         closeTranslateSoftskillsModal();
       },
       error: function() {
