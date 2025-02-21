@@ -1,0 +1,33 @@
+<!-- Code/routes/templates/activity_softskills.html -->
+
+<div id="softskills-section-{{ activity_id }}" class="softskills-section">
+    <h3>Habiletés socio-cognitives proposées</h3>
+  
+    <!-- Bouton pour lancer l'IA afin de définir les HSC -->
+    <button class="define-hsc-btn" data-activity-id="{{ activity_id }}">
+      Définir HSC
+    </button>
+    
+    <!-- Nouveau bouton pour traduire softskills depuis un texte libre -->
+    <button class="translate-softskills-btn" data-activity-id="{{ activity_id }}">
+      Traduire softskills
+    </button>
+  
+    <!-- Zone d'affichage des HSC -->
+    <div id="softskills-list-{{ activity_id }}" class="softskills-list"></div>
+  
+    <!-- Bouton pour afficher le formulaire d'ajout manuel d'une nouvelle HSC -->
+    <button class="icon-btn add-softskill-btn" onclick="showSoftskillForm('{{ activity_id }}')">
+      <i class="fa-solid fa-plus"></i> Ajouter une habileté
+    </button>
+  
+    <!-- Formulaire d'ajout d'une HSC (masqué par défaut) -->
+    <div class="softskill-form" id="softskill-form-{{ activity_id }}" style="display:none;">
+      <input type="text" id="softskill-name-{{ activity_id }}" placeholder="Nom de l'habileté" />
+      <!-- Ici, on limite le niveau de 1 à 4 -->
+      <input type="number" min="1" max="4" id="softskill-level-{{ activity_id }}" placeholder="Niveau (1-4)" />
+      <button onclick="submitSoftskill('{{ activity_id }}')">Valider</button>
+      <button onclick="hideSoftskillForm('{{ activity_id }}')">Annuler</button>
+    </div>
+  </div>
+  

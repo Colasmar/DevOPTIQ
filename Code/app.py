@@ -1,5 +1,9 @@
 import os
 import sys
+from dotenv import load_dotenv
+
+# Charger les variables d'environnement depuis le fichier .env
+load_dotenv()
 
 # Ajouter dynamiquement le chemin du projet (pour que les imports internes fonctionnent)
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -14,7 +18,10 @@ from flask_migrate import Migrate
 from Code.extensions import db
 
 def create_app():
-    app = Flask(__name__)
+    # Indiquer explicitement le chemin complet du dossier static qui est à la racine du projet
+    static_folder = os.path.join(parent_dir, 'static')
+    app = Flask(__name__, static_folder=static_folder)
+    
     instance_path = os.path.join(os.path.dirname(__file__), 'instance')
     if not os.path.exists(instance_path):
         os.makedirs(instance_path)
@@ -23,20 +30,29 @@ def create_app():
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     db.init_app(app)
-    migrate = Migrate(app, db)
+    Migrate(app, db)
 
-    # Enregistrement des blueprints
+    # Enregistrement des blueprints existants
     from Code.routes.activities import activities_bp
     app.register_blueprint(activities_bp)
-    # Si vous avez un blueprint pour les tâches, l'enregistrer également (si applicable)
-    # from Code.routes.tasks import tasks_bp
-    # app.register_blueprint(tasks_bp)
     from Code.routes.tools import tools_bp
     app.register_blueprint(tools_bp)
+    from Code.routes.skills import skills_bp
+    app.register_blueprint(skills_bp)
+
+    # Enregistrement du nouveau blueprint pour les habiletés socio-cognitives
+    from Code.routes.softskills import softskills_bp
+    app.register_blueprint(softskills_bp)
 
     @app.route('/')
     def home():
         return "Bienvenue sur mon application Flask !"
+    
+    # Nouvelle route pour accéder à la page de test
+    @app.route('/test_skills')
+    def test_skills():
+        return app.send_static_file('test_skills.html')
+    
     return app
 
 app = create_app()

@@ -1,0 +1,192 @@
+/* ====== Reprise complète du style de la dernière version fonctionnelle ====== */
+
+/* Corps de page */
+body {
+  font-family: Arial, sans-serif;
+}
+
+/* Bouton de mise à jour de la cartographie */
+.update-btn {
+  background-color: green;
+  color: white;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-bottom: 20px;
+  font-size: 1em;
+}
+
+/* Conteneur principal de chaque activité */
+.activity-container {
+  border: 1px solid #aaa;
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+
+/* En-tête de l'activité, police réduite */
+.activity-header {
+  background-color: #add8e6;
+  padding: 5px;
+  font-size: 0.8em; /* police un peu réduite */
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+.activity-header h2 {
+  margin: 0;
+  flex-grow: 1;
+  font-size: 1em;
+}
+.toggle-icon {
+  font-size: 1em;
+  margin-right: 5px;
+}
+
+/* Détails de l'activité masqués par défaut */
+.activity-details {
+  padding: 5px;
+  display: none;
+}
+
+/* Connexions entrantes/sortantes : conteneur + titres */
+.connections-container {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.connections-container > div {
+  width: 48%;
+}
+/* Titre plus petit pour "Connexions entrantes" et "Connexions sortantes" */
+.connections-container h3 {
+  font-size: 0.9em;
+  margin: 0 0 5px 0;
+}
+
+/* Tableau de connexions */
+.conn-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 10px;
+}
+.conn-table th,
+.conn-table td {
+  border: 1px solid #ccc;
+  padding: 4px;
+  text-align: left;
+}
+.conn-table th {
+  background-color: #cce5ff;
+}
+
+/* Mise en forme conditionnelle : déclenchante/nourrissante */
+.declenchante {
+  font-weight: bold;
+}
+.nourrissante {
+  font-style: italic;
+}
+
+/* Section Tâches */
+.tasks-section {
+  margin-top: 10px;
+}
+.tasks-section h3 {
+  font-size: 0.9em;
+  margin-bottom: 5px;
+}
+
+/* Conteneur de chaque tâche */
+.task {
+  border: 1px solid #ddd;
+  padding: 5px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ligne principale de la tâche */
+.task-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.task-left {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+}
+.task-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  max-width: 250px;
+}
+
+/* Titre de la tâche (nom + description) */
+.task-title {
+  max-width: 45ch;
+  word-wrap: break-word;
+}
+
+/* Liste des outils : inline-block pour les aligner sur une ligne, text-align: left */
+.tools-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+}
+.tools-list li {
+  background: #f0f0f0;
+  padding: 2px 5px;
+  border-radius: 3px;
+  margin-bottom: 5px;
+  display: inline-block; /* pour aligner sur une ligne */
+  margin-right: 5px;
+}
+
+/* Bouton d'ajout d'outil : stylé plus petit, mieux aligné */
+.add-tool-btn {
+  width: 24px;
+  height: 24px;
+  border: 1px solid #ccc;
+  background-color: #fafafa;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  margin: 0;
+  padding: 0;
+}
+
+/* Formulaire d'édition de tâche */
+.edit-task-form {
+  display: none;
+  margin-top: 5px;
+  border: 1px solid #ccc;
+  padding: 5px;
+  width: 100%;
+}
+
+/* Formulaires d'ajout de tâche / d'outils */
+.task-form,
+.tool-form {
+  margin-top: 5px;
+  border: 1px solid #ccc;
+  padding: 5px;
+}
+
+/* Boutons icônes (poubelle, crayon, etc.) */
+.icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  margin-left: 5px;
+}
+.icon-btn i {
+  font-size: 1em;
+}

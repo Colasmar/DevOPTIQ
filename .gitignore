@@ -9,3 +9,5 @@ Code/instance/
 *.tmp
 .DS_StorPyt
 Z-Dev bis/
+.env
+/Archives/

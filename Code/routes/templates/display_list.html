@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Liste des activités</title>
+
+  <!-- Font Awesome pour les icônes -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Feuille de style principale -->
+  <link rel="stylesheet" href="/static/optiq.css">
+
+  <!-- SortableJS pour le drag & drop -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+  
+  <!-- jQuery nécessaire pour les fonctions dans optiq.js -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+  <!-- Bouton pour mettre à jour la cartographie -->
+  <button id="update-cartography-button" class="update-btn">
+    <i class="fa-solid fa-arrows-rotate"></i> Mettre à jour la cartographie
+  </button>
+  <h1>Liste des activités</h1>
+
+  {% for item in activity_data %}
+  <div class="activity-container">
+    <!-- En-tête cliquable -->
+    <div class="activity-header" onclick="toggleDetails('details-{{ item.activity.id }}', this)">
+      <span class="toggle-icon" id="icon-{{ item.activity.id }}">▶</span>
+      <h2>{{ item.activity.name }}</h2>
+    </div>
+
+    <!-- Zone de détails (initialement masquée) -->
+    <div class="activity-details" id="details-{{ item.activity.id }}" style="display:none;">
+      <p>{{ item.activity.description or "" }}</p>
+
+      <!-- Connexions entrantes / sortantes -->
+      {% include "activity_connections.html" %}
+
+      <!-- Tâches -->
+      {% include "activity_tasks.html" %}
+
+      <!-- Compétences validées + bouton "Proposer Compétences" -->
+      {% include "activity_competencies.html" %}
+      
+      <!-- Définir la variable 'activity_id' pour les HSC -->
+      {% set activity_id = item.activity.id %}
+      <!-- Habiletés socio-cognitives proposées -->
+      {% include "activity_softskills.html" %}
+    </div>
+  </div>
+  {% endfor %}
+
+  <!-- Inclusion du modal de traduction softskills -->
+  {% include "translate_softskills_modal.html" %}
+
+  <!-- Script principal -->
+  <script src="/static/optiq.js"></script>
+
+  <!-- Logique IA et Modal pour les compétences -->
+  {% include "skills_section.html" %}
+  {% include "competency_modal.html" %}
+
+  <script>
+    // Bouton "Mettre à jour la cartographie"
+    document.getElementById('update-cartography-button').addEventListener('click', function() {
+      fetch('/activities/update-cartography')
+      .then(response => response.json())
+      .then(data => {
+        alert(data.message + "\n" + data.summary);
+        location.reload();
+      })
+      .catch(error => {
+        alert("Erreur lors de la mise à jour de la cartographie: " + error.message);
+      });
+    });
+  </script>
+</body>
+</html>

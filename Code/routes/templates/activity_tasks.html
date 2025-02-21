@@ -1,0 +1,86 @@
+<!-- activity_tasks.html -->
+<div class="tasks-section">
+    <h3>Tâches</h3>
+    <ul id="tasks-list-{{ item.activity.id }}">
+      {% for task in item.tasks %}
+        <li class="task" id="task-{{ task.id }}" data-task-id="{{ task.id }}">
+          <div class="task-row">
+            <div class="task-left">
+              <i class="fa-solid fa-bars icon-btn" style="cursor: move;"></i>
+              <span class="task-title">
+                <strong id="task-name-display-{{ task.id }}">{{ task.name }}</strong>
+                {% if task.description %}
+                  - <span id="task-desc-display-{{ task.id }}">{{ task.description }}</span>
+                {% endif %}
+              </span>
+              <button class="icon-btn" onclick="deleteTask('{{ item.activity.id }}', '{{ task.id }}')">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+              <button class="icon-btn" onclick="showEditTaskForm('{{ item.activity.id }}', '{{ task.id }}', '{{ task.name }}', '{{ task.description|default('') }}')">
+                <i class="fa-solid fa-pencil"></i>
+              </button>
+            </div>
+            <div class="task-right">
+              <div class="tools-list" id="tools-for-task-{{ task.id }}">
+                <ul>
+                  {% if task.tools and task.tools|length > 0 %}
+                    {% for tool in task.tools %}
+                      <li data-tool-id="{{ tool.id }}">
+                        <span class="tool-name">{{ tool.name }}</span>
+                        <button class="icon-btn" onclick="deleteToolFromTask('{{ task.id }}', '{{ tool.id }}')">
+                          <i class="fa-solid fa-trash"></i>
+                        </button>
+                      </li>
+                    {% endfor %}
+                  {% else %}
+                    <li id="no-tools-msg-{{ task.id }}">Aucun outil associé.</li>
+                  {% endif %}
+                  <li class="add-tool-li">
+                    <button class="icon-btn add-tool-btn" onclick="showToolForm('{{ task.id }}')">
+                      <i class="fa-solid fa-plus"></i>
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+  
+          <!-- Formulaire d'édition de la tâche -->
+          <div class="edit-task-form" id="edit-task-form-{{ task.id }}">
+            <input type="text" id="edit-task-name-{{ task.id }}" placeholder="Nom de la tâche" />
+            <input type="text" id="edit-task-desc-{{ task.id }}" placeholder="Description (optionnelle)" />
+            <button onclick="submitEditTask('{{ item.activity.id }}', '{{ task.id }}')">Enregistrer</button>
+            <button onclick="hideEditTaskForm('{{ task.id }}')">Annuler</button>
+          </div>
+  
+          <!-- Formulaire d'ajout d'outils (invisible par défaut) -->
+          <div id="tool-form-{{ task.id }}" class="tool-form" style="display: none;">
+            <div>
+              <label for="existing-tools-{{ task.id }}">Outils existants:</label>
+              <select id="existing-tools-{{ task.id }}" multiple style="width: 100%;"></select>
+            </div>
+            <div>
+              <label for="new-tools-{{ task.id }}">Nouveaux outils (séparés par des virgules):</label>
+              <input type="text" id="new-tools-{{ task.id }}" placeholder="Ex: Outil1, Outil2" style="width: 100%;" />
+            </div>
+            <button onclick="submitTools('{{ task.id }}')">Enregistrer</button>
+            <button onclick="hideToolForm('{{ task.id }}')">Annuler</button>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  
+    <!-- Bouton pour ajouter une nouvelle tâche -->
+    <button onclick="showTaskForm('{{ item.activity.id }}')" style="margin-top:5px; padding:5px 10px; font-size:0.8em;">
+      <i class="fa-solid fa-plus"></i> Ajouter une tâche
+    </button>
+  
+    <!-- Formulaire d'ajout de tâche (invisible par défaut) -->
+    <div id="task-form-{{ item.activity.id }}" class="task-form" style="display:none;">
+      <input type="text" id="task-name-{{ item.activity.id }}" placeholder="Nom de la tâche" />
+      <input type="text" id="task-desc-{{ item.activity.id }}" placeholder="Description (optionnelle)" />
+      <button onclick="submitTask('{{ item.activity.id }}')">Enregistrer</button>
+      <button onclick="hideTaskForm('{{ item.activity.id }}')">Annuler</button>
+    </div>
+  </div>
+  

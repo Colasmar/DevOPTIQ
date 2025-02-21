@@ -1,0 +1,57 @@
+<p>{{ item.activity.description or "" }}</p>
+<div class="connections-container">
+  <div class="incoming-connections">
+    <h3>Connexions entrantes</h3>
+    {% if item.incoming and item.incoming|length > 0 %}
+      <table class="conn-table">
+        <tr>
+          <th>Nom de la donnée</th>
+          <th>Provenance</th>
+        </tr>
+        {% for conn in item.incoming %}
+          <tr>
+            <td>
+              {% if conn.type|lower == 'déclenchante' %}
+                <span class="declenchante">{{ conn.data_name }}</span>
+              {% elif conn.type|lower == 'nourrissante' %}
+                <span class="nourrissante">{{ conn.data_name }}</span>
+              {% else %}
+                {{ conn.data_name }}
+              {% endif %}
+            </td>
+            <td>{{ conn.source_name }}</td>
+          </tr>
+        {% endfor %}
+      </table>
+    {% else %}
+      <p>Aucune connexion entrante.</p>
+    {% endif %}
+  </div>
+  <div class="outgoing-connections">
+    <h3>Connexions sortantes</h3>
+    {% if item.outgoing and item.outgoing|length > 0 %}
+      <table class="conn-table">
+        <tr>
+          <th>Nom de la donnée</th>
+          <th>Vers</th>
+        </tr>
+        {% for conn in item.outgoing %}
+          <tr>
+            <td>
+              {% if conn.type|lower == 'déclenchante' %}
+                <span class="declenchante">{{ conn.data_name }}</span>
+              {% elif conn.type|lower == 'nourrissante' %}
+                <span class="nourrissante">{{ conn.data_name }}</span>
+              {% else %}
+                {{ conn.data_name }}
+              {% endif %}
+            </td>
+            <td>{{ conn.target_name }}</td>
+          </tr>
+        {% endfor %}
+      </table>
+    {% else %}
+      <p>Aucune connexion sortante.</p>
+    {% endif %}
+  </div>
+</div>

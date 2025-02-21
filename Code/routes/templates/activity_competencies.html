@@ -1,0 +1,22 @@
+<!-- Code/routes/templates/activity_competencies.html -->
+
+<h3>Compétences</h3>
+
+<!-- Conteneur qui affiche les compétences "déjà définies" (depuis la BDD) -->
+<div id="competencies-{{ item.activity.id }}">
+  {% if item.activity.competencies %}
+    {{ item.activity.competencies }}
+  {% else %}
+    Aucune compétence définie
+  {% endif %}
+</div>
+
+<!-- Conteneur qui va lister les compétences validées par l'IA -->
+<ul id="competencies-list-{{ item.activity.id }}">
+  <!-- Les compétences validées via competency_modal.html apparaîtront ici -->
+</ul>
+
+<!-- Bouton pour déclencher l'appel à l'IA (défini dans skills_section.html) -->
+<button onclick="fetchActivityDetailsForSkills({{ item.activity.id }})">
+  Proposer Compétences
+</button>

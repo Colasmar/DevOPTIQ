@@ -1,0 +1,46 @@
+<!-- skills_section.html -->
+<script>
+    /**
+     * Récupère les infos de l'activité via l'endpoint /activities/<id>/details,
+     * puis appelle proposeSkills() qui enverra tout à /skills/propose.
+     */
+    function fetchActivityDetailsForSkills(activityId) {
+      fetch(`/activities/${activityId}/details`)
+        .then(response => response.json())
+        .then(data => {
+          if (data.error) {
+            alert("Erreur : " + data.error);
+            return;
+          }
+          proposeSkills(data);
+        })
+        .catch(error => {
+          alert("Erreur lors de la récupération des données : " + error.message);
+        });
+    }
+  
+    /**
+     * Envoie l'activité au backend IA (/skills/propose),
+     * puis appelle showProposalsModal(...) si OK.
+     */
+    function proposeSkills(activityData) {
+      fetch('/skills/propose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(activityData)
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.error) {
+          alert("Erreur dans la proposition: " + data.error);
+          return;
+        }
+        // data.proposals est un tableau de chaînes
+        showProposalsModal(data.proposals, activityData.id);
+      })
+      .catch(error => {
+        alert("Erreur : " + error.message);
+      });
+    }
+  </script>
+  
