@@ -2,21 +2,20 @@
 
 <h3>Compétences</h3>
 
-<!-- Conteneur qui affiche les compétences "déjà définies" (depuis la BDD) -->
-<div id="competencies-{{ item.activity.id }}">
-  {% if item.activity.competencies %}
-    {{ item.activity.competencies }}
-  {% else %}
-    Aucune compétence définie
-  {% endif %}
-</div>
-
-<!-- Conteneur qui va lister les compétences validées par l'IA -->
 <ul id="competencies-list-{{ item.activity.id }}">
-  <!-- Les compétences validées via competency_modal.html apparaîtront ici -->
+  {% for comp in item.activity.competencies %}
+    <li data-comp-id="{{ comp.id }}" style="margin-bottom:5px;">
+      <span class="validated-skill-text">{{ comp.description }}</span>
+      <button onclick="editValidatedSkill(this, {{ comp.id }})" style="margin-left:5px;">
+        <i class="fa-solid fa-pencil"></i>
+      </button>
+      <button onclick="deleteValidatedSkill(this, {{ comp.id }})" style="margin-left:5px;">
+        <i class="fa-solid fa-trash"></i>
+      </button>
+    </li>
+  {% endfor %}
 </ul>
 
-<!-- Bouton pour déclencher l'appel à l'IA (défini dans skills_section.html) -->
 <button onclick="fetchActivityDetailsForSkills({{ item.activity.id }})">
   Proposer Compétences
 </button>

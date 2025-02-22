@@ -1,43 +1,23 @@
-<!-- competency_modal.html -->
+<!-- Code/routes/templates/competency_modal.html -->
+
 <div id="competencyModal"
      style="display:none; position:fixed; left:20%; top:20%; width:60%; background:#fff;
             border:1px solid #aaa; padding:10px; z-index:9999;">
   <h4>Propositions de compétences :</h4>
-
-  <!-- Liste UL qui contiendra chaque proposition IA sous forme de cases à cocher -->
   <ul id="proposalsList" style="list-style:none; padding-left:0;"></ul>
-
-  <!-- Boutons d'action -->
   <div style="margin-top:10px;">
     <button onclick="validateAllSelectedProposals()">Valider les compétences</button>
     <button onclick="closeCompetencyModal()">Annuler</button>
   </div>
 </div>
 
-<!-- Modal pour éditer UNE compétence déjà validée -->
-<div id="editCompetencyModal"
-     style="display:none; position:fixed; left:25%; top:25%; width:50%; background:#fff;
-            border:1px solid #aaa; padding:10px; z-index:9999;">
-  <h4>Modifier la compétence :</h4>
-  <textarea id="editCompetencyText" style="width:100%; height:80px;"></textarea>
-  <div style="margin-top:10px;">
-    <button onclick="saveEditedCompetency()">Enregistrer</button>
-    <button onclick="closeEditCompetencyModal()">Annuler</button>
-  </div>
-</div>
-
 <script>
   let proposalsGlobal = [];
-  let currentActivityId = null; // Stocke l'ID de l'activité quand on clique sur "Proposer Compétences"
-  let editingLiElem = null;     // Pour éditer une compétence validée
+  let currentActivityId = null;
 
-  /**
-   * Ouvre le modal qui liste chaque proposition IA sous forme de cases à cocher
-   */
   function showProposalsModal(proposals, activityId) {
     proposalsGlobal = proposals;
     currentActivityId = activityId;
-
     const proposalsList = document.getElementById('proposalsList');
     proposalsList.innerHTML = "";
 
@@ -54,10 +34,6 @@
     document.getElementById('competencyModal').style.display = "block";
   }
 
-  /**
-   * Valide toutes les propositions cochées et les ajoute à la liste
-   * #competencies-list-<currentActivityId>
-   */
   function validateAllSelectedProposals() {
     const proposalsList = document.getElementById('proposalsList');
     const checkboxes = proposalsList.querySelectorAll('input[type="checkbox"]:checked');
@@ -66,71 +42,92 @@
       return;
     }
 
-    const container = document.getElementById('competencies-list-' + currentActivityId);
+    let addPromises = [];
     checkboxes.forEach(cb => {
       const text = cb.getAttribute('data-proposal') || "Compétence ?";
-      const li = document.createElement('li');
-      li.style.marginBottom = "5px";
-      li.innerHTML = `
-        <span class="validated-skill-text">${text}</span>
-        <button onclick="editValidatedSkill(this)" style="margin-left:5px;">
-          <i class="fa-solid fa-pencil"></i>
-        </button>
-        <button onclick="deleteValidatedSkill(this)" style="margin-left:5px;">
-          <i class="fa-solid fa-trash"></i>
-        </button>
-      `;
-      container.appendChild(li);
+      let p = fetch('/skills/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          activity_id: currentActivityId,
+          description: text
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.error) {
+          console.error("Erreur en ajoutant la compétence:", data.error);
+        } else {
+          console.log("Compétence ajoutée:", data);
+        }
+      })
+      .catch(error => {
+        console.error("Erreur lors de l'appel /skills/add:", error);
+      });
+      addPromises.push(p);
     });
 
-    closeCompetencyModal();
+    Promise.all(addPromises).then(() => {
+      closeCompetencyModal();
+      alert("Compétences sauvegardées en base.");
+      reloadCompetencies(currentActivityId);
+    });
   }
 
   function closeCompetencyModal() {
     document.getElementById('competencyModal').style.display = "none";
   }
 
-  /**
-   * Clique sur le crayon pour éditer une compétence validée
-   */
-  function editValidatedSkill(buttonElem) {
-    editingLiElem = buttonElem.parentNode;
-    const skillTextElem = editingLiElem.querySelector('.validated-skill-text');
-    const skillText = skillTextElem.textContent.trim();
-
-    // Ouvre le modal d'édition
-    document.getElementById('editCompetencyText').value = skillText;
-    document.getElementById('editCompetencyModal').style.display = "block";
+  // Rechargement des compétences (icônes crayon/poubelle incluses)
+  function reloadCompetencies(activityId) {
+    fetch(`/activities/${activityId}/details`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
+          console.error("Erreur reloading competencies:", data.error);
+          return;
+        }
+        const container = document.getElementById(`competencies-list-${activityId}`);
+        if (!container) return;
+        container.innerHTML = "";
+        data.competencies.forEach(comp => {
+          const li = document.createElement('li');
+          li.style.marginBottom = "5px";
+          li.setAttribute('data-comp-id', comp.id);
+          li.innerHTML = `
+            <span class="validated-skill-text">${comp.description}</span>
+            <button onclick="editValidatedSkill(this, ${comp.id})" style="margin-left:5px;">
+              <i class="fa-solid fa-pencil"></i>
+            </button>
+            <button onclick="deleteValidatedSkill(this, ${comp.id})" style="margin-left:5px;">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          `;
+          container.appendChild(li);
+        });
+      })
+      .catch(err => console.error("Erreur fetch details:", err));
   }
 
-  function closeEditCompetencyModal() {
-    document.getElementById('editCompetencyModal').style.display = "none";
-    editingLiElem = null;
+  // Suppression en base
+  function deleteValidatedSkill(buttonElem, compId) {
+    if (!confirm("Confirmez-vous la suppression de cette compétence ?")) return;
+    fetch(`/skills/${compId}`, { method: 'DELETE' })
+    .then(res => res.json())
+    .then(data => {
+      if (!data.error) {
+        // Supprimer l'élément du DOM
+        const li = buttonElem.parentNode;
+        li.parentNode.removeChild(li);
+      } else {
+        alert("Erreur : " + data.error);
+      }
+    })
+    .catch(err => console.error("Erreur suppression compétence:", err));
   }
 
-  /**
-   * Enregistre la compétence modifiée dans le <li> existant
-   */
-  function saveEditedCompetency() {
-    if (!editingLiElem) {
-      closeEditCompetencyModal();
-      return;
-    }
-    const newText = document.getElementById('editCompetencyText').value.trim();
-    if (!newText) {
-      alert("Veuillez saisir un texte.");
-      return;
-    }
-    const skillTextElem = editingLiElem.querySelector('.validated-skill-text');
-    skillTextElem.textContent = newText;
-    closeEditCompetencyModal();
-  }
-
-  /**
-   * Supprime la compétence validée
-   */
-  function deleteValidatedSkill(buttonElem) {
-    const li = buttonElem.parentNode;
-    li.parentNode.removeChild(li);
+  // Édition locale (pas de PUT en base pour le moment)
+  function editValidatedSkill(buttonElem, compId) {
+    alert("Fonction d'édition non implémentée. Ajoutez un endpoint PUT si nécessaire.");
   }
 </script>

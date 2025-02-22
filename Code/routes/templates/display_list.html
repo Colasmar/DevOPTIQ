@@ -43,21 +43,20 @@
 
       <!-- Compétences validées + bouton "Proposer Compétences" -->
       {% include "activity_competencies.html" %}
-      
-      <!-- Définir la variable 'activity_id' pour les HSC -->
+
       {% set activity_id = item.activity.id %}
-      <!-- Habiletés socio-cognitives proposées -->
+      <!-- Habiletés socio-cognitives -->
       {% include "activity_softskills.html" %}
     </div>
   </div>
   {% endfor %}
 
-  <!-- Inclusion des modaux pour la traduction et la gestion des compétences -->
+  <!-- Inclusion des modaux pour la traduction des softskills, l'appel à l'IA et la gestion des compétences -->
   {% include "translate_softskills_modal.html" %}
   {% include "skills_section.html" %}
   {% include "competency_modal.html" %}
 
-  <!-- Inclusion des nouveaux fichiers JavaScript modulaires -->
+  <!-- Inclusion des fichiers JavaScript modulaires -->
   <script src="/static/js/tasks.js"></script>
   <script src="/static/js/tools.js"></script>
   <script src="/static/js/softskills.js"></script>

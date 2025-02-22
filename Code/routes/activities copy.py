@@ -4,7 +4,7 @@ import contextlib
 from flask import Blueprint, jsonify, request, render_template
 from Code.extensions import db
 from Code.models.models import Activities, Connections, Data, Task, Tool, Competency, Softskill
-from Code.scripts.extract_visio import update_database_from_visio, print_summary
+from Code.scripts.extract_visio import reset_database, process_visio_file, print_summary
 
 activities_bp = Blueprint('activities', __name__, url_prefix='/activities', template_folder='templates')
 
@@ -224,19 +224,16 @@ def get_activity_details(activity_id):
 
 @activities_bp.route('/update-cartography', methods=['GET'])
 def update_cartography():
-    """
-    Met à jour la base de données en fonction du fichier Visio sans réinitialiser
-    entièrement la base. Les activités qui n'existent plus dans le Visio sont supprimées,
-    les activités existantes sont mises à jour et les nouvelles sont créées.
-    """
+    """Réinitialise la base et relance le parsing du vsdx (exemple)."""
     try:
         vsdx_path = os.path.join("Code", "example.vsdx")
-        update_database_from_visio(vsdx_path)
+        reset_database()
+        process_visio_file(vsdx_path)
         summary_output = io.StringIO()
         with contextlib.redirect_stdout(summary_output):
             print_summary()
         summary_text = summary_output.getvalue()
-        return jsonify({"message": "Cartographie mise à jour (partielle)", "summary": summary_text}), 200
+        return jsonify({"message": "Cartographie mise à jour", "summary": summary_text}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

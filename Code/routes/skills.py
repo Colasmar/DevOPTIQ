@@ -1,92 +1,112 @@
+# Code/routes/skills.py
+
 import os
 import openai
 from flask import Blueprint, request, jsonify
+from Code.extensions import db
+from Code.models.models import Competency
 
 skills_bp = Blueprint('skills', __name__, url_prefix='/skills')
-
-openai.api_key = os.getenv("OPENAI_API_KEY")
-if not openai.api_key:
-    raise Exception("La variable d'environnement OPENAI_API_KEY n'est pas définie.")
 
 @skills_bp.route('/propose', methods=['POST'])
 def propose_skills():
     """
-    Endpoint pour proposer 2 ou 3 compétences sous forme de phrase unique,
-    en s'appuyant sur les données de l'activité, conformément à la norme X50-124,
-    sans mentionner l'environnement ni la performance.
+    Génère 2 ou 3 propositions de compétences via l'IA, selon la norme NF X50-124.
+    Reçoit en JSON les infos de l'activité (name, input_data, output_data, tasks, tools).
     """
     data = request.get_json() or {}
-
-    # Extraction des infos de l'activité
-    activity_name = data.get("name", "Activité non renseignée")
+    activity_name = data.get("name", "Activité sans nom")
     input_data_value = data.get("input_data", "")
     output_data_value = data.get("output_data", "")
-    
-    # Tâches : peuvent être envoyées sous forme de liste de dictionnaires ou de chaînes
+
+    # Extraire la liste de tâches
     tasks_data = data.get("tasks", [])
     if tasks_data and isinstance(tasks_data[0], dict):
         tasks_list = [t.get("name", "") for t in tasks_data]
-    elif tasks_data and isinstance(tasks_data[0], str):
-        tasks_list = tasks_data
     else:
-        tasks_list = []
+        tasks_list = tasks_data if isinstance(tasks_data, list) else []
     tasks_str = ", ".join(tasks_list) if tasks_list else ""
 
-    # Outils (si vous les transmettez côté front, sinon laissez vide)
+    # Extraire la liste d'outils
     tools_data = data.get("tools", [])
     if tools_data and isinstance(tools_data[0], dict):
         tools_list = [t.get("name", "") for t in tools_data]
-    elif tools_data and isinstance(tools_data[0], str):
-        tools_list = tools_data
     else:
-        tools_list = []
+        tools_list = tools_data if isinstance(tools_data, list) else []
     tools_str = ", ".join(tools_list) if tools_list else ""
 
-    # Construction du prompt
     prompt = f"""
 Vous êtes un expert en gestion des compétences selon la norme NF X50-124.
-Vous devez proposer 2 ou 3 compétences pour l'activité suivante :
+Proposez 2 ou 3 phrases de compétences pour l'activité suivante :
 
 - Nom : {activity_name}
 - Données d'entrée : {input_data_value}
 - Données de sortie : {output_data_value}
-- Tâches : {tasks_str if tasks_str else "Aucune tâche"}
-- Outils : {tools_str if tools_str else "Aucun outil"}
+- Tâches : {tasks_str or "Aucune tâche"}
+- Outils : {tools_str or "Aucun outil"}
 
 Contraintes :
-1) Une compétence doit être rédigée en **une seule phrase** (sans puces ni liste),
-   en s'appuyant sur les données ci-dessus.
-2) N'évoquez ni l'environnement de travail ni le niveau de performance.
-3) Suivez la logique du Tableau 7.1 (NF X50-124) mais **sans** faire un listing 
-   "Données d'entrée:..., Données de sortie:..., Tâches:..., Outils:...".
-4) Chaque phrase doit commencer par un verbe d'action et mentionner en filigrane 
-   (sans mot-clé explicite) les éléments importants (entrées, tâches, outils, sorties).
-5) Proposez exactement 2 ou 3 phrases de compétences.
-
-Exemple (à titre indicatif, vous en produirez 2 ou 3) :
-"**Compétence :** Sélectionner les composants requis en s'appuyant sur la demande initiale et 
-les tâches d'évaluation, afin de livrer une configuration validée, en mobilisant les outils 
-de suivi appropriés."
-
-Générez maintenant 2 ou 3 phrases similaires, chacune sur une nouvelle ligne.
+1) Chaque phrase doit être rédigée en une seule phrase sans utiliser de listes.
+2) Ne mentionnez pas l'environnement ni le niveau de performance.
+3) Ne listez pas explicitement "Données, Tâches, Outils".
+4) Chaque phrase doit commencer par un verbe d'action.
+5) Générez exactement 2 ou 3 phrases, chacune sur une nouvelle ligne.
 """
+
+    openai.api_key = os.getenv("OPENAI_API_KEY")
+    if not openai.api_key:
+        return jsonify({"error": "Clé OpenAI manquante (OPENAI_API_KEY)."}), 500
 
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4o",  # ou "gpt-3.5-turbo"
+            model="gpt-4",
             messages=[
-                {"role": "system", "content": "Vous êtes un assistant spécialisé en gestion des compétences NF X50-124."},
+                {"role": "system", "content": "Vous êtes un assistant spécialisé en compétences NF X50-124."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3,
             max_tokens=400
         )
-
         raw_text = response['choices'][0]['message']['content'].strip()
-        # Découper en lignes pour que le front puisse les afficher distinctement
         lines = [l.strip() for l in raw_text.split("\n") if l.strip()]
-
         return jsonify({"proposals": lines}), 200
-
     except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@skills_bp.route('/add', methods=['POST'])
+def add_competency():
+    """
+    Ajoute une compétence dans la table 'competencies'.
+    JSON attendu : { "activity_id": <int>, "description": <str> }
+    """
+    data = request.get_json() or {}
+    activity_id = data.get("activity_id")
+    description = data.get("description", "").strip()
+    if not activity_id or not description:
+        return jsonify({"error": "activity_id and description are required"}), 400
+
+    comp = Competency(activity_id=activity_id, description=description)
+    try:
+        db.session.add(comp)
+        db.session.commit()
+        return jsonify({
+            "id": comp.id,
+            "activity_id": comp.activity_id,
+            "description": comp.description
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+@skills_bp.route('/<int:competency_id>', methods=['DELETE'])
+def delete_competency(competency_id):
+    comp = Competency.query.get(competency_id)
+    if not comp:
+        return jsonify({"error": "Competency not found"}), 404
+    try:
+        db.session.delete(comp)
+        db.session.commit()
+        return jsonify({"message": "Competency deleted"}), 200
+    except Exception as e:
+        db.session.rollback()
         return jsonify({"error": str(e)}), 500
