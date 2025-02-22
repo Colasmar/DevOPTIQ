@@ -1,37 +1,30 @@
-<!-- Code/routes/templates/activity_softskills.html -->
-
 <h3>Habiletés socio-cognitives</h3>
 
-<!-- Affichage des HSC déjà en base -->
 <div id="softskills-list-{{ activity_id }}">
   {% for ss in item.activity.softskills %}
-    <div class="softskill-item" style="margin-bottom:5px;">
+    <div class="softskill-item" style="margin-bottom:5px;" data-ss-id="{{ ss.id }}">
       <span class="softskill-text">{{ ss.habilete }} (Niveau: <span class="softskill-level">{{ ss.niveau }}</span>)</span>
       <i class="fas fa-pencil-alt edit-softskill" title="Modifier"></i>
       <i class="fas fa-trash delete-softskill" title="Supprimer"></i>
-      <div class="edit-softskill-form" id="edit-softskill-form-{{ activity_id }}-{{ loop.index0 }}" style="display:none;">
+      <div class="edit-softskill-form" id="edit-softskill-form-{{ ss.id }}" style="display:none;">
         <label>Habileté :</label>
-        <input type="text" id="edit-softskill-name-{{ activity_id }}-{{ loop.index0 }}" value="{{ ss.habilete }}" />
+        <input type="text" id="edit-softskill-name-{{ ss.id }}" value="{{ ss.habilete }}" />
         <label>Niveau (1..4) :</label>
-        <input type="number" min="1" max="4" id="edit-softskill-level-{{ activity_id }}-{{ loop.index0 }}" value="{{ ss.niveau }}" />
-        <button onclick="submitEditSoftskill('{{ activity_id }}', {{ loop.index0 }})">Enregistrer</button>
-        <button onclick="hideEditSoftskillForm('{{ activity_id }}', {{ loop.index0 }})">Annuler</button>
+        <input type="number" min="1" max="4" id="edit-softskill-level-{{ ss.id }}" value="{{ ss.niveau }}" />
+        <button onclick="submitEditSoftskillFromDOM('{{ ss.id }}')">Enregistrer</button>
+        <button onclick="hideEditSoftskillForm('{{ ss.id }}')">Annuler</button>
       </div>
     </div>
   {% endfor %}
 </div>
 
-<!-- Bouton "Proposer HSC" -->
 <button class="define-hsc-btn" data-activity-id="{{ activity_id }}">
   Proposer HSC
 </button>
-
-<!-- Bouton pour traduire softskills en langage naturel -->
 <button onclick="openTranslateSoftskillsModal({{ activity_id }})">
   Traduire Softskills
 </button>
 
-<!-- Formulaire d'ajout manuel d'une HSC -->
 <div class="softskill-form">
   <label for="softskill-name-{{ activity_id }}">Nom de l'HSC :</label>
   <input type="text" id="softskill-name-{{ activity_id }}" />

@@ -1,7 +1,6 @@
-# Code/routes/skills.py
-
 import os
 import openai
+import json
 from flask import Blueprint, request, jsonify
 from Code.extensions import db
 from Code.models.models import Competency
@@ -11,7 +10,7 @@ skills_bp = Blueprint('skills', __name__, url_prefix='/skills')
 @skills_bp.route('/propose', methods=['POST'])
 def propose_skills():
     """
-    Génère 2 ou 3 propositions de compétences via l'IA, selon la norme NF X50-124.
+    Génère 2 ou 3 propositions de compétences via l'IA (NF X50-124).
     Reçoit en JSON les infos de l'activité (name, input_data, output_data, tasks, tools).
     """
     data = request.get_json() or {}
@@ -94,6 +93,32 @@ def add_competency():
             "activity_id": comp.activity_id,
             "description": comp.description
         }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+@skills_bp.route('/<int:competency_id>', methods=['PUT'])
+def update_competency(competency_id):
+    """
+    Met à jour une compétence existante.
+    JSON attendu : { "description": <str> }
+    """
+    data = request.get_json() or {}
+    new_desc = data.get("description", "").strip()
+    if not new_desc:
+        return jsonify({"error": "description is required"}), 400
+
+    comp = Competency.query.get(competency_id)
+    if not comp:
+        return jsonify({"error": "Competency not found"}), 404
+
+    try:
+        comp.description = new_desc
+        db.session.commit()
+        return jsonify({
+            "id": comp.id,
+            "description": comp.description
+        }), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500

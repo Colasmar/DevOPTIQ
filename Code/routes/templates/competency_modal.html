@@ -1,5 +1,3 @@
-<!-- Code/routes/templates/competency_modal.html -->
-
 <div id="competencyModal"
      style="display:none; position:fixed; left:20%; top:20%; width:60%; background:#fff;
             border:1px solid #aaa; padding:10px; z-index:9999;">
@@ -12,122 +10,67 @@
 </div>
 
 <script>
-  let proposalsGlobal = [];
-  let currentActivityId = null;
+let proposalsGlobal = [];
+let currentActivityId = null;
 
-  function showProposalsModal(proposals, activityId) {
-    proposalsGlobal = proposals;
-    currentActivityId = activityId;
-    const proposalsList = document.getElementById('proposalsList');
-    proposalsList.innerHTML = "";
+function showProposalsModal(proposals, activityId) {
+  proposalsGlobal = proposals;
+  currentActivityId = activityId;
+  const proposalsList = document.getElementById('proposalsList');
+  proposalsList.innerHTML = "";
 
-    proposals.forEach((proposal, index) => {
-      const li = document.createElement('li');
-      li.style.marginBottom = "5px";
-      li.innerHTML = `
-        <input type="checkbox" id="proposal-${index}" data-proposal="${proposal}">
-        <label for="proposal-${index}">${proposal}</label>
-      `;
-      proposalsList.appendChild(li);
-    });
+  proposals.forEach((proposal, index) => {
+    const li = document.createElement('li');
+    li.style.marginBottom = "5px";
+    li.innerHTML = `
+      <input type="checkbox" id="proposal-${index}" data-proposal="${proposal}">
+      <label for="proposal-${index}">${proposal}</label>
+    `;
+    proposalsList.appendChild(li);
+  });
 
-    document.getElementById('competencyModal').style.display = "block";
+  document.getElementById('competencyModal').style.display = "block";
+}
+
+function validateAllSelectedProposals() {
+  const proposalsList = document.getElementById('proposalsList');
+  const checkboxes = proposalsList.querySelectorAll('input[type="checkbox"]:checked');
+  if (checkboxes.length === 0) {
+    alert("Veuillez sélectionner au moins une proposition.");
+    return;
   }
-
-  function validateAllSelectedProposals() {
-    const proposalsList = document.getElementById('proposalsList');
-    const checkboxes = proposalsList.querySelectorAll('input[type="checkbox"]:checked');
-    if (checkboxes.length === 0) {
-      alert("Veuillez sélectionner au moins une proposition.");
-      return;
-    }
-
-    let addPromises = [];
-    checkboxes.forEach(cb => {
-      const text = cb.getAttribute('data-proposal') || "Compétence ?";
-      let p = fetch('/skills/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          activity_id: currentActivityId,
-          description: text
-        })
+  let addPromises = [];
+  checkboxes.forEach(cb => {
+    const text = cb.getAttribute('data-proposal') || "Compétence ?";
+    let p = fetch('/skills/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        activity_id: currentActivityId,
+        description: text
       })
-      .then(response => response.json())
-      .then(data => {
-        if (data.error) {
-          console.error("Erreur en ajoutant la compétence:", data.error);
-        } else {
-          console.log("Compétence ajoutée:", data);
-        }
-      })
-      .catch(error => {
-        console.error("Erreur lors de l'appel /skills/add:", error);
-      });
-      addPromises.push(p);
-    });
-
-    Promise.all(addPromises).then(() => {
-      closeCompetencyModal();
-      alert("Compétences sauvegardées en base.");
-      reloadCompetencies(currentActivityId);
-    });
-  }
-
-  function closeCompetencyModal() {
-    document.getElementById('competencyModal').style.display = "none";
-  }
-
-  // Rechargement des compétences (icônes crayon/poubelle incluses)
-  function reloadCompetencies(activityId) {
-    fetch(`/activities/${activityId}/details`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.error) {
-          console.error("Erreur reloading competencies:", data.error);
-          return;
-        }
-        const container = document.getElementById(`competencies-list-${activityId}`);
-        if (!container) return;
-        container.innerHTML = "";
-        data.competencies.forEach(comp => {
-          const li = document.createElement('li');
-          li.style.marginBottom = "5px";
-          li.setAttribute('data-comp-id', comp.id);
-          li.innerHTML = `
-            <span class="validated-skill-text">${comp.description}</span>
-            <button onclick="editValidatedSkill(this, ${comp.id})" style="margin-left:5px;">
-              <i class="fa-solid fa-pencil"></i>
-            </button>
-            <button onclick="deleteValidatedSkill(this, ${comp.id})" style="margin-left:5px;">
-              <i class="fa-solid fa-trash"></i>
-            </button>
-          `;
-          container.appendChild(li);
-        });
-      })
-      .catch(err => console.error("Erreur fetch details:", err));
-  }
-
-  // Suppression en base
-  function deleteValidatedSkill(buttonElem, compId) {
-    if (!confirm("Confirmez-vous la suppression de cette compétence ?")) return;
-    fetch(`/skills/${compId}`, { method: 'DELETE' })
-    .then(res => res.json())
+    })
+    .then(response => response.json())
     .then(data => {
-      if (!data.error) {
-        // Supprimer l'élément du DOM
-        const li = buttonElem.parentNode;
-        li.parentNode.removeChild(li);
+      if (data.error) {
+        console.error("Erreur en ajoutant la compétence:", data.error);
       } else {
-        alert("Erreur : " + data.error);
+        // Ajouter dans le DOM
+        addCompetencyItemToDOM(currentActivityId, data.id, data.description);
       }
     })
-    .catch(err => console.error("Erreur suppression compétence:", err));
-  }
+    .catch(error => {
+      console.error("Erreur /skills/add:", error);
+    });
+    addPromises.push(p);
+  });
+  Promise.all(addPromises).then(() => {
+    closeCompetencyModal();
+    alert("Compétences sauvegardées en base.");
+  });
+}
 
-  // Édition locale (pas de PUT en base pour le moment)
-  function editValidatedSkill(buttonElem, compId) {
-    alert("Fonction d'édition non implémentée. Ajoutez un endpoint PUT si nécessaire.");
-  }
+function closeCompetencyModal() {
+  document.getElementById('competencyModal').style.display = "none";
+}
 </script>

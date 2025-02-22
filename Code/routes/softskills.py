@@ -1,9 +1,7 @@
-# Code/routes/softskills.py
-
 import os
 import openai
 import json
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify
 from Code.extensions import db
 from Code.models.models import Softskill
 
@@ -12,8 +10,7 @@ softskills_bp = Blueprint('softskills_bp', __name__, url_prefix='/softskills')
 @softskills_bp.route('/propose', methods=['POST'])
 def propose_softskills():
     """
-    Gère la proposition de 3 à 4 habiletés socio-cognitives selon la norme X50-766,
-    renvoyées en format JSON (habilete, niveau).
+    Propose 3-4 habiletés socio-cognitives (HSC) via l'IA, renvoyées en JSON.
     """
     data = request.get_json()
     if not data:
@@ -46,25 +43,27 @@ Relation à la complexité :
  - Projection
  - Approche globale
 """
+
     prompt = f"""
 Voici une activité avec ses compétences existantes :
 
 Activité : {activity_info}
 Compétences existantes : {competencies_info}
 
-Propose 3 ou 4 habiletés socio-cognitives (norme X50-766) jugées essentielles pour cette activité.
-Pour chaque habileté, indique un niveau parmi (1=Aptitude, 2=Acquisition, 3=Maîtrise, 4=Excellence).
+Propose 3 ou 4 habiletés socio-cognitives officielles (norme X50-766) jugées essentielles pour cette activité.
+Utilise uniquement la liste suivante (n'invente pas d'autres habiletés) :
+{x50_766_hsc}
+
+Pour chaque habileté, indique un niveau entre 1 et 4 (1 = Aptitude, 4 = Excellence).
 Réponds au format JSON, par exemple :
 [
   {{"habilete": "Auto-évaluation", "niveau": "2"}},
   {{"habilete": "Planification", "niveau": "3"}}
 ]
 """
-
     openai.api_key = os.getenv("OPENAI_API_KEY")
     if not openai.api_key:
         return jsonify({"error": "Clé OpenAI manquante (OPENAI_API_KEY)."}), 500
-
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4",
@@ -93,7 +92,6 @@ def add_softskill():
     niveau = data.get("niveau", "").strip()
     if not activity_id or not habilete or not niveau:
         return jsonify({"error": "activity_id, habilete and niveau are required"}), 400
-
     new_softskill = Softskill(activity_id=activity_id, habilete=habilete, niveau=niveau)
     try:
         db.session.add(new_softskill)
@@ -111,8 +109,8 @@ def add_softskill():
 @softskills_bp.route('/translate', methods=['POST'])
 def translate_softskills():
     """
-    Reçoit un texte libre (user_input) et renvoie une liste d'HSC
-    sous forme JSON (habilete, niveau).
+    Reçoit un texte libre (user_input) et renvoie une liste d'HSC.
+    Pour limiter la réponse à 3 à 5 HSC, le prompt demande explicitement de ne pas proposer plus de 5 objets.
     """
     data = request.get_json() or {}
     user_input = data.get("user_input", "").strip()
@@ -143,19 +141,23 @@ Relation à la complexité :
  - Projection
  - Approche globale
 """
+
     prompt = f"""
 Voici un texte libre décrivant des soft skills :
 "{user_input}"
 
-Traduisez ce texte en une liste d'habiletés socio-cognitives issues de la norme X50-766,
-et attribuez à chacune un niveau (1=Aptitude, 2=Acquisition, 3=Maîtrise, 4=Excellence).
-Répondez au format JSON, par exemple :
+Analyse ce texte dans le contexte de l'activité et des tâches associées, et traduis-le en une liste de 3 à 5 habiletés socio-cognitives issues de la norme X50-766.
+Utilise uniquement la liste suivante (n'invente pas d'autres habiletés) :
+{x50_766_hsc}
+
+Pour chaque habileté, attribue un niveau entre 1 et 4 (1 = Aptitude, 4 = Excellence).
+Réponds au format JSON, par exemple :
 [
   {{"habilete": "Auto-évaluation", "niveau": "2"}},
   {{"habilete": "Planification", "niveau": "3"}}
 ]
-N'utilisez que les habiletés ci-dessous :
-{x50_766_hsc}
+
+Ne propose jamais plus de 5 objets dans le tableau.
 """
 
     openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -177,3 +179,41 @@ N'utilisez que les habiletés ci-dessous :
         return jsonify({"proposals": proposals})
     except Exception as e:
         return jsonify({"error": f"Erreur lors de la traduction des softskills : {str(e)}"}), 500
+
+@softskills_bp.route('/<int:softskill_id>', methods=['PUT'])
+def update_softskill(softskill_id):
+    data = request.get_json() or {}
+    new_habilete = data.get("habilete", "").strip()
+    new_niveau = data.get("niveau", "").strip()
+    if not new_habilete or not new_niveau:
+        return jsonify({"error": "habilete and niveau are required"}), 400
+
+    ss = Softskill.query.get(softskill_id)
+    if not ss:
+        return jsonify({"error": "Softskill not found"}), 404
+
+    try:
+        ss.habilete = new_habilete
+        ss.niveau = new_niveau
+        db.session.commit()
+        return jsonify({
+            "id": ss.id,
+            "habilete": ss.habilete,
+            "niveau": ss.niveau
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+@softskills_bp.route('/<int:softskill_id>', methods=['DELETE'])
+def delete_softskill(softskill_id):
+    ss = Softskill.query.get(softskill_id)
+    if not ss:
+        return jsonify({"error": "Softskill not found"}), 404
+    try:
+        db.session.delete(ss)
+        db.session.commit()
+        return jsonify({"message": "Softskill deleted"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500

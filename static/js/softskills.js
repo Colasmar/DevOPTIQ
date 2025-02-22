@@ -3,17 +3,17 @@
 function getActivityDetails(activityId) {
     const detailsElem = document.getElementById('details-' + activityId);
     return detailsElem ? detailsElem.innerText : "";
-}
-
-function getCompetenciesData(activityId) {
+  }
+  
+  function getCompetenciesData(activityId) {
     const compElem = document.getElementById('competencies-list-' + activityId);
     if (!compElem) return "";
     let items = [];
     compElem.querySelectorAll('li').forEach(li => items.push(li.textContent.trim()));
     return items.join(", ");
-}
-
-function translateLevelToText(level) {
+  }
+  
+  function translateLevelToText(level) {
     switch(level) {
       case "1": return "Aptitude";
       case "2": return "Acquisition";
@@ -21,58 +21,70 @@ function translateLevelToText(level) {
       case "4": return "Excellence";
       default:  return "Inconnu";
     }
-}
-
-// Proposer des softskills via IA
-$(document).on('click', '.define-hsc-btn', function() {
+  }
+  
+  // Bouton "Proposer HSC"
+  $(document).on('click', '.define-hsc-btn', function() {
     const activityId = $(this).data('activity-id');
+    console.log("Proposer HSC pour activityId =", activityId);
     proposeSoftskills(activityId);
-});
-
-function proposeSoftskills(activityId) {
+  });
+  
+  function proposeSoftskills(activityId) {
     const activityData = getActivityDetails(activityId);
     const competenciesData = getCompetenciesData(activityId);
-
     fetch('/softskills/propose', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            activity: activityData,
-            competencies: competenciesData
-        })
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        activity: activityData,
+        competencies: competenciesData
+      })
     })
-    .then(response => response.json())
+    .then(res => res.json())
     .then(data => {
-        if (data.error) {
-            alert(data.error);
-            return;
-        }
-        renderSoftskills(activityId, data);
+      console.log("Réponse /softskills/propose:", data);
+      if (data.error) {
+        alert(data.error);
+        return;
+      }
+      let addPromises = [];
+      data.forEach(item => {
+        let p = fetch('/softskills/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            activity_id: activityId,
+            habilete: item.habilete,
+            niveau: item.niveau
+          })
+        })
+        .then(r => r.json())
+        .then(added => {
+          if (!added.error) {
+            addSoftskillItemToDOM(activityId, added.habilete, added.niveau, added.id);
+          } else {
+            console.error("Erreur ajout HSC:", added.error);
+          }
+        })
+        .catch(err => console.error("Erreur fetch /softskills/add:", err));
+        addPromises.push(p);
+      });
+      return Promise.all(addPromises);
     })
-    .catch(error => {
-        alert("Erreur lors de la récupération des habiletés socio-cognitives.");
-        console.error(error);
+    .catch(err => {
+      alert("Erreur lors de la proposition HSC : " + err.message);
+      console.error(err);
     });
-}
-
-function renderSoftskills(activityId, softskills) {
-    const container = document.getElementById('softskills-list-' + activityId);
-    if (!container) return;
-    // On efface l'existant pour ne pas mélanger
-    // (si vous voulez juste ajouter, c'est à vous de voir)
-    // Puis on insère chaque HSC renvoyée par l'IA
-    softskills.forEach(item => {
-        addSoftskillItemToDOM(activityId, item.habilete, item.niveau);
-    });
-}
-
-// Ajout manuel d'une HSC
-function submitSoftskill(activityId) {
+  }
+  
+  // AJOUT MANUEL
+  function submitSoftskill(activityId) {
+    console.log("submitSoftskill pour activityId =", activityId);
     const nameInput = document.getElementById('softskill-name-' + activityId);
     const levelInput = document.getElementById('softskill-level-' + activityId);
     const hscName = nameInput.value.trim();
     const hscLevel = levelInput.value.trim();
-
     if(!hscName) {
       alert("Veuillez saisir un nom d'habileté.");
       return;
@@ -81,81 +93,77 @@ function submitSoftskill(activityId) {
       alert("Le niveau doit être 1, 2, 3 ou 4.");
       return;
     }
-
     fetch('/softskills/add', {
-       method: 'POST',
-       headers: { 'Content-Type': 'application/json' },
-       body: JSON.stringify({
-           activity_id: activityId,
-           habilete: hscName,
-           niveau: hscLevel
-       })
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        activity_id: activityId,
+        habilete: hscName,
+        niveau: hscLevel
+      })
     })
     .then(res => res.json())
     .then(data => {
-        if (data.error) {
-            alert("Erreur : " + data.error);
-        } else {
-            addSoftskillItemToDOM(activityId, data.habilete, data.niveau);
-            nameInput.value = "";
-            levelInput.value = "";
-            alert("Habileté sauvegardée en base.");
-        }
+      if (data.error) {
+        alert("Erreur : " + data.error);
+      } else {
+        addSoftskillItemToDOM(activityId, data.habilete, data.niveau, data.id);
+        nameInput.value = "";
+        levelInput.value = "";
+        alert("Habileté sauvegardée en base.");
+      }
     })
     .catch(err => {
-        alert("Erreur lors de l'ajout : " + err.message);
+      alert("Erreur lors de l'ajout : " + err.message);
+      console.error(err);
     });
-}
-
-function addSoftskillItemToDOM(activityId, hscName, hscLevel) {
+  }
+  
+  // Ajoute une HSC dans le DOM
+  function addSoftskillItemToDOM(activityId, hscName, hscLevel, dbId) {
+    console.log("Ajout DOM HSC:", { activityId, hscName, hscLevel, dbId });
     const container = document.getElementById('softskills-list-' + activityId);
-    if (!container) return;
-    const index = container.children.length;
+    if (!container) {
+      console.error("Conteneur #softskills-list-" + activityId + " introuvable.");
+      return;
+    }
     const levelLabel = translateLevelToText(hscLevel);
-
     const div = document.createElement('div');
     div.className = 'softskill-item';
     div.style.marginBottom = '5px';
-    div.setAttribute('data-index', index);
-
+    div.setAttribute('data-ss-id', dbId);
     div.innerHTML = `
       <span class="softskill-text">${hscName} (Niveau: <span class="softskill-level">${levelLabel}</span>)</span>
       <i class="fas fa-pencil-alt edit-softskill" title="Modifier"></i>
       <i class="fas fa-trash delete-softskill" title="Supprimer"></i>
-      <div class="edit-softskill-form" id="edit-softskill-form-${activityId}-${index}" style="display:none;">
+      <div class="edit-softskill-form" id="edit-softskill-form-${dbId}" style="display:none;">
         <label>Habileté :</label>
-        <input type="text" id="edit-softskill-name-${activityId}-${index}" value="${hscName}" />
+        <input type="text" id="edit-softskill-name-${dbId}" value="${hscName}" />
         <label>Niveau (1..4) :</label>
-        <input type="number" min="1" max="4" id="edit-softskill-level-${activityId}-${index}" value="${hscLevel}" />
-        <button onclick="submitEditSoftskill('${activityId}', ${index})">Enregistrer</button>
-        <button onclick="hideEditSoftskillForm('${activityId}', ${index})">Annuler</button>
+        <input type="number" min="1" max="4" id="edit-softskill-level-${dbId}" value="${hscLevel}" />
+        <button onclick="submitEditSoftskillFromDOM('${dbId}')">Enregistrer</button>
+        <button onclick="hideEditSoftskillForm('${dbId}')">Annuler</button>
       </div>
     `;
     container.appendChild(div);
-}
-
-// Edition locale
-$(document).on('click', '.edit-softskill', function() {
+  }
+  
+  // Edition
+  $(document).on('click', '.edit-softskill', function() {
     const itemElem = $(this).closest('.softskill-item');
-    const index = itemElem.data('index');
-    const parentId = itemElem.parent().attr('id'); // ex: "softskills-list-<activityId>"
-    const activityId = parentId.split('-')[2];
-    showEditSoftskillForm(activityId, index);
-});
-
-function showEditSoftskillForm(activityId, index) {
-    document.getElementById(`edit-softskill-form-${activityId}-${index}`).style.display = 'block';
-}
-
-function hideEditSoftskillForm(activityId, index) {
-    document.getElementById(`edit-softskill-form-${activityId}-${index}`).style.display = 'none';
-}
-
-function submitEditSoftskill(activityId, index) {
-    const nameInput = document.getElementById(`edit-softskill-name-${activityId}-${index}`);
-    const levelInput = document.getElementById(`edit-softskill-level-${activityId}-${index}`);
-    const newName = nameInput.value.trim();
-    const newLevel = levelInput.value.trim();
+    const dbId = itemElem.data('ss-id');
+    console.log("Edition HSC dbId =", dbId);
+    document.getElementById(`edit-softskill-form-${dbId}`).style.display = 'block';
+  });
+  
+  function hideEditSoftskillForm(dbId) {
+    document.getElementById(`edit-softskill-form-${dbId}`).style.display = 'none';
+  }
+  
+  function submitEditSoftskillFromDOM(dbId) {
+    console.log("submitEditSoftskillFromDOM dbId =", dbId);
+    const newName = document.getElementById(`edit-softskill-name-${dbId}`).value.trim();
+    const newLevel = document.getElementById(`edit-softskill-level-${dbId}`).value.trim();
     if(!newName) {
       alert("Veuillez saisir un nom d'habileté.");
       return;
@@ -164,17 +172,52 @@ function submitEditSoftskill(activityId, index) {
       alert("Le niveau doit être 1, 2, 3 ou 4.");
       return;
     }
-    const container = document.getElementById('softskills-list-' + activityId);
-    const itemElem = container.querySelector(`.softskill-item[data-index="${index}"]`);
-    const textElem = itemElem.querySelector('.softskill-text');
-    const levelLabel = translateLevelToText(newLevel);
-
-    textElem.innerHTML = `${newName} (Niveau: <span class="softskill-level">${levelLabel}</span>)`;
-    hideEditSoftskillForm(activityId, index);
-}
-
-// Suppression locale (pas de DELETE /softskills/<id> ici, à vous de l'ajouter si souhaité)
-$(document).on('click', '.delete-softskill', function() {
+    fetch(`/softskills/${dbId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ habilete: newName, niveau: newLevel })
+    })
+    .then(res => res.json())
+    .then(data => {
+      console.log("Réponse PUT /softskills:", data);
+      if (data.error) {
+        alert("Erreur : " + data.error);
+      } else {
+        const itemElem = document.querySelector(`.softskill-item[data-ss-id='${dbId}']`);
+        if (itemElem) {
+          const textElem = itemElem.querySelector('.softskill-text');
+          const levelLabel = translateLevelToText(data.niveau);
+          textElem.innerHTML = `${data.habilete} (Niveau: <span class="softskill-level">${levelLabel}</span>)`;
+          hideEditSoftskillForm(dbId);
+          alert("HSC mise à jour en base.");
+        }
+      }
+    })
+    .catch(err => {
+      alert("Erreur lors de la mise à jour : " + err.message);
+      console.error(err);
+    });
+  }
+  
+  // Suppression
+  $(document).on('click', '.delete-softskill', function() {
+    const itemElem = $(this).closest('.softskill-item');
+    const dbId = itemElem.data('ss-id');
+    console.log("deleteSoftskill dbId =", dbId);
     if(!confirm("Voulez-vous supprimer cette habileté ?")) return;
-    $(this).closest('.softskill-item').remove();
-});
+    fetch(`/softskills/${dbId}`, { method: 'DELETE' })
+    .then(res => res.json())
+    .then(data => {
+      if (data.error) {
+        alert("Erreur : " + data.error);
+      } else {
+        itemElem.remove();
+        alert("HSC supprimée.");
+      }
+    })
+    .catch(err => {
+      alert("Erreur lors de la suppression : " + err.message);
+      console.error(err);
+    });
+  });
+  
