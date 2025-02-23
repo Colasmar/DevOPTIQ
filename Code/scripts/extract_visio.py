@@ -21,12 +21,12 @@ LAYER_MAPPING = {
 # Calques à ignorer
 IGNORE_LAYERS = ["légende", "Color"]
 
-# Global mapping pour suivre les activités traitées dans l'import courant
-activity_mapping = {}  # key: shape_id, value: DB id de l'activité
-# Mapping pour les retours
-return_mapping = {}    # key: shape_id, value: texte de la forme
-# Liste pour résumer les connexions créées
-connection_summaries = []
+# Global structures
+activity_mapping = {}        # key: shape_id, value: DB id (Activité)
+return_mapping = {}          # key: shape_id, value: nom (Return)
+processed_data_ids = set()   # shape_id de Data (connecteurs/retours) qu'on a traités
+connection_summaries = []    # liste des connexions (source/target) qu'on crée
+rename_summaries = []        # liste des renommages (ancien, nouveau)
 
 def get_entity_name(entity_id):
     """
