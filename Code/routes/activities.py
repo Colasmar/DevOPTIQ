@@ -4,47 +4,71 @@ import contextlib
 from flask import Blueprint, jsonify, request, render_template
 from Code.extensions import db
 from Code.models.models import Activities, Connections, Data, Task, Tool, Competency, Softskill
-from Code.scripts.extract_visio import update_database_from_visio, print_summary
+from Code.scripts.extract_visio import process_visio_file, print_summary
 
 activities_bp = Blueprint('activities', __name__, url_prefix='/activities', template_folder='templates')
 
 def resolve_return_activity_name(data_record):
+    """
+    Si data_record est de type 'Retour', on cherche une activité portant ce nom.
+    Sinon on retourne data_record.name ou '[Nom non renseigné]'.
+    """
     if data_record and data_record.type and data_record.type.lower() == 'retour':
-        activity = Activities.query.filter_by(name=data_record.name).first()
-        if activity:
-            return activity.name
-    return data_record.name if data_record and data_record.name else "[Nom non renseigné]"
+        act = Activities.query.filter_by(name=data_record.name).first()
+        if act:
+            return act.name
+    if data_record and data_record.name:
+        return data_record.name
+    return "[Nom non renseigné]"
 
 def resolve_data_name_for_incoming(conn):
+    """
+    Pour une connexion entrante (conn.type.lower() == 'input'), on regarde Data(source_id).
+    - Si trouvé => on applique resolve_return_activity_name si c'est un 'Retour',
+      sinon on retourne data_record.name
+    - Sinon => fallback sur conn.description si présent
+    """
     if conn.type and conn.type.lower() == 'input':
         data_record = Data.query.get(conn.source_id)
-        if data_record and data_record.name:
+        if data_record:
             return resolve_return_activity_name(data_record)
+    # Fallback
     if conn.description:
         return conn.description
     return "[Nom non renseigné]"
 
 def resolve_data_name_for_outgoing(conn):
+    """
+    Pour une connexion sortante (conn.type.lower() == 'output'), on regarde Data(target_id).
+    - Si trouvé => on applique resolve_return_activity_name si c'est un 'Retour',
+      sinon on retourne data_record.name
+    - Sinon => fallback sur conn.description si présent
+    """
     if conn.type and conn.type.lower() == 'output':
         data_record = Data.query.get(conn.target_id)
-        if data_record and data_record.name:
+        if data_record:
             return resolve_return_activity_name(data_record)
+    # Fallback
     if conn.description:
         return conn.description
     return "[Nom non renseigné]"
 
 def resolve_activity_name(record_id):
-    """Renvoie le nom d'une activité ou d'une donnée (si c'est un noeud Data)."""
-    activity = Activities.query.get(record_id)
-    if activity:
-        return activity.name
+    """
+    Renvoie le nom d'une activité ou d'une donnée (si c'est un noeud Data).
+    Si c'est un 'Retour', on cherche l'activité correspondante.
+    """
+    act = Activities.query.get(record_id)
+    if act:
+        return act.name
     data_record = Data.query.get(record_id)
     if data_record:
         if data_record.type and data_record.type.lower() == 'retour':
-            act = Activities.query.filter_by(name=data_record.name).first()
-            if act:
-                return act.name
-        return data_record.name
+            linked_act = Activities.query.filter_by(name=data_record.name).first()
+            if linked_act:
+                return linked_act.name
+        if data_record.name:
+            return data_record.name
     return "[Activité inconnue]"
 
 @activities_bp.route('/', methods=['GET'])
@@ -200,13 +224,10 @@ def get_activity_details(activity_id):
             if tool.name not in tools_list:
                 tools_list.append(tool.name)
 
-    # Gérer input_data / output_data si votre modèle le permet
     input_data_value = getattr(activity, "input_data", "Aucune donnée d'entrée")
     output_data_value = getattr(activity, "output_data", "Aucune donnée de sortie")
 
-    # Récupérer les compétences validées
     competencies = [{"id": comp.id, "description": comp.description} for comp in activity.competencies]
-    # Récupérer les habiletés socio-cognitives
     softskills = [{"id": ss.id, "habilete": ss.habilete, "niveau": ss.niveau} for ss in activity.softskills]
 
     activity_data = {
@@ -228,15 +249,23 @@ def update_cartography():
     Met à jour la base de données en fonction du fichier Visio sans réinitialiser
     entièrement la base. Les activités qui n'existent plus dans le Visio sont supprimées,
     les activités existantes sont mises à jour et les nouvelles sont créées.
+
+    Retourne un JSON contenant "message" et "summary" pour l'alerte côté front-end.
     """
     try:
         vsdx_path = os.path.join("Code", "example.vsdx")
-        update_database_from_visio(vsdx_path)
+        process_visio_file(vsdx_path)
+
+        # Récupérer le résumé
         summary_output = io.StringIO()
         with contextlib.redirect_stdout(summary_output):
             print_summary()
         summary_text = summary_output.getvalue()
-        return jsonify({"message": "Cartographie mise à jour (partielle)", "summary": summary_text}), 200
+
+        return jsonify({
+            "message": "Cartographie mise à jour (partielle)",
+            "summary": summary_text
+        }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -247,6 +276,7 @@ def view_activities():
     On y inclut toutes les infos : connexions, tâches, ...
     """
     try:
+        # Seules les activités is_result=False sont affichées
         activities = Activities.query.filter_by(is_result=False).all()
         activity_data = []
         for activity in activities:
@@ -254,7 +284,6 @@ def view_activities():
             incoming_conns = Connections.query.filter(Connections.target_id == activity.id).all()
             incoming_list = []
             for conn in incoming_conns:
-                conn_type = conn.type or ""
                 data_name = resolve_data_name_for_incoming(conn)
                 source_name = resolve_activity_name(conn.source_id)
                 incoming_list.append({
@@ -262,11 +291,11 @@ def view_activities():
                     'data_name': data_name,
                     'source_name': source_name
                 })
+
             # Connexions sortantes
             outgoing_conns = Connections.query.filter(Connections.source_id == activity.id).all()
             outgoing_list = []
             for conn in outgoing_conns:
-                conn_type = conn.type or ""
                 data_name = resolve_data_name_for_outgoing(conn)
                 target_name = resolve_activity_name(conn.target_id)
                 outgoing_list.append({
@@ -274,6 +303,7 @@ def view_activities():
                     'data_name': data_name,
                     'target_name': target_name
                 })
+
             # Tâches triées par 'order'
             tasks = sorted(activity.tasks, key=lambda x: x.order if x.order is not None else 0)
             tasks_list = []

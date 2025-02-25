@@ -1,4 +1,6 @@
-import os
+# Code fonctionnel pour l'import mais pas pou la modif ou suppression de lien.
+
+import os 
 import sys
 from vsdx import VisioFile
 from sqlalchemy.exc import IntegrityError
@@ -14,18 +16,18 @@ LAYER_MAPPING = {
     "1": "Activity",
     "9": "N link",    # Nourrissante (ligne pointillée)
     "10": "T link",   # Déclenchante (ligne pleine)
-    "6": "Result",    # Résultat (drapeau) -> sera traité comme activité
+    "6": "Result",    # Résultat (drapeau) -> ces activités ne seront pas affichées
     "8": "Return"     # Retour (rond)
 }
 
 # Calques à ignorer
 IGNORE_LAYERS = ["légende", "Color"]
 
-# Global mapping pour les activités (clé : ID Visio standardisé, valeur : ID en base)
-activity_mapping = {}
-# Global mapping pour les retours (clé : ID Visio standardisé, valeur : texte de la forme)
-return_mapping = {}
-# Liste pour résumer les connexions créées (pour le rapport final)
+# Global mapping pour suivre les activités traitées dans l'import courant
+activity_mapping = {}  # key: shape_id, value: DB id de l'activité
+# Mapping pour les retours
+return_mapping = {}    # key: shape_id, value: texte de la forme
+# Liste pour résumer les connexions créées
 connection_summaries = []
 
 def get_entity_name(entity_id):
@@ -50,17 +52,6 @@ def create_app():
     db.init_app(app)
     return app
 
-def reset_database():
-    """Réinitialise la base en vidant toutes les tables et en réinitialisant les mappings."""
-    db.session.query(Connections).delete()
-    db.session.query(Data).delete()
-    db.session.query(Activities).delete()
-    db.session.commit()
-    activity_mapping.clear()
-    return_mapping.clear()
-    connection_summaries.clear()
-    print("INFO : La base de données a été réinitialisée avec succès.")
-
 def get_layer(shape):
     """
     Extrait la valeur du calque d'une forme à partir de son XML.
@@ -75,44 +66,12 @@ def get_layer(shape):
 def get_fill_pattern(shape):
     """
     Extrait la valeur du FillPattern depuis la ShapeSheet.
-    Cherche la cellule dont N vaut "FillPattern" et retourne sa valeur (en chaîne),
-    ou None si non trouvée.
+    Retourne la valeur en chaîne, ou None.
     """
     cell = shape.xml.find(".//{*}Cell[@N='FillPattern']")
     if cell is not None:
         return cell.get("V")
     return None
-
-def process_visio_file(vsdx_path):
-    """Ouvre et traite un fichier Visio pour extraire les données."""
-    if not os.path.exists(vsdx_path):
-        print(f"ERREUR : Le fichier Visio '{vsdx_path}' est introuvable.")
-        return
-    with VisioFile(vsdx_path) as visio:
-        for page in visio.pages:
-            print(f"INFO : Analyse de la page : {page.name}")
-            for shape in page.all_shapes:
-                process_shape(shape)
-
-def process_shape(shape):
-    """Oriente le traitement d'une forme selon son calque."""
-    layer = get_layer(shape)
-    if layer is None:
-        print("INFO : Forme sans calque détectée, ignorée.")
-        return
-    if layer.lower() in [l.lower() for l in IGNORE_LAYERS]:
-        return
-
-    if layer == "Activity":
-        add_activity(shape, is_result=False)
-    elif layer == "Result":
-        add_activity(shape, is_result=True)
-    elif layer == "Return":
-        add_return(shape)
-    elif layer in ["T link", "N link"]:
-        add_data_and_connections(shape)
-    else:
-        print(f"INFO : Calque non traité ({layer}) pour la forme '{shape.text.strip() if shape.text else 'sans texte'}'.")
 
 def standardize_id(visio_id):
     """Convertit l'ID de la forme en chaîne normalisée."""
@@ -121,32 +80,86 @@ def standardize_id(visio_id):
     except (ValueError, TypeError):
         return str(visio_id).strip().lower()
 
-def add_activity(shape, is_result=False):
+def process_visio_file(vsdx_path):
     """
-    Ajoute une activité dans Activities.
-    Pour les formes du calque "Activity", si FillPattern vaut "2", force is_result=True.
+    Ouvre et traite un fichier Visio pour extraire/mettre à jour les données.
+    - Ajoute ou met à jour les activités (avec leur shape_id)
+    - Gère les retours et connecteurs
+    - Supprime les activités dont le shape_id n'est plus présent
     """
+    if not os.path.exists(vsdx_path):
+        print(f"ERREUR : Le fichier Visio '{vsdx_path}' est introuvable.")
+        return
+    with VisioFile(vsdx_path) as visio:
+        print(f"INFO : Début de l'importation de la cartographie depuis {vsdx_path}")
+        global activity_mapping, return_mapping, connection_summaries
+        activity_mapping.clear()
+        return_mapping.clear()
+        connection_summaries.clear()
+
+        for page in visio.pages:
+            print(f"INFO : Analyse de la page : {page.name}")
+            for shape in page.all_shapes:
+                process_shape(shape)
+
+        # Supprimer les activités en base dont le shape_id n'est plus présent
+        existing_activities = Activities.query.filter(Activities.shape_id.isnot(None)).all()
+        deleted_count = 0
+        for act in existing_activities:
+            if act.shape_id not in activity_mapping:
+                print(f"INFO : Suppression de l'activité {act.name} (DB ID: {act.id}) car absente de la nouvelle cartographie")
+                db.session.delete(act)
+                deleted_count += 1
+        db.session.commit()
+
+        print(f"INFO : Importation terminée. Activités ajoutées/mises à jour: {len(activity_mapping)}, activités supprimées: {deleted_count}")
+        print_summary()
+
+def add_or_update_activity(shape, is_result=False):
+    """
+    Ajoute ou met à jour une activité en se basant sur son shape_id.
+    Modification demandée : seules les formes dont fill_pattern == "1" sont considérées comme 'non-result'.
+    Toute autre fill_pattern => is_result=True.
+    """
+    key = standardize_id(shape.ID)
     name = shape.text.strip() if shape.text else ("Résultat sans nom" if is_result else "Activité sans nom")
-    if not is_result:
-        fill_pattern = get_fill_pattern(shape)
-        if fill_pattern == "2":
-            is_result = True
-    try:
-        act = Activities(name=name, is_result=is_result)
-        db.session.add(act)
-        db.session.flush()  # Pour obtenir act.id
-        key = standardize_id(shape.ID)
-        activity_mapping[key] = act.id
-        type_str = "Activité de résultat" if is_result else "Activité"
-        print(f"INFO : {type_str} ajoutée : {name} (Visio ID: {shape.ID}, DB ID: {act.id})")
-    except IntegrityError:
-        db.session.rollback()
-        print(f"INFO : {('Activité de résultat' if is_result else 'Activité')} existante : {name}")
+
+    # Récupérer le fill pattern
+    fill_pattern = get_fill_pattern(shape)
+    # Si le fill pattern n'est pas "1", on force is_result=True
+    if fill_pattern is not None and fill_pattern != "1":
+        is_result = True
+
+    # Vérifier si on a déjà une activité avec ce shape_id
+    act = Activities.query.filter_by(shape_id=key).first()
+    if act:
+        updated = False
+        if act.name != name:
+            act.name = name
+            updated = True
+        if act.is_result != is_result:
+            act.is_result = is_result
+            updated = True
+        if updated:
+            print(f"INFO : Activité (DB ID: {act.id}) mise à jour : {name} (is_result={is_result})")
+        else:
+            print(f"INFO : Activité (DB ID: {act.id}) déjà existante, aucune modification.")
+    else:
+        try:
+            act = Activities(name=name, is_result=is_result, shape_id=key)
+            db.session.add(act)
+            db.session.flush()
+            print(f"INFO : Nouvelle activité ajoutée : {name} (Visio ID: {key}, DB ID: {act.id}, is_result={is_result})")
+        except IntegrityError as e:
+            db.session.rollback()
+            print(f"ERREUR : Problème lors de l'ajout de l'activité {name}: {str(e)}")
+            return
+    activity_mapping[key] = act.id
 
 def add_return(shape):
     """
     Traite une forme de type "Return".
-    Enregistre la donnée dans Data avec le type "Retour" et met à jour le mapping des retours.
+    Enregistre la donnée dans Data avec le type "Retour" et met à jour le mapping.
     """
     name = shape.text.strip() if shape.text else "Return sans nom"
     try:
@@ -162,7 +175,7 @@ def add_return(shape):
         return_mapping[key] = name
     except IntegrityError:
         db.session.rollback()
-        print(f"INFO : Problème avec le Return : {name}")
+        print(f"ERREUR : Problème avec le Return : {name}")
 
 def add_data_and_connections(shape):
     """
@@ -183,7 +196,7 @@ def add_data_and_connections(shape):
             db.session.add(data_record)
             db.session.flush()
             print(f"INFO : Donnée ajoutée : {data_name} ({data_type})")
-        
+
         def resolve_id(visio_id):
             if not visio_id:
                 return None
@@ -218,7 +231,7 @@ def add_data_and_connections(shape):
                     source_id=source_db_id,
                     target_id=target_db_id,
                     type=data_type,
-                    description=data_record.name  # Ajout de la description pour la connexion complète
+                    description=data_record.name
                 )
                 db.session.add(conn)
                 db.session.flush()
@@ -268,7 +281,7 @@ def add_data_and_connections(shape):
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        print(f"INFO : Problème d'insertion pour la donnée {data_name}")
+        print(f"ERREUR : Problème d'insertion pour la donnée {data_name}")
 
 def analyze_connections(shape):
     """
@@ -299,9 +312,7 @@ def extract_shape_id(f_val):
 
 def print_summary():
     """
-    Affiche un résumé clair des connexions enregistrées.
-    Pour chaque connexion dans connection_summaries, affiche :
-      "Donnée <nom> (<type>) produite par <source> est utilisée par <destination>"
+    Affiche un résumé clair des connexions enregistrées et une confirmation finale.
     """
     print("\n--- Résumé des connexions ---")
     if connection_summaries:
@@ -310,11 +321,43 @@ def print_summary():
     else:
         print("Aucune connexion enregistrée.")
     print("--- Fin du résumé ---\n")
+    print("CONFIRMATION : Toutes les opérations (ajout, mise à jour, suppression) ont été effectuées avec succès.")
+
+def process_shape(shape):
+    """
+    Oriente le traitement d'une forme selon son calque.
+    Traite uniquement les formes appartenant aux calques "Activity", "Result", "Return" et aux connecteurs ("T link", "N link").
+    """
+    layer = get_layer(shape)
+    if layer is None:
+        print("INFO : Forme sans calque détectée, ignorée.")
+        return
+    if layer.lower() in [l.lower() for l in IGNORE_LAYERS]:
+        return
+
+    if layer == "Activity":
+        add_or_update_activity(shape, is_result=False)
+    elif layer == "Result":
+        add_or_update_activity(shape, is_result=True)
+    elif layer == "Return":
+        add_return(shape)
+    elif layer in ["T link", "N link"]:
+        add_data_and_connections(shape)
+    else:
+        print(f"INFO : Calque non traité ({layer}) pour la forme '{shape.text.strip() if shape.text else 'sans texte'}'.")
 
 if __name__ == "__main__":
-    app = create_app()
+    from flask import Flask
+    app = Flask(__name__)
+    instance_path = os.path.abspath(os.path.join("Code", "instance"))
+    if not os.path.exists(instance_path):
+        os.makedirs(instance_path)
+    db_path = os.path.join(instance_path, "optiq.db")
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    db.init_app(app)
+
     with app.app_context():
-        reset_database()
+        print("INFO : Démarrage de l'importation de la cartographie avec mise à jour partielle")
         vsdx_path = os.path.join("Code", "example.vsdx")
         process_visio_file(vsdx_path)
-        print_summary()

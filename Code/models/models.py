@@ -21,13 +21,30 @@ class Activities(db.Model):
     is_result = db.Column(db.Boolean, nullable=False, default=False)
 
     # Relation avec les tâches (ordonnées par 'order')
-    tasks = db.relationship('Task', backref='activity', lazy=True, order_by='Task.order', cascade="all, delete-orphan")
+    tasks = db.relationship(
+        'Task',
+        backref='activity',
+        lazy=True,
+        order_by='Task.order',
+        cascade="all, delete-orphan"
+    )
 
     # Relation avec les compétences validées
-    competencies = db.relationship('Competency', backref='activity', lazy=True, cascade="all, delete-orphan")
+    competencies = db.relationship(
+        'Competency',
+        backref='activity',
+        lazy=True,
+        cascade="all, delete-orphan"
+    )
 
     # Relation avec les habiletés socio-cognitives (softskills)
-    softskills = db.relationship('Softskill', backref='activity', lazy=True, cascade="all, delete-orphan")
+    softskills = db.relationship(
+        'Softskill',
+        backref='activity',
+        lazy=True,
+        cascade="all, delete-orphan"
+    )
+
 
 class Connections(db.Model):
     __tablename__ = 'connections'
@@ -37,6 +54,7 @@ class Connections(db.Model):
     target_id = db.Column(db.Integer, db.ForeignKey('activities.id', name='fk_connections_target_id'), nullable=True)
     type = db.Column(db.String(50), nullable=False)
     description = db.Column(db.Text, nullable=True)
+
 
 class Data(db.Model):
     __tablename__ = 'data'
@@ -49,6 +67,7 @@ class Data(db.Model):
     type = db.Column(db.String(50), nullable=False)
     description = db.Column(db.Text, nullable=True)
     layer = db.Column(db.String(50), nullable=True)
+
 
 class Task(db.Model):
     __tablename__ = 'tasks'
@@ -68,6 +87,7 @@ class Task(db.Model):
         backref=db.backref('tasks', lazy=True)
     )
 
+
 class Tool(db.Model):
     __tablename__ = 'tools'
 
@@ -75,12 +95,14 @@ class Tool(db.Model):
     name = db.Column(db.String(255), nullable=False, unique=True)
     description = db.Column(db.Text, nullable=True)
 
+
 class Competency(db.Model):
     __tablename__ = 'competencies'
 
     id = db.Column(db.Integer, primary_key=True)
     description = db.Column(db.Text, nullable=False)
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
+
 
 class Softskill(db.Model):
     __tablename__ = 'softskills'
@@ -90,3 +112,30 @@ class Softskill(db.Model):
     # Stocke le niveau sous forme de chaîne ("1", "2", "3" ou "4")
     niveau = db.Column(db.String(10), nullable=False)
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
+
+
+# --- Ajout pour la gestion des rôles ---
+# Ce commentaire est ajouté pour forcer Alembic à détecter une modification.
+
+class Role(db.Model):
+    __tablename__ = 'roles'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+
+    def __repr__(self):
+        return f"<Role {self.name}>"
+
+
+# Table d'association pour les rôles affectés aux activités.
+activity_roles = db.Table('activity_roles',
+    db.Column('activity_id', db.Integer, db.ForeignKey('activities.id'), primary_key=True),
+    db.Column('role_id', db.Integer, db.ForeignKey('roles.id'), primary_key=True),
+    db.Column('status', db.String(50), nullable=False)  # Par ex. "Garant"
+)
+
+# Table d'association pour les rôles affectés aux tâches.
+task_roles = db.Table('task_roles',
+    db.Column('task_id', db.Integer, db.ForeignKey('tasks.id'), primary_key=True),
+    db.Column('role_id', db.Integer, db.ForeignKey('roles.id'), primary_key=True),
+    db.Column('status', db.String(50), nullable=False)  # "Réalisateur", "Approbateur", etc.
+)
