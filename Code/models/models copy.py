@@ -1,3 +1,5 @@
+# Code/models/models.py fonctionnant ave l'ancien extract_visio
+
 from Code.extensions import db
 
 # Table d'association entre Task et Tool
@@ -13,6 +15,7 @@ class Activities(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     # Identifiant stable provenant de Visio (pour éviter de recréer/supprimer l'activité à chaque fois)
     shape_id = db.Column(db.String(50), unique=True, index=True, nullable=True)
+
     name = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=True)
     is_result = db.Column(db.Boolean, nullable=False, default=False)
@@ -42,16 +45,29 @@ class Activities(db.Model):
         cascade="all, delete-orphan"
     )
 
+
+class Connections(db.Model):
+    __tablename__ = 'connections'
+
+    id = db.Column(db.Integer, primary_key=True)
+    source_id = db.Column(db.Integer, db.ForeignKey('activities.id', name='fk_connections_source_id'), nullable=True)
+    target_id = db.Column(db.Integer, db.ForeignKey('activities.id', name='fk_connections_target_id'), nullable=True)
+    type = db.Column(db.String(50), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+
+
 class Data(db.Model):
     __tablename__ = 'data'
 
     id = db.Column(db.Integer, primary_key=True)
-    # Permet de faire des mises à jour partielles sur les Data
+    # Si vous souhaitez aussi faire des mises à jour partielles sur les Data, on peut leur attribuer un shape_id
     shape_id = db.Column(db.String(50), unique=True, index=True, nullable=True)
+
     name = db.Column(db.String(255), nullable=False)
     type = db.Column(db.String(50), nullable=False)
     description = db.Column(db.Text, nullable=True)
     layer = db.Column(db.String(50), nullable=True)
+
 
 class Task(db.Model):
     __tablename__ = 'tasks'
@@ -60,6 +76,7 @@ class Task(db.Model):
     name = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text, nullable=True)
     order = db.Column(db.Integer, nullable=True)
+
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
 
     # Relation Many-to-Many avec Tool
@@ -70,6 +87,7 @@ class Task(db.Model):
         backref=db.backref('tasks', lazy=True)
     )
 
+
 class Tool(db.Model):
     __tablename__ = 'tools'
 
@@ -77,12 +95,14 @@ class Tool(db.Model):
     name = db.Column(db.String(255), nullable=False, unique=True)
     description = db.Column(db.Text, nullable=True)
 
+
 class Competency(db.Model):
     __tablename__ = 'competencies'
 
     id = db.Column(db.Integer, primary_key=True)
     description = db.Column(db.Text, nullable=False)
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
+
 
 class Softskill(db.Model):
     __tablename__ = 'softskills'
@@ -93,7 +113,10 @@ class Softskill(db.Model):
     niveau = db.Column(db.String(10), nullable=False)
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
 
-# --- Gestion des rôles ---
+
+# --- Ajout pour la gestion des rôles ---
+# Ce commentaire est ajouté pour forcer Alembic à détecter une modification.
+
 class Role(db.Model):
     __tablename__ = 'roles'
     id = db.Column(db.Integer, primary_key=True)
@@ -102,39 +125,17 @@ class Role(db.Model):
     def __repr__(self):
         return f"<Role {self.name}>"
 
+
 # Table d'association pour les rôles affectés aux activités.
 activity_roles = db.Table('activity_roles',
     db.Column('activity_id', db.Integer, db.ForeignKey('activities.id'), primary_key=True),
     db.Column('role_id', db.Integer, db.ForeignKey('roles.id'), primary_key=True),
-    db.Column('status', db.String(50), nullable=False)  # Par exemple "Garant"
+    db.Column('status', db.String(50), nullable=False)  # Par ex. "Garant"
 )
 
 # Table d'association pour les rôles affectés aux tâches.
 task_roles = db.Table('task_roles',
     db.Column('task_id', db.Integer, db.ForeignKey('tasks.id'), primary_key=True),
     db.Column('role_id', db.Integer, db.ForeignKey('roles.id'), primary_key=True),
-    db.Column('status', db.String(50), nullable=False)  # Par exemple "Réalisateur", "Approbateur", etc.
+    db.Column('status', db.String(50), nullable=False)  # "Réalisateur", "Approbateur", etc.
 )
-
-# --- Nouvelle table pour les liaisons (Links) ---
-class Link(db.Model):
-    __tablename__ = 'links'
-    id = db.Column(db.Integer, primary_key=True)
-    # Si la source est une activité
-    source_activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=True)
-    # Si la source est un Data
-    source_data_id = db.Column(db.Integer, db.ForeignKey('data.id'), nullable=True)
-    # Si la cible est une activité
-    target_activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=True)
-    # Si la cible est un Data
-    target_data_id = db.Column(db.Integer, db.ForeignKey('data.id'), nullable=True)
-    type = db.Column(db.String(50), nullable=False)    # Ex: "nourrissante", "déclenchante", "Retour", etc.
-    description = db.Column(db.Text, nullable=True)
-
-    @property
-    def source_id(self):
-        return self.source_activity_id if self.source_activity_id is not None else self.source_data_id
-
-    @property
-    def target_id(self):
-        return self.target_activity_id if self.target_activity_id is not None else self.target_data_id

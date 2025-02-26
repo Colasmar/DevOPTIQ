@@ -1,3 +1,4 @@
+# Code/app.py
 import os
 import sys
 from dotenv import load_dotenv
@@ -30,17 +31,15 @@ def create_app():
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     db.init_app(app)
-    Migrate(app, db)
+    migrate = Migrate(app, db)
 
-    # Enregistrement des blueprints existants
+    # Enregistrement des blueprints
     from Code.routes.activities import activities_bp
     app.register_blueprint(activities_bp)
     from Code.routes.tools import tools_bp
     app.register_blueprint(tools_bp)
     from Code.routes.skills import skills_bp
     app.register_blueprint(skills_bp)
-
-    # Enregistrement du nouveau blueprint pour les habiletés socio-cognitives
     from Code.routes.softskills import softskills_bp
     app.register_blueprint(softskills_bp)
 
@@ -48,7 +47,6 @@ def create_app():
     def home():
         return "Bienvenue sur mon application Flask !"
     
-    # Nouvelle route pour accéder à la page de test
     @app.route('/test_skills')
     def test_skills():
         return app.send_static_file('test_skills.html')
