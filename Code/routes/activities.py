@@ -4,6 +4,7 @@ import os
 import io
 import contextlib
 from flask import Blueprint, jsonify, request, render_template
+from sqlalchemy import text  # <-- pour la requête brute du Garant
 from Code.extensions import db
 from Code.models.models import Activities, Data, Link, Task, Tool, Competency, Softskill
 from Code.scripts.extract_visio import process_visio_file, print_summary
@@ -20,7 +21,6 @@ def resolve_return_activity_name(data_record):
     return "[Nom non renseigné]"
 
 def resolve_data_name_for_incoming(link):
-    # On suppose que pour un lien de type "input", la source contient l'information
     if link.type and link.type.lower() == 'input':
         data_record = Data.query.get(link.source_id)
         if data_record:
@@ -51,6 +51,20 @@ def resolve_activity_name(record_id):
         if data_record.name:
             return data_record.name
     return "[Activité inconnue]"
+
+# AJOUT MINIMAL : récupérer le Garant
+def get_garant_role(activity_id):
+    """
+    Retourne le rôle Garant associé à l'activité (status='Garant'), ou None.
+    """
+    result = db.session.execute(
+        text("SELECT r.id, r.name FROM activity_roles ar JOIN roles r ON ar.role_id = r.id "
+             "WHERE ar.activity_id = :aid AND ar.status = 'Garant'"),
+        {"aid": activity_id}
+    ).fetchone()
+    if result:
+        return {"id": result[0], "name": result[1]}
+    return None
 
 @activities_bp.route('/', methods=['GET'])
 def get_activities():
@@ -229,11 +243,12 @@ def update_cartography():
 @activities_bp.route('/view', methods=['GET'])
 def view_activities():
     try:
-        # Afficher uniquement les activités non marquées comme résultat
+        # Code original : afficher uniquement les activités non marquées comme résultat
         activities = Activities.query.filter_by(is_result=False).all()
+
         activity_data = []
         for activity in activities:
-            # Pour les connexions, on utilise le modèle Link (compatibilité assurée par les propriétés source_id et target_id)
+            # Connexions entrantes
             incoming_links = Link.query.filter(
                 (Link.target_activity_id == activity.id) | (Link.target_data_id == activity.id)
             ).all()
@@ -246,6 +261,8 @@ def view_activities():
                     'data_name': data_name,
                     'source_name': source_name
                 })
+
+            # Connexions sortantes
             outgoing_links = Link.query.filter(
                 (Link.source_activity_id == activity.id) | (Link.source_data_id == activity.id)
             ).all()
@@ -258,6 +275,8 @@ def view_activities():
                     'data_name': data_name,
                     'target_name': target_name
                 })
+
+            # Tâches
             tasks = sorted(activity.tasks, key=lambda x: x.order if x.order is not None else 0)
             tasks_list = []
             for t in tasks:
@@ -271,12 +290,34 @@ def view_activities():
                         for tool in t.tools
                     ]
                 })
+
+            # AJOUT MINIMAL : récupérer le Garant
+            garant = get_garant_role(activity.id)
+
+            # On ajoute 'garant' dans la data
             activity_data.append({
                 'activity': activity,
                 'incoming': incoming_list,
                 'outgoing': outgoing_list,
-                'tasks': tasks_list
+                'tasks': tasks_list,
+                'garant': garant  # <- nouveau
             })
+
         return render_template('display_list.html', activity_data=activity_data)
     except Exception as e:
         return f"Erreur lors de l'affichage des activités: {e}", 500
+
+def print_summary():
+    print("\n--- RÉSUMÉ DES LIENS ---")
+    if link_summaries:
+        for (data_name, data_type, s_name, t_name) in link_summaries:
+            print(f"  - '{data_name}' ({data_type}) : {s_name} -> {t_name}")
+    else:
+        print("  Aucun lien créé")
+    print("--- Fin du résumé ---\n")
+    if rename_summaries:
+        print("--- Renommages détectés ---")
+        for (old, new) in rename_summaries:
+            print(f"  * '{old}' => '{new}'")
+        print("--- Fin des renommages ---\n")
+    print("CONFIRMATION : toutes les opérations ont été effectuées avec succès.")

@@ -1,0 +1,14 @@
+<!-- Code/routes/templates/roles_modal.html -->
+<div id="garantModal" style="display:none; position: fixed; top:20%; left:30%; width:40%; background: #fff; border:1px solid #aaa; padding:20px; z-index:9999;">
+    <h3>Choisir le rôle Garant</h3>
+    <input type="hidden" id="garant-activity-id" value="">
+    <label for="garant-role-select">Rôle existant :</label>
+    <select id="garant-role-select" style="width:100%;"></select>
+    <br/><br/>
+    <label for="garant-new-role">Ou saisir un nouveau rôle :</label>
+    <input type="text" id="garant-new-role" style="width:100%;" placeholder="Ex: Chef de projet">
+    <br/><br/>
+    <button onclick="submitGarantRole()">Valider</button>
+    <button onclick="closeGarantModal()">Annuler</button>
+  </div>
+  

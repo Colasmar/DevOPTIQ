@@ -21,6 +21,12 @@
   <button id="update-cartography-button" class="update-btn">
     <i class="fa-solid fa-arrows-rotate"></i> Mettre à jour la cartographie
   </button>
+
+  <!-- Bouton pour accéder à la vue des rôles -->
+  <a href="/roles_view/" style="display:inline-block; margin:10px 0; padding:10px 15px; background:#007BFF; color:#fff; text-decoration:none; border-radius:5px;">
+    Voir la vue des rôles
+  </a>
+
   <h1>Liste des activités</h1>
 
   {% for item in activity_data %}
@@ -29,6 +35,14 @@
     <div class="activity-header" onclick="toggleDetails('details-{{ item.activity.id }}', this)">
       <span class="toggle-icon" id="icon-{{ item.activity.id }}">▶</span>
       <h2>{{ item.activity.name }}</h2>
+    </div>
+
+    <!-- Bloc pour afficher le rôle Garant -->
+    <div style="margin:5px 0;">
+      <span id="activity-garant-{{ item.activity.id }}">
+        Garant : {% if item.garant %}{{ item.garant.name }}{% else %}Aucun{% endif %}
+      </span>
+      <button onclick="openGarantModal({{ item.activity.id }})" style="margin-left:10px;">Changer Garant</button>
     </div>
 
     <!-- Zone de détails (initialement masquée) -->
@@ -51,37 +65,49 @@
   </div>
   {% endfor %}
 
-  <!-- Inclusion des modaux pour la traduction des softskills, l'appel à l'IA et la gestion des compétences -->
+  <!-- Inclusion du modal pour le rôle Garant -->
+  {% include "roles_modal.html" %}
+
+  <!-- Inclusion des modules pour compétences & softskills -->
   {% include "translate_softskills_modal.html" %}
   {% include "skills_section.html" %}
   {% include "competency_modal.html" %}
 
-  <!-- Inclusion des fichiers JavaScript modulaires -->
+  <!-- Inclusion des fichiers JavaScript -->
   <script src="/static/js/tasks.js"></script>
   <script src="/static/js/tools.js"></script>
-
-  <!-- Edition/suppression des compétences -->
   <script src="/static/js/competencies.js"></script>
-
-  <!-- Edition/suppression des softskills -->
   <script src="/static/js/softskills.js"></script>
-
   <script src="/static/js/translate_softskills.js"></script>
   <script src="/static/js/main.js"></script>
+  <script src="/static/js/roles.js"></script>
 
   <script>
-    // Bouton "Mettre à jour la cartographie"
     document.getElementById('update-cartography-button').addEventListener('click', function() {
       fetch('/activities/update-cartography')
       .then(response => response.json())
       .then(data => {
-        alert(data.message + "\n" + data.summary);
+        let msg = (data.message || "") + "\n" + (data.summary || "");
+        alert(msg.trim());
         location.reload();
       })
       .catch(error => {
         alert("Erreur lors de la mise à jour de la cartographie: " + error.message);
       });
     });
+
+    function toggleDetails(detailsId, headerElem) {
+      var detailsElem = document.getElementById(detailsId);
+      var iconElem = headerElem.querySelector('.toggle-icon');
+      var currentDisplay = window.getComputedStyle(detailsElem).display;
+      if (currentDisplay === "none") {
+        detailsElem.style.display = "block";
+        iconElem.textContent = "▼";
+      } else {
+        detailsElem.style.display = "none";
+        iconElem.textContent = "▶";
+      }
+    }
   </script>
 </body>
 </html>
