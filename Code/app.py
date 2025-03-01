@@ -1,4 +1,3 @@
-# Code/app.py
 import os
 import sys
 from dotenv import load_dotenv
@@ -33,18 +32,26 @@ def create_app():
     # Enregistrement des blueprints existants
     from Code.routes.activities import activities_bp
     app.register_blueprint(activities_bp)
+
     from Code.routes.tools import tools_bp
     app.register_blueprint(tools_bp)
+
     from Code.routes.skills import skills_bp
     app.register_blueprint(skills_bp)
+
     from Code.routes.softskills import softskills_bp
     app.register_blueprint(softskills_bp)
+
     from Code.routes.roles import roles_bp
     app.register_blueprint(roles_bp)
 
     # Enregistrement du blueprint pour la vue des rôles
     from Code.routes.roles_view import roles_view_bp
     app.register_blueprint(roles_view_bp)
+
+    # Enregistrement du blueprint pour l'onboarding
+    from Code.routes.onboarding import onboarding_bp
+    app.register_blueprint(onboarding_bp)
 
     @app.route('/')
     def home():

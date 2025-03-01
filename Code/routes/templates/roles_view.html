@@ -58,6 +58,37 @@
       text-decoration: none;
       border-radius: 5px;
     }
+
+    /* Modale d'onboarding */
+    #onboardingModal {
+      display: none;
+      position: fixed;
+      top: 10%;
+      left: 20%;
+      width: 60%;
+      height: 70%;
+      background: #fff;
+      border: 1px solid #aaa;
+      padding: 20px;
+      z-index: 10000;
+      overflow-y: auto;
+      color: #000; /* Texte noir pour lisibilité */
+    }
+    #onboardingModal .close-btn {
+      float: right;
+      cursor: pointer;
+      font-size: 1.2em;
+      color: #333;
+    }
+    .onboarding-btn {
+      margin: 10px 5px;
+      padding: 8px 12px;
+      background-color: #007BFF;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -112,7 +143,7 @@
             {% endif %}
           </div>
         </div>
-        <!-- Bloc 3 : Compétences associées -->
+        <!-- Bloc 3 : Compétences associées aux activités Garant -->
         <div class="role-block block-3">
           <div class="block-header" onclick="toggleBlock('block3-{{ item.role.id }}', this)">
             <span class="toggle-icon" id="block3-icon-{{ item.role.id }}">▶</span>
@@ -148,9 +179,21 @@
             {% endif %}
           </div>
         </div>
+
+        <!-- Section On-boarding : les deux boutons et la modale -->
+        <div class="role-onboarding" style="margin-top:10px;">
+          <button class="onboarding-btn" onclick="generateOnboarding({{ item.role.id }})">Générer On-boarding</button>
+          <button class="onboarding-btn" onclick="viewOnboarding({{ item.role.id }})">Voir On-boarding</button>
+        </div>
       </div>
     </div>
   {% endfor %}
+
+  <!-- Modale d'onboarding -->
+  <div id="onboardingModal">
+    <span class="close-btn" onclick="closeOnboardingModal()">×</span>
+    <div id="onboardingContent"></div>
+  </div>
 
   <script>
     function toggleRoleContainer(containerId, headerElem) {
@@ -179,6 +222,62 @@
         block.style.display = "none";
         if (icon) { icon.textContent = "▶"; }
       }
+    }
+
+    // Génération du plan : on récupère la liste des HSC du bloc 4
+    function generateOnboarding(roleId) {
+      // Sélectionner les items de bloc4
+      var hscBlock = document.getElementById('block4-' + roleId);
+      if (!hscBlock) {
+        alert("Aucune HSC trouvée pour ce rôle.");
+        return;
+      }
+      var hscItems = hscBlock.querySelectorAll('li');
+      var hscList = [];
+      hscItems.forEach(function(li) {
+        hscList.push(li.innerText.trim());
+      });
+
+      fetch(`/roles/${roleId}/onboarding/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hsc_list: hscList })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.error) {
+          alert("Erreur : " + data.error);
+        } else {
+          // Plan généré avec succès : on l'affiche directement
+          document.getElementById('onboardingContent').innerText = data.onboarding_plan;
+          document.getElementById('onboardingModal').style.display = 'block';
+        }
+      })
+      .catch(error => {
+        alert("Erreur lors de la génération : " + error.message);
+      });
+    }
+
+    function viewOnboarding(roleId) {
+      fetch(`/roles/${roleId}/onboarding`, {
+        method: 'GET'
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.error) {
+          alert("Erreur : " + data.error);
+        } else {
+          document.getElementById('onboardingContent').innerText = data.onboarding_plan;
+          document.getElementById('onboardingModal').style.display = 'block';
+        }
+      })
+      .catch(error => {
+        alert("Erreur lors de la récupération du plan : " + error.message);
+      });
+    }
+
+    function closeOnboardingModal() {
+      document.getElementById('onboardingModal').style.display = 'none';
     }
   </script>
 </body>
