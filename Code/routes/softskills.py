@@ -10,15 +10,31 @@ softskills_bp = Blueprint('softskills_bp', __name__, url_prefix='/softskills')
 @softskills_bp.route('/propose', methods=['POST'])
 def propose_softskills():
     """
-    Propose 3-4 habiletés socio-cognitives (HSC) via l'IA, renvoyées en JSON.
-    """
-    data = request.get_json()
-    if not data:
-        return jsonify({"error": "Aucune donnée reçue"}), 400
+    Génère 3 ou 4 habiletés socio-cognitives en se basant sur la norme X50-766.
+    Tient compte du contexte détaillé : nom de l'activité, tâches, outils, environnement,
+    compétences existantes, etc., afin de suggérer des niveaux plus réalistes.
     
-    activity_info = data.get("activity", "")
-    competencies_info = data.get("competencies", "")
+    JSON attendu en entrée :
+    {
+      "activity": "Nom de l'activité",
+      "tasks": "Description des tâches",
+      "tools": "Outils utilisés",
+      "environment": "Environnement de travail",
+      "competencies": "Compétences existantes"
+    }
+    """
+    data = request.get_json() or {}
+    activity_info = data.get("activity", "").strip()
+    tasks_info = data.get("tasks", "").strip()
+    tools_info = data.get("tools", "").strip()
+    environment_info = data.get("environment", "").strip()
+    competencies_info = data.get("competencies", "").strip()
 
+    if not activity_info and not tasks_info and not tools_info and not environment_info:
+        # Au moins un champ de description est souhaité
+        return jsonify({"error": "Aucune information sur l'activité ou le contexte n'a été fournie."}), 400
+
+    # Liste officielle X50-766 (extrait) pour référence
     x50_766_hsc = """
 Les habiletés socio-cognitives officielles de la norme X50-766 sont :
 Relation à soi :
@@ -44,41 +60,55 @@ Relation à la complexité :
  - Approche globale
 """
 
+    # Construction d'un prompt plus contextuel
     prompt = f"""
-Voici une activité avec ses compétences existantes :
+Vous êtes un expert en habiletés sociocognitives selon la norme X50-766.
+Voici des informations détaillées sur une activité et son contexte :
 
-Activité : {activity_info}
-Compétences existantes : {competencies_info}
+- Nom de l'activité : {activity_info}
+- Tâches : {tasks_info}
+- Outils : {tools_info}
+- Environnement : {environment_info}
+- Compétences existantes : {competencies_info}
 
-Propose 3 ou 4 habiletés socio-cognitives officielles (norme X50-766) jugées essentielles pour cette activité.
-Utilise uniquement la liste suivante (n'invente pas d'autres habiletés) :
-{x50_766_hsc}
+En tenant compte de ces éléments, propose 3 ou 4 habiletés sociocognitives pertinentes parmi la liste X50-766 ci-dessous, 
+en indiquant un niveau entre 1 et 4 (1 = Aptitude, 4 = Excellence).
+Le niveau doit être justifié par la difficulté, la complexité, l'autonomie requise, la répétitivité, etc.
 
-Pour chaque habileté, indique un niveau entre 1 et 4 (1 = Aptitude, 4 = Excellence).
-Réponds au format JSON, par exemple :
+{ x50_766_hsc }
+
+Le résultat final doit être un tableau JSON, par exemple :
 [
-  {{"habilete": "Auto-évaluation", "niveau": "2"}},
-  {{"habilete": "Planification", "niveau": "3"}}
+  {{
+    "habilete": "Auto-organisation",
+    "niveau": "2",
+    "justification": "Niveau intermédiaire car..."
+  }},
+  ...
 ]
+
+Ne propose pas plus de 4 habiletés. Ne propose pas d'habiletés en dehors de cette liste.
 """
+
     openai.api_key = os.getenv("OPENAI_API_KEY")
     if not openai.api_key:
         return jsonify({"error": "Clé OpenAI manquante (OPENAI_API_KEY)."}), 500
+
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "Tu es un expert en habiletés socio-cognitives X50-766."},
+                {"role": "system", "content": "Tu es un assistant spécialisé en habiletés socio-cognitives X50-766."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.2,
-            max_tokens=400
+            max_tokens=800
         )
-        ai_message = response.choices[0].message['content'].strip()
-        proposals = json.loads(ai_message)
-        return jsonify(proposals)
+        raw_text = response['choices'][0]['message']['content'].strip()
+        proposals = json.loads(raw_text)
+        return jsonify(proposals), 200
     except Exception as e:
-        return jsonify({"error": f"Erreur lors de la récupération des habiletés socio-cognitives : {str(e)}"}), 500
+        return jsonify({"error": f"Erreur lors de la proposition de HSC : {str(e)}"}), 500
 
 @softskills_bp.route('/add', methods=['POST'])
 def add_softskill():
@@ -92,6 +122,7 @@ def add_softskill():
     niveau = data.get("niveau", "").strip()
     if not activity_id or not habilete or not niveau:
         return jsonify({"error": "activity_id, habilete and niveau are required"}), 400
+
     new_softskill = Softskill(activity_id=activity_id, habilete=habilete, niveau=niveau)
     try:
         db.session.add(new_softskill)
@@ -109,8 +140,8 @@ def add_softskill():
 @softskills_bp.route('/translate', methods=['POST'])
 def translate_softskills():
     """
-    Reçoit un texte libre (user_input) et renvoie une liste d'HSC.
-    Pour limiter la réponse à 3 à 5 HSC, le prompt demande explicitement de ne pas proposer plus de 5 objets.
+    Reçoit un texte libre (user_input) et renvoie une liste d'HSC (3 à 5).
+    On applique la même logique d'ajustement des niveaux, en se basant sur X50-766.
     """
     data = request.get_json() or {}
     user_input = data.get("user_input", "").strip()
@@ -143,18 +174,22 @@ Relation à la complexité :
 """
 
     prompt = f"""
-Voici un texte libre décrivant des soft skills :
+Voici un texte libre décrivant des soft skills ou un contexte d'activité :
 "{user_input}"
 
-Analyse ce texte dans le contexte de l'activité et des tâches associées, et traduis-le en une liste de 3 à 5 habiletés socio-cognitives issues de la norme X50-766.
-Utilise uniquement la liste suivante (n'invente pas d'autres habiletés) :
+Analyse ce texte et propose 3 à 5 habiletés sociocognitives issues de la norme X50-766
+en indiquant un niveau de 1 à 4, justifié brièvement (1 = Aptitude, 4 = Excellence).
+N'utilise que la liste suivante :
 {x50_766_hsc}
 
-Pour chaque habileté, attribue un niveau entre 1 et 4 (1 = Aptitude, 4 = Excellence).
-Réponds au format JSON, par exemple :
+Le résultat doit être un tableau JSON, par exemple :
 [
-  {{"habilete": "Auto-évaluation", "niveau": "2"}},
-  {{"habilete": "Planification", "niveau": "3"}}
+  {{
+    "habilete": "Auto-organisation",
+    "niveau": "2",
+    "justification": "Raisons ..."
+  }},
+  ...
 ]
 
 Ne propose jamais plus de 5 objets dans le tableau.
@@ -168,20 +203,24 @@ Ne propose jamais plus de 5 objets dans le tableau.
         response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "Tu es un expert en habiletés socio-cognitives selon la norme X50-766."},
+                {"role": "system", "content": "Tu es un expert en habiletés sociocognitives X50-766."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.2,
-            max_tokens=400
+            max_tokens=800
         )
         ai_message = response.choices[0].message['content'].strip()
         proposals = json.loads(ai_message)
-        return jsonify({"proposals": proposals})
+        return jsonify({"proposals": proposals}), 200
     except Exception as e:
         return jsonify({"error": f"Erreur lors de la traduction des softskills : {str(e)}"}), 500
 
 @softskills_bp.route('/<int:softskill_id>', methods=['PUT'])
 def update_softskill(softskill_id):
+    """
+    Met à jour une softskill existante.
+    JSON attendu : { "habilete": <str>, "niveau": <str> }
+    """
     data = request.get_json() or {}
     new_habilete = data.get("habilete", "").strip()
     new_niveau = data.get("niveau", "").strip()
@@ -207,6 +246,10 @@ def update_softskill(softskill_id):
 
 @softskills_bp.route('/<int:softskill_id>', methods=['DELETE'])
 def delete_softskill(softskill_id):
+    """
+    Supprime une softskill existante.
+    Retourne un JSON avec un message de confirmation ou une erreur.
+    """
     ss = Softskill.query.get(softskill_id)
     if not ss:
         return jsonify({"error": "Softskill not found"}), 404
