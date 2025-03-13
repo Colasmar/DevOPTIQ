@@ -7,7 +7,6 @@ import pydotplus as pydot
 # et que vos modèles sont définis dans Code/models/models.py (utilisant db.Model).
 from Code.extensions import db
 import Code.models.models  # Ceci permet d'enregistrer vos modèles
-# ------------------------------------------------------------------------------
 
 # Création du document Word
 doc = Document()
@@ -27,8 +26,7 @@ def add_architecture(path, indent=""):
         doc.add_paragraph(f"{indent}Erreur en listant {path}: {e}")
         return
     for item in items:
-        # Ignorer les fichiers cachés
-        if item.startswith("."):
+        if item.startswith("."):  # Ignorer fichiers cachés
             continue
         full_path = os.path.join(path, item)
         if os.path.isdir(full_path) and item not in excluded_dirs:
@@ -45,23 +43,26 @@ add_architecture(root_dir)
 doc.add_heading("2. Code Source", level=2)
 for folder, _, files in os.walk(root_dir):
     if any(excl in folder for excl in excluded_dirs):
-        continue  # Ignorer certains dossiers
+        continue
     for file in files:
         if file.endswith((".py", ".js", ".html", ".css")):
             file_path = os.path.join(folder, file)
-            doc.add_heading(f"{file}", level=3)
+            doc.add_heading(f"Début du fichier: {file}", level=3)
             try:
                 with open(file_path, "r", encoding="utf-8") as f:
                     code = f.read()
                     doc.add_paragraph(code)
+                    doc.add_heading(f"Fin du fichier: {file}", level=3)
+                print(f"✅ Fichier exporté : {file_path} ({len(code.splitlines())} lignes)")
             except Exception as e:
                 doc.add_paragraph(f"❌ Erreur de lecture pour {file}: {e}")
+                print(f"❌ Erreur de lecture pour {file_path} : {e}")
 
 # ------------------------------------------------------------------------------
 # 3. Structure de la Base de Données (texte)
 # ------------------------------------------------------------------------------
 doc.add_heading("3. Structure de la Base de Données (Texte)", level=2)
-metadata = db.Model.metadata  # Récupère la métadonnée globale de vos modèles
+metadata = db.Model.metadata
 
 for table in metadata.sorted_tables:
     doc.add_heading(f"Table: {table.name}", level=3)
@@ -69,28 +70,18 @@ for table in metadata.sorted_tables:
         doc.add_paragraph(f"• {column.name} ({column.type})")
 
 # ------------------------------------------------------------------------------
-# 4. Diagramme Visuel de la Base de Données (avec relations entre tables)
+# 4. Diagramme Visuel de la Base de Données
 # ------------------------------------------------------------------------------
 doc.add_heading("4. Diagramme Visuel de la Base de Données", level=2)
 
 def create_schema_graph(metadata):
-    """
-    Crée un diagramme relationnel (ERD) où chaque table est un seul noeud
-    listant ses colonnes, et où les foreign keys relient les tables entre elles.
-    """
     graph = pydot.Dot(graph_type="digraph", rankdir="LR")
-
-    # Dictionnaire pour référencer les noeuds par nom de table
     table_nodes = {}
 
-    # 1️⃣ Créer un noeud "record" pour chaque table
     for table in metadata.tables.values():
-        # Label : { tableName | col1 : type1\ncol2 : type2\n... }
         label = f"{{ {table.name} | "
         cols = [f"{col.name} : {col.type}" for col in table.columns]
-        # \l force un saut de ligne "left-justified"
         label += "\\l".join(cols) + "\\l}"
-        
         node = pydot.Node(
             table.name,
             shape="record",
@@ -101,14 +92,11 @@ def create_schema_graph(metadata):
         graph.add_node(node)
         table_nodes[table.name] = node
 
-    # 2️⃣ Ajouter des arêtes pour chaque Foreign Key
     for table in metadata.tables.values():
         for fk in table.foreign_keys:
             referencing_node = table_nodes[table.name]
             referenced_node = table_nodes[fk.column.table.name]
-            # Indiquer la colonne qui fait la FK
             edge_label = f"{fk.parent.name} → {fk.column.name}"
-            
             edge = pydot.Edge(
                 referencing_node,
                 referenced_node,
@@ -117,7 +105,6 @@ def create_schema_graph(metadata):
                 arrowsize="0.8"
             )
             graph.add_edge(edge)
-
     return graph
 
 graph = create_schema_graph(metadata)

@@ -10,11 +10,14 @@
   <!-- Feuille de style principale -->
   <link rel="stylesheet" href="/static/optiq.css">
 
+  <!-- Inclusion du fichier spinner.css (se trouvant à la racine de static) -->
+  <link rel="stylesheet" href="/static/spinner.css">
+  
+  <!-- jQuery nécessaire pour certaines fonctions -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  
   <!-- SortableJS pour le drag & drop -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
-  
-  <!-- jQuery nécessaire pour les fonctions -->
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
   <!-- Bouton pour mettre à jour la cartographie -->
@@ -73,7 +76,8 @@
   {% include "skills_section.html" %}
   {% include "competency_modal.html" %}
 
-  <!-- Inclusion des fichiers JavaScript -->
+  <!-- Inclusion des scripts dans l'ordre requis -->
+  <script src="/static/js/spinner.js"></script>
   <script src="/static/js/tasks.js"></script>
   <script src="/static/js/tools.js"></script>
   <script src="/static/js/competencies.js"></script>

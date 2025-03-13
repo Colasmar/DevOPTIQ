@@ -12,19 +12,16 @@
 
 <script>
 function openTranslateSoftskillsModal(activityId) {
-  console.log("openTranslateSoftskillsModal - activityId:", activityId);
   window.translateSoftskillsActivityId = activityId;
   document.getElementById('translateSoftskillsModal').style.display = 'block';
 }
 
 function closeTranslateSoftskillsModal() {
-  console.log("closeTranslateSoftskillsModal");
   document.getElementById('translateSoftskillsModal').style.display = 'none';
   window.translateSoftskillsActivityId = null;
 }
 
 function submitSoftskillsTranslation() {
-  console.log("submitSoftskillsTranslation triggered");
   const activityId = window.translateSoftskillsActivityId;
   if (!activityId) {
     alert("Identifiant de l'activité introuvable.");
@@ -37,14 +34,16 @@ function submitSoftskillsTranslation() {
     return;
   }
 
-  // Appel /softskills/translate
+  // Afficher le spinner
+  showSpinner();
+
   $.ajax({
     url: '/softskills/translate',
     method: 'POST',
     contentType: 'application/json',
     data: JSON.stringify({ user_input: userInput }),
     success: function(response) {
-      console.log("Réponse de /softskills/translate:", response);
+      hideSpinner();
       if (!response.proposals) {
         alert("Réponse inattendue : pas de 'proposals' !");
         return;
@@ -79,6 +78,7 @@ function submitSoftskillsTranslation() {
       });
     },
     error: function() {
+      hideSpinner();
       alert("Erreur lors de la traduction des softskills.");
     }
   });

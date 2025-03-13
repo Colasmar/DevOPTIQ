@@ -14,6 +14,7 @@ class Activities(db.Model):
     name = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=True)
     is_result = db.Column(db.Boolean, nullable=False, default=False)
+
     tasks = db.relationship('Task', backref='activity', lazy=True, order_by='Task.order', cascade="all, delete-orphan")
     competencies = db.relationship('Competency', backref='activity', lazy=True, cascade="all, delete-orphan")
     softskills = db.relationship('Softskill', backref='activity', lazy=True, cascade="all, delete-orphan")
@@ -34,6 +35,7 @@ class Task(db.Model):
     description = db.Column(db.Text, nullable=True)
     order = db.Column(db.Integer, nullable=True)
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
+
     tools = db.relationship('Tool', secondary=task_tools, lazy='subquery', backref=db.backref('tasks', lazy=True))
 
 class Tool(db.Model):
@@ -53,6 +55,7 @@ class Softskill(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     habilete = db.Column(db.String(255), nullable=False)
     niveau = db.Column(db.String(10), nullable=False)
+    justification = db.Column(db.Text, nullable=True)  # <-- NOUVEAU CHAMP
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
 
 class Role(db.Model):
