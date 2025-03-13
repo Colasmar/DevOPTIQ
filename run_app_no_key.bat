@@ -23,4 +23,5 @@ REM ========================================
 REM Une fois dans le terminal intégré, naviguez (si nécessaire)
 REM jusqu’à la racine du projet et exécutez .\run_app_no_key.bat
 REM ou réactivez l'environnement avec .\Venv\Scripts\Activate
+REM activiter Flask $env:FLASK_APP = "Code/app.py"
 REM ========================================

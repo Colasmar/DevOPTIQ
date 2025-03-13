@@ -1,12 +1,17 @@
 from Code.extensions import db
 
-# Table d'association entre Task et Tool
+# ---------------------------------------------------------
+#  Table d'association entre Task et Tool
+# ---------------------------------------------------------
 task_tools = db.Table(
     'task_tools',
     db.Column('task_id', db.Integer, db.ForeignKey('tasks.id'), primary_key=True),
     db.Column('tool_id', db.Integer, db.ForeignKey('tools.id'), primary_key=True)
 )
 
+# ---------------------------------------------------------
+#  Modèles existants
+# ---------------------------------------------------------
 class Activities(db.Model):
     __tablename__ = 'activities'
     id = db.Column(db.Integer, primary_key=True)
@@ -15,16 +20,19 @@ class Activities(db.Model):
     description = db.Column(db.Text, nullable=True)
     is_result = db.Column(db.Boolean, nullable=False, default=False)
 
-    tasks = db.relationship('Task', backref='activity', lazy=True, order_by='Task.order', cascade="all, delete-orphan")
-    competencies = db.relationship('Competency', backref='activity', lazy=True, cascade="all, delete-orphan")
-    softskills = db.relationship('Softskill', backref='activity', lazy=True, cascade="all, delete-orphan")
+    tasks = db.relationship('Task', backref='activity', lazy=True,
+                            order_by='Task.order', cascade="all, delete-orphan")
+    competencies = db.relationship('Competency', backref='activity', lazy=True,
+                                   cascade="all, delete-orphan")
+    softskills = db.relationship('Softskill', backref='activity', lazy=True,
+                                 cascade="all, delete-orphan")
 
 class Data(db.Model):
     __tablename__ = 'data'
     id = db.Column(db.Integer, primary_key=True)
     shape_id = db.Column(db.String(50), unique=True, index=True, nullable=True)
     name = db.Column(db.String(255), nullable=False)
-    type = db.Column(db.String(50), nullable=False)
+    type = db.Column(db.String(50), nullable=False)  # "output", "input", etc.
     description = db.Column(db.Text, nullable=True)
     layer = db.Column(db.String(50), nullable=True)
 
@@ -36,7 +44,12 @@ class Task(db.Model):
     order = db.Column(db.Integer, nullable=True)
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
 
-    tools = db.relationship('Tool', secondary=task_tools, lazy='subquery', backref=db.backref('tasks', lazy=True))
+    tools = db.relationship(
+        'Tool',
+        secondary=task_tools,
+        lazy='subquery',
+        backref=db.backref('tasks', lazy=True)
+    )
 
 class Tool(db.Model):
     __tablename__ = 'tools'
@@ -55,26 +68,27 @@ class Softskill(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     habilete = db.Column(db.String(255), nullable=False)
     niveau = db.Column(db.String(10), nullable=False)
-    justification = db.Column(db.Text, nullable=True)  # <-- NOUVEAU CHAMP
+    justification = db.Column(db.Text, nullable=True)  # champ supplémentaire
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
 
 class Role(db.Model):
     __tablename__ = 'roles'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
-    onboarding_plan = db.Column(db.Text, nullable=True)  # Nouveau champ pour le plan d'on boarding
+    onboarding_plan = db.Column(db.Text, nullable=True)  # plan d'onboarding
 
     def __repr__(self):
         return f"<Role {self.name}>"
 
-# Table d'association pour les rôles affectés aux activités.
+# ---------------------------------------------------------
+#  Tables d'association existantes
+# ---------------------------------------------------------
 activity_roles = db.Table('activity_roles',
     db.Column('activity_id', db.Integer, db.ForeignKey('activities.id'), primary_key=True),
     db.Column('role_id', db.Integer, db.ForeignKey('roles.id'), primary_key=True),
     db.Column('status', db.String(50), nullable=False)
 )
 
-# Table d'association pour les rôles affectés aux tâches.
 task_roles = db.Table('task_roles',
     db.Column('task_id', db.Integer, db.ForeignKey('tasks.id'), primary_key=True),
     db.Column('role_id', db.Integer, db.ForeignKey('roles.id'), primary_key=True),
@@ -88,13 +102,69 @@ class Link(db.Model):
     source_data_id = db.Column(db.Integer, db.ForeignKey('data.id'), nullable=True)
     target_activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=True)
     target_data_id = db.Column(db.Integer, db.ForeignKey('data.id'), nullable=True)
-    type = db.Column(db.String(50), nullable=False)
+    type = db.Column(db.String(50), nullable=False)  # ex: 'déclenchante', 'nourrissante'
     description = db.Column(db.Text, nullable=True)
 
     @property
     def source_id(self):
-        return self.source_activity_id if self.source_activity_id is not None else self.source_data_id
+        if self.source_activity_id is not None:
+            return self.source_activity_id
+        return self.source_data_id
 
     @property
     def target_id(self):
-        return self.target_activity_id if self.target_activity_id is not None else self.target_data_id
+        if self.target_activity_id is not None:
+            return self.target_activity_id
+        return self.target_data_id
+
+# ---------------------------------------------------------
+#  NOUVELLES CLASSES : Performances, Constraints, Savoirs,
+#  SavoirFaire, Aptitudes
+# ---------------------------------------------------------
+
+class Performance(db.Model):
+    """
+    Représente une performance attendue sur une donnée de sortie.
+    data_id -> rattache la performance à la table 'data'.
+    """
+    __tablename__ = 'performances'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    data_id = db.Column(db.Integer, db.ForeignKey('data.id'), nullable=False)
+
+class Constraint(db.Model):
+    """
+    Contrainte (ou exigence) associée à une activité.
+    """
+    __tablename__ = 'constraints'
+    id = db.Column(db.Integer, primary_key=True)
+    description = db.Column(db.Text, nullable=False)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
+
+class Savoir(db.Model):
+    """
+    Savoir attaché à l'activité (connaissance "théorique").
+    """
+    __tablename__ = 'savoirs'
+    id = db.Column(db.Integer, primary_key=True)
+    description = db.Column(db.Text, nullable=False)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
+
+class SavoirFaire(db.Model):
+    """
+    Savoir-faire attaché à l'activité (compétence pratique).
+    """
+    __tablename__ = 'savoir_faires'
+    id = db.Column(db.Integer, primary_key=True)
+    description = db.Column(db.Text, nullable=False)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
+
+class Aptitude(db.Model):
+    """
+    Aptitude spécifique attachée à l'activité.
+    """
+    __tablename__ = 'aptitudes'
+    id = db.Column(db.Integer, primary_key=True)
+    description = db.Column(db.Text, nullable=False)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
