@@ -3,21 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <title>Liste des activités</title>
-
   <!-- Font Awesome pour les icônes -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
   <!-- Feuille de style principale -->
   <link rel="stylesheet" href="/static/optiq.css">
-
-  <!-- Feuille de style du spinner, à la racine de static/ -->
-  <link rel="stylesheet" href="/static/spinner.css">
-  
-  <!-- jQuery nécessaire pour certaines fonctions -->
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  
-  <!-- SortableJS pour le drag & drop -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
 </head>
 <body>
   <!-- Bouton pour mettre à jour la cartographie -->
@@ -25,58 +14,126 @@
     <i class="fa-solid fa-arrows-rotate"></i> Mettre à jour la cartographie
   </button>
 
-  <!-- Bouton pour accéder à la vue des rôles -->
-  <a href="/roles_view/" style="display:inline-block; margin:10px 0; padding:10px 15px; background:#007BFF; color:#fff; text-decoration:none; border-radius:5px;">
-    Voir la vue des rôles
-  </a>
-
   <h1>Liste des activités</h1>
 
   {% for item in activity_data %}
-  <div class="activity-container">
-    <!-- En-tête cliquable -->
-    <div class="activity-header" onclick="toggleDetails('details-{{ item.activity.id }}', this)">
-      <span class="toggle-icon" id="icon-{{ item.activity.id }}">▶</span>
-      <h2>{{ item.activity.name }}</h2>
+    <div class="activity-container">
+      <!-- En-tête cliquable -->
+      <div class="activity-header" onclick="toggleDetails('details-{{ item.activity.id }}', this)">
+        <span class="toggle-icon" id="icon-{{ item.activity.id }}">▶</span>
+        <h2>{{ item.activity.name }}</h2>
+      </div>
+
+      <!-- Zone de détails (initialement masquée) -->
+      <div class="activity-details" id="details-{{ item.activity.id }}" style="display: none;">
+        <p>{{ item.activity.description or "" }}</p>
+
+        <div class="connections-container">
+          <div class="incoming-connections">
+            <h3>Connexions entrantes</h3>
+            {% if item.incoming and item.incoming|length > 0 %}
+              <table class="conn-table">
+                <tr>
+                  <th>Nom de la donnée</th>
+                  <th>Provenance</th>
+                </tr>
+                {% for conn in item.incoming %}
+                  <tr>
+                    <td>
+                      {% if conn.type|lower == 'déclenchante' %}
+                        <span class="declenchante">{{ conn.data_name }}</span>
+                      {% elif conn.type|lower == 'nourrissante' %}
+                        <span class="nourrissante">{{ conn.data_name }}</span>
+                      {% else %}
+                        {{ conn.data_name }}
+                      {% endif %}
+                    </td>
+                    <td>{{ conn.source_name }}</td>
+                  </tr>
+                {% endfor %}
+              </table>
+            {% else %}
+              <p>Aucune connexion entrante.</p>
+            {% endif %}
+          </div>
+
+          <div class="outgoing-connections">
+            <h3>Connexions sortantes</h3>
+            {% if item.outgoing and item.outgoing|length > 0 %}
+              <table class="conn-table">
+                <tr>
+                  <th>Nom de la donnée</th>
+                  <th>Vers</th>
+                  <th>Performance</th>
+                </tr>
+                {% for conn in item.outgoing %}
+                  <tr>
+                    <td>
+                      {% if conn.type|lower == 'déclenchante' %}
+                        <span class="declenchante">{{ conn.data_name }}</span>
+                      {% elif conn.type|lower == 'nourrissante' %}
+                        <span class="nourrissante">{{ conn.data_name }}</span>
+                      {% else %}
+                        {{ conn.data_name }}
+                      {% endif %}
+                    </td>
+                    <td>{{ conn.target_name }}</td>
+                    <td>
+                      {% if conn.performance %}
+                        <!-- Performance existante : conteneur + form caché -->
+                        <div id="perf-display-{{ conn.performance.id }}"
+                             data-dataid="{{ conn.data_id }}">
+                          <span id="perf-info-{{ conn.performance.id }}">
+                            {{ conn.performance.name }}
+                            {% if conn.performance.description %}
+                              - {{ conn.performance.description }}
+                            {% endif %}
+                          </span>
+                          <button onclick="showEditPerfForm('{{ conn.performance.id }}','{{ conn.performance.name }}')">
+                            <i class="fa-solid fa-pencil"></i>
+                          </button>
+                          <button onclick="deletePerformance('{{ conn.performance.id }}')">
+                            <i class="fa-solid fa-trash"></i>
+                          </button>
+                        </div>
+                        <!-- Formulaire d'édition en ligne, caché -->
+                        <div id="perf-edit-form-{{ conn.performance.id }}" style="display:none; margin-top:5px;">
+                          <input type="text" id="perf-edit-input-{{ conn.performance.id }}"
+                                 style="width:120px;" />
+                          <button onclick="submitEditPerf('{{ conn.performance.id }}')">Enregistrer</button>
+                          <button onclick="hideEditPerfForm('{{ conn.performance.id }}')">Annuler</button>
+                        </div>
+                      {% else %}
+                        <!-- Aucune performance => bouton + form d'ajout -->
+                        <div id="perf-container-{{ conn.data_id }}">
+                          <button onclick="showAddPerfForm('{{ conn.data_id }}')">Performance</button>
+                          <div id="perf-add-form-{{ conn.data_id }}" style="display:none; margin-top:5px;">
+                            <input type="text" id="perf-add-input-{{ conn.data_id }}" style="width:120px;" />
+                            <button onclick="submitAddPerf('{{ conn.data_id }}')">Enregistrer</button>
+                            <button onclick="hideAddPerfForm('{{ conn.data_id }}')">Annuler</button>
+                          </div>
+                        </div>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </table>
+            {% else %}
+              <p>Aucune connexion sortante.</p>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Autres sections de l'activité (tâches, compétences, softskills, etc.) -->
+        {% include "activity_tasks.html" %}
+        {% include "activity_competencies.html" %}
+        {% include "activity_softskills.html" %}
+      </div>
     </div>
-
-    <!-- Bloc pour afficher le rôle Garant -->
-    <div style="margin:5px 0;">
-      <span id="activity-garant-{{ item.activity.id }}">
-        Garant : {% if item.garant %}{{ item.garant.name }}{% else %}Aucun{% endif %}
-      </span>
-      <button onclick="openGarantModal({{ item.activity.id }})" style="margin-left:10px;">Changer Garant</button>
-    </div>
-
-    <!-- Zone de détails (initialement masquée) -->
-    <div class="activity-details" id="details-{{ item.activity.id }}" style="display:none;">
-      <p>{{ item.activity.description or "" }}</p>
-
-      <!-- Connexions entrantes / sortantes -->
-      {% include "activity_connections.html" %}
-
-      <!-- Tâches -->
-      {% include "activity_tasks.html" %}
-
-      <!-- Compétences validées + bouton "Proposer Compétences" -->
-      {% include "activity_competencies.html" %}
-
-      {% set activity_id = item.activity.id %}
-      <!-- Habiletés socio-cognitives -->
-      {% include "activity_softskills.html" %}
-    </div>
-  </div>
   {% endfor %}
 
-  <!-- Inclusion du modal pour le rôle Garant -->
-  {% include "roles_modal.html" %}
-
-  <!-- Inclusion des modules pour compétences & softskills -->
-  {% include "translate_softskills_modal.html" %}
-  {% include "skills_section.html" %}
-  {% include "competency_modal.html" %}
-
-  <!-- Inclusion des scripts dans l'ordre requis -->
+  <!-- Inclusion des scripts déjà utilisés -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="/static/js/spinner.js"></script>
   <script src="/static/js/tasks.js"></script>
   <script src="/static/js/tools.js"></script>
@@ -85,35 +142,146 @@
   <script src="/static/js/translate_softskills.js"></script>
   <script src="/static/js/main.js"></script>
   <script src="/static/js/roles.js"></script>
-
-  <!-- NOUVEAU : On ajoute tasks_roles.js pour gérer l'ajout de rôles sur les tâches -->
   <script src="/static/js/tasks_roles.js"></script>
 
+  <!-- Fonctions Performance en DOM (sans reload) -->
   <script>
-    document.getElementById('update-cartography-button').addEventListener('click', function() {
-      fetch('/activities/update-cartography')
-      .then(response => response.json())
-      .then(data => {
-        let msg = (data.message || "") + "\n" + (data.summary || "");
-        alert(msg.trim());
-        location.reload();
-      })
-      .catch(error => {
-        alert("Erreur lors de la mise à jour de la cartographie: " + error.message);
-      });
-    });
-
+    /* ---------- AFFICHAGE/MASQUAGE DETAILS ACTIVITÉ ---------- */
     function toggleDetails(detailsId, headerElem) {
-      var detailsElem = document.getElementById(detailsId);
-      var iconElem = headerElem.querySelector('.toggle-icon');
-      var currentDisplay = window.getComputedStyle(detailsElem).display;
-      if (currentDisplay === "none") {
+      const detailsElem = document.getElementById(detailsId);
+      const iconElem = headerElem.querySelector('.toggle-icon');
+      if (detailsElem.style.display === "none" || detailsElem.style.display === "") {
         detailsElem.style.display = "block";
         iconElem.textContent = "▼";
       } else {
         detailsElem.style.display = "none";
         iconElem.textContent = "▶";
       }
+    }
+
+    /* ---------- AJOUT PERFORMANCE ---------- */
+    function showAddPerfForm(dataId) {
+      document.getElementById("perf-add-form-" + dataId).style.display = "block";
+    }
+    function hideAddPerfForm(dataId) {
+      document.getElementById("perf-add-form-" + dataId).style.display = "none";
+    }
+    function submitAddPerf(dataId) {
+      const inputElem = document.getElementById("perf-add-input-" + dataId);
+      if (!inputElem) return;
+      const perfName = inputElem.value.trim();
+      if (!perfName) {
+        alert("Veuillez saisir un nom de performance.");
+        return;
+      }
+      fetch("/performance/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data_id: parseInt(dataId), name: perfName })
+      })
+      .then(r => r.json())
+      .then(resp => {
+        if (resp.error) {
+          alert("Erreur : " + resp.error);
+        } else {
+          // On remplace le bloc actuel par l'affichage de la nouvelle performance
+          const container = document.getElementById("perf-container-" + dataId);
+          if (!container) return;
+          container.innerHTML = `
+            <div id="perf-display-${resp.id}" data-dataid="${dataId}">
+              <span id="perf-info-${resp.id}">${resp.name}</span>
+              <button onclick="showEditPerfForm('${resp.id}','${resp.name}')">
+                <i class="fa-solid fa-pencil"></i>
+              </button>
+              <button onclick="deletePerformance('${resp.id}')">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+            <div id="perf-edit-form-${resp.id}" style="display:none; margin-top:5px;">
+              <input type="text" id="perf-edit-input-${resp.id}" style="width:120px;" />
+              <button onclick="submitEditPerf('${resp.id}')">Enregistrer</button>
+              <button onclick="hideEditPerfForm('${resp.id}')">Annuler</button>
+            </div>
+          `;
+        }
+      })
+      .catch(err => {
+        console.error("Erreur lors de l'ajout de la performance :", err);
+        alert("Une erreur est survenue lors de l'ajout.");
+      });
+    }
+
+    /* ---------- MODIFICATION PERFORMANCE ---------- */
+    function showEditPerfForm(perfId, currentName) {
+      // Masquer le span existant
+      document.getElementById("perf-info-" + perfId).style.display = "none";
+      // Afficher le form
+      document.getElementById("perf-edit-form-" + perfId).style.display = "block";
+      // Pré-remplir
+      document.getElementById("perf-edit-input-" + perfId).value = currentName;
+    }
+    function hideEditPerfForm(perfId) {
+      document.getElementById("perf-edit-form-" + perfId).style.display = "none";
+      document.getElementById("perf-info-" + perfId).style.display = "inline";
+    }
+    function submitEditPerf(perfId) {
+      const inputElem = document.getElementById("perf-edit-input-" + perfId);
+      if (!inputElem) return;
+      const newName = inputElem.value.trim();
+      if (!newName) {
+        alert("Veuillez saisir un nom de performance.");
+        return;
+      }
+      fetch(`/performance/${perfId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName })
+      })
+      .then(r => r.json())
+      .then(resp => {
+        if (resp.error) {
+          alert("Erreur : " + resp.error);
+        } else {
+          // Mettre à jour le texte + refermer form
+          document.getElementById("perf-info-" + perfId).textContent = resp.name;
+          hideEditPerfForm(perfId);
+        }
+      })
+      .catch(err => {
+        console.error("Erreur lors de la modification :", err);
+        alert("Une erreur est survenue lors de la modification.");
+      });
+    }
+
+    /* ---------- SUPPRESSION PERFORMANCE ---------- */
+    function deletePerformance(perfId) {
+      if (!confirm("Confirmez-vous la suppression de cette performance ?")) return;
+      fetch(`/performance/${perfId}`, { method: "DELETE" })
+      .then(r => r.json())
+      .then(resp => {
+        if (resp.error) {
+          alert("Erreur : " + resp.error);
+        } else {
+          // Récupérer le conteneur
+          const displayDiv = document.getElementById(`perf-display-${perfId}`);
+          if (!displayDiv) return;
+          // On retrouve l'ID dataId
+          const dataId = displayDiv.getAttribute("data-dataid");
+          // On remplace le bloc par le bouton initial
+          displayDiv.parentNode.innerHTML = `
+            <button onclick="showAddPerfForm('${dataId}')">Performance</button>
+            <div id="perf-add-form-${dataId}" style="display:none; margin-top:5px;">
+              <input type="text" id="perf-add-input-${dataId}" style="width:120px;" />
+              <button onclick="submitAddPerf('${dataId}')">Enregistrer</button>
+              <button onclick="hideAddPerfForm('${dataId}')">Annuler</button>
+            </div>
+          `;
+        }
+      })
+      .catch(err => {
+        console.error("Erreur lors de la suppression :", err);
+        alert("Une erreur est survenue lors de la suppression.");
+      });
     }
   </script>
 </body>

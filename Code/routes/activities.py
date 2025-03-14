@@ -243,7 +243,7 @@ def update_cartography():
 @activities_bp.route('/view', methods=['GET'])
 def view_activities():
     try:
-        # Code original : afficher uniquement les activités non marquées comme résultat
+        # Récupère uniquement les activités non marquées comme résultat
         activities = Activities.query.filter_by(is_result=False).all()
 
         activity_data = []
@@ -266,14 +266,31 @@ def view_activities():
             outgoing_links = Link.query.filter(
                 (Link.source_activity_id == activity.id) | (Link.source_data_id == activity.id)
             ).all()
+
             outgoing_list = []
             for link in outgoing_links:
                 data_name = resolve_data_name_for_outgoing(link)
                 target_name = resolve_activity_name(link.target_id)
+
+                # Vérifier si link.target_id correspond à une Data
+                data_obj = Data.query.get(link.target_id)
+                perf_obj = None
+                data_id = None
+                if data_obj:
+                    data_id = data_obj.id
+                    if data_obj.performance:
+                        perf_obj = {
+                            'id': data_obj.performance.id,
+                            'name': data_obj.performance.name,
+                            'description': data_obj.performance.description
+                        }
+
                 outgoing_list.append({
                     'type': link.type,
                     'data_name': data_name,
-                    'target_name': target_name
+                    'target_name': target_name,
+                    'data_id': data_id,     # <-- L'ID de la Data (ou None)
+                    'performance': perf_obj # <-- La performance associée, ou None
                 })
 
             # Tâches
@@ -291,16 +308,16 @@ def view_activities():
                     ]
                 })
 
-            # AJOUT MINIMAL : récupérer le Garant
+            # Garant
             garant = get_garant_role(activity.id)
 
-            # On ajoute 'garant' dans la data
+            # Ajouter la structure à activity_data
             activity_data.append({
                 'activity': activity,
                 'incoming': incoming_list,
                 'outgoing': outgoing_list,
                 'tasks': tasks_list,
-                'garant': garant  # <- nouveau
+                'garant': garant
             })
 
         return render_template('display_list.html', activity_data=activity_data)

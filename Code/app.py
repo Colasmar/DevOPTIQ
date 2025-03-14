@@ -1,5 +1,3 @@
-# app.py
-
 import os
 import sys
 from dotenv import load_dotenv
@@ -58,6 +56,10 @@ def create_app():
     # AJOUT IMPORTANT : enregistrer le blueprint tasks_bp
     from Code.routes.tasks import tasks_bp
     app.register_blueprint(tasks_bp)
+    
+    # Enregistrement du blueprint pour la performance
+    from Code.routes.performance import performance_bp
+    app.register_blueprint(performance_bp)
 
     @app.route('/')
     def home():

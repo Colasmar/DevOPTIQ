@@ -35,6 +35,8 @@ class Data(db.Model):
     type = db.Column(db.String(50), nullable=False)  # "output", "input", etc.
     description = db.Column(db.Text, nullable=True)
     layer = db.Column(db.String(50), nullable=True)
+    performance = db.relationship('Performance', backref='data', uselist=False)
+
 
 class Task(db.Model):
     __tablename__ = 'tasks'
