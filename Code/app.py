@@ -1,3 +1,5 @@
+# app.py
+
 import os
 import sys
 from dotenv import load_dotenv
@@ -52,6 +54,10 @@ def create_app():
     # Enregistrement du blueprint pour l'onboarding
     from Code.routes.onboarding import onboarding_bp
     app.register_blueprint(onboarding_bp)
+
+    # AJOUT IMPORTANT : enregistrer le blueprint tasks_bp
+    from Code.routes.tasks import tasks_bp
+    app.register_blueprint(tasks_bp)
 
     @app.route('/')
     def home():
