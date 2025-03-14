@@ -61,6 +61,10 @@ def create_app():
     from Code.routes.performance import performance_bp
     app.register_blueprint(performance_bp)
 
+    # Enregistrement du blueprint pour les contraintes
+    from Code.routes.constraints import constraints_bp
+    app.register_blueprint(constraints_bp)
+
     @app.route('/')
     def home():
         return "Bienvenue sur mon application Flask !"

@@ -27,6 +27,14 @@ class Activities(db.Model):
     softskills = db.relationship('Softskill', backref='activity', lazy=True,
                                  cascade="all, delete-orphan")
 
+    # NOUVEAU : Contrôles (contraintes et exigences)
+    constraints = db.relationship(
+        'Constraint',
+        backref='activity',
+        lazy=True,
+        cascade="all, delete-orphan"
+    )
+
 class Data(db.Model):
     __tablename__ = 'data'
     id = db.Column(db.Integer, primary_key=True)

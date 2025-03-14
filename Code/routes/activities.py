@@ -6,7 +6,7 @@ import contextlib
 from flask import Blueprint, jsonify, request, render_template
 from sqlalchemy import text  # <-- pour la requête brute du Garant
 from Code.extensions import db
-from Code.models.models import Activities, Data, Link, Task, Tool, Competency, Softskill
+from Code.models.models import Activities, Data, Link, Task, Tool, Competency, Softskill, Constraint
 from Code.scripts.extract_visio import process_visio_file, print_summary
 
 activities_bp = Blueprint('activities', __name__, url_prefix='/activities', template_folder='templates')
@@ -311,13 +311,22 @@ def view_activities():
             # Garant
             garant = get_garant_role(activity.id)
 
+            # Contraintes (nouveau)
+            constraints_list = []
+            for c in activity.constraints:
+                constraints_list.append({
+                    "id": c.id,
+                    "description": c.description
+                })
+
             # Ajouter la structure à activity_data
             activity_data.append({
                 'activity': activity,
                 'incoming': incoming_list,
                 'outgoing': outgoing_list,
                 'tasks': tasks_list,
-                'garant': garant
+                'garant': garant,
+                'constraints': constraints_list  # <-- AJOUT
             })
 
         return render_template('display_list.html', activity_data=activity_data)

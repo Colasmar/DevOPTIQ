@@ -124,6 +124,9 @@
           </div>
         </div>
 
+        <!-- Inclusion du bloc "Contraintes et Exigences" -->
+        {% include "activity_constraints.html" %}
+
         <!-- Autres sections de l'activité (tâches, compétences, softskills, etc.) -->
         {% include "activity_tasks.html" %}
         {% include "activity_competencies.html" %}
@@ -143,6 +146,9 @@
   <script src="/static/js/main.js"></script>
   <script src="/static/js/roles.js"></script>
   <script src="/static/js/tasks_roles.js"></script>
+
+  <!-- Ajout du fichier constraints.js -->
+  <script src="/static/js/constraints.js"></script>
 
   <!-- Fonctions Performance en DOM (sans reload) -->
   <script>
