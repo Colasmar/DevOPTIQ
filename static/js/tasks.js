@@ -18,6 +18,7 @@ function submitTask(activityId) {
     alert("Le nom de la tâche est requis.");
     return;
   }
+
   fetch('/activities/' + activityId + '/tasks/add', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -28,6 +29,7 @@ function submitTask(activityId) {
     throw new Error("Erreur lors de l'ajout de la tâche.");
   })
   .then(data => {
+    // Récupérer la <ul> des tâches existantes
     let tasksList = document.getElementById('tasks-list-' + activityId);
     if (!tasksList) {
       tasksList = document.createElement('ul');
@@ -35,26 +37,37 @@ function submitTask(activityId) {
       const tasksSection = document.getElementById('task-form-' + activityId).parentNode;
       tasksSection.insertBefore(tasksList, tasksSection.firstChild);
     }
+
+    // Créer un <li> avec la colonne Rôles incluse
     const li = document.createElement('li');
     li.className = 'task';
     li.id = 'task-' + data.id;
     li.setAttribute('data-task-id', data.id);
+
+    // IMPORTANT : on recopie la même structure HTML que dans activity_tasks.html
     li.innerHTML = `
-      <div class="task-row">
-        <div class="task-left">
+      <div class="task-row" style="display:flex; gap:10px; align-items:flex-start;">
+        <!-- Colonne gauche -->
+        <div class="task-left" style="display:flex; align-items:center; gap:5px;">
           <i class="fa-solid fa-bars icon-btn" style="cursor: move;"></i>
           <span class="task-title">
             <strong id="task-name-display-${data.id}">${data.name}</strong>
-            ${data.description ? ' - <span id="task-desc-display-' + data.id + '">' + data.description + '</span>' : ''}
+            ${data.description
+              ? ' - <span id="task-desc-display-' + data.id + '">' + data.description + '</span>'
+              : ''
+            }
           </span>
           <button class="icon-btn" onclick="deleteTask('${activityId}', '${data.id}')">
             <i class="fa-solid fa-trash"></i>
           </button>
-          <button class="icon-btn" onclick="showEditTaskForm('${activityId}', '${data.id}', '${data.name}', '${data.description || ''}')">
+          <button class="icon-btn"
+                  onclick="showEditTaskForm('${activityId}', '${data.id}', '${data.name}', '${data.description || ''}')">
             <i class="fa-solid fa-pencil"></i>
           </button>
         </div>
-        <div class="task-right">
+
+        <!-- Colonne Outils -->
+        <div class="task-right" style="display:flex; flex-direction:column; gap:5px;">
           <div class="tools-list" id="tools-for-task-${data.id}">
             <ul>
               <li id="no-tools-msg-${data.id}">Aucun outil associé.</li>
@@ -66,13 +79,48 @@ function submitTask(activityId) {
             </ul>
           </div>
         </div>
+
+        <!-- Colonne Rôles -->
+        <div class="task-roles" id="roles-for-task-${data.id}"
+             style="display:flex; flex-direction:column; gap:5px;">
+          <ul style="list-style:none; padding:0; margin:0;"></ul>
+          <button class="icon-btn" onclick="showTaskRoleForm('${data.id}')"
+                  style="border:1px solid #ccc; padding:5px;">
+            <i class="fa-solid fa-plus"></i> Rôle
+          </button>
+          <!-- Formulaire d'ajout de rôles (caché) -->
+          <div id="task-role-form-${data.id}" class="role-form"
+               style="display: none; border:1px solid #ccc; padding:5px; margin-top:5px;">
+            <label for="existing-roles-${data.id}">Rôles existants:</label>
+            <select id="existing-roles-${data.id}" multiple style="width:100%; height:80px;"></select>
+
+            <label for="new-roles-${data.id}">Nouveaux rôles (séparés par des virgules):</label>
+            <input type="text" id="new-roles-${data.id}" placeholder="Ex: Expert Contrôle, Pilote Drone"
+                   style="width:100%;" />
+
+            <label for="role-status-${data.id}">Statut:</label>
+            <select id="role-status-${data.id}" style="width:100%;">
+              <option value="Réalisateur">Réalisateur</option>
+              <option value="Conseil">Conseil</option>
+              <option value="Approbateur">Approbateur</option>
+              <option value="Ressource">Ressource</option>
+            </select>
+
+            <button onclick="submitTaskRoles('${data.id}')">Enregistrer</button>
+            <button onclick="hideTaskRoleForm('${data.id}')">Annuler</button>
+          </div>
+        </div>
       </div>
-      <div class="edit-task-form" id="edit-task-form-${data.id}">
+
+      <!-- Formulaire d'édition de la tâche -->
+      <div class="edit-task-form" id="edit-task-form-${data.id}" style="display:none;">
         <input type="text" id="edit-task-name-${data.id}" placeholder="Nom de la tâche" />
         <input type="text" id="edit-task-desc-${data.id}" placeholder="Description (optionnelle)" />
         <button onclick="submitEditTask('${activityId}', '${data.id}')">Enregistrer</button>
         <button onclick="hideEditTaskForm('${data.id}')">Annuler</button>
       </div>
+
+      <!-- Formulaire d'ajout d'outils -->
       <div id="tool-form-${data.id}" class="tool-form" style="display: none;">
         <div>
           <label for="existing-tools-${data.id}">Outils existants:</label>
@@ -86,10 +134,16 @@ function submitTask(activityId) {
         <button onclick="hideToolForm('${data.id}')">Annuler</button>
       </div>
     `;
+
     tasksList.appendChild(li);
+
+    // Réinitialiser le formulaire d'ajout
     document.getElementById('task-name-' + activityId).value = "";
     document.getElementById('task-desc-' + activityId).value = "";
     hideTaskForm(activityId);
+
+    // Charger la liste de rôles (au départ vide) pour la nouvelle tâche
+    loadTaskRolesForDisplay(data.id);
   })
   .catch(error => {
     alert(error.message);
@@ -172,15 +226,18 @@ document.addEventListener('DOMContentLoaded', function() {
         const listId = list.getAttribute('id'); // ex: tasks-list-123
         const activityId = listId.split('-')[2];   // ex: 123
         console.log("Reorder tasks for activityId=", activityId);
+
         let newOrder = [];
         list.querySelectorAll('li.task').forEach(taskElem => {
           newOrder.push(taskElem.getAttribute('data-task-id'));
         });
+
         fetch('/activities/' + activityId + '/tasks/reorder', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ order: newOrder })
-        }).then(function(response) {
+        })
+        .then(function(response) {
           if (!response.ok) {
             console.error("Erreur de sauvegarde de l'ordre");
           }

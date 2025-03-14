@@ -101,6 +101,7 @@ document.addEventListener('DOMContentLoaded', function() {
   
   /**
    * Récupère la liste des rôles existants pour la tâche, et l'affiche dans le DOM
+   * en ajoutant un bouton poubelle pour supprimer le rôle
    */
   function loadTaskRolesForDisplay(taskId) {
     fetch(`/tasks/${taskId}/roles`)
@@ -113,13 +114,44 @@ document.addEventListener('DOMContentLoaded', function() {
   
         data.roles.forEach(role => {
           let li = document.createElement('li');
-          // Ex: "Coordination projet (Approbateur)"
-          li.textContent = role.name + " (" + role.status + ")";
+          li.innerHTML = `
+            ${role.name} (${role.status})
+            <button class="icon-btn" onclick="deleteRoleFromTask('${taskId}', '${role.id}')">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          `;
           rolesUl.appendChild(li);
         });
       })
       .catch(error => {
         console.error("Erreur lors du chargement des rôles pour la tâche " + taskId, error);
       });
+  }
+  
+  /**
+   * Supprime un rôle de la tâche (DELETE /tasks/<taskId>/roles/<roleId>)
+   */
+  function deleteRoleFromTask(taskId, roleId) {
+    if (!confirm("Confirmez-vous la suppression de ce rôle ?")) return;
+  
+    fetch(`/tasks/${taskId}/roles/${roleId}`, {
+      method: 'DELETE'
+    })
+    .then(response => {
+      if (!response.ok) {
+        return response.json().then(err => {
+          throw new Error(err.error || "Erreur lors de la suppression du rôle.");
+        });
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log(data.message);
+      loadTaskRolesForDisplay(taskId);
+    })
+    .catch(error => {
+      alert(error.message);
+      console.error("Erreur lors de la suppression du rôle:", error);
+    });
   }
   
