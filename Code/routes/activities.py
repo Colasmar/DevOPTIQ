@@ -1,10 +1,8 @@
-# Code/routes/activities.py
-
 import os
 import io
 import contextlib
 from flask import Blueprint, jsonify, request, render_template
-from sqlalchemy import text  # <-- pour la requête brute du Garant
+from sqlalchemy import text  # pour la requête brute du Garant
 from Code.extensions import db
 from Code.models.models import Activities, Data, Link, Task, Tool, Competency, Softskill, Constraint
 from Code.scripts.extract_visio import process_visio_file, print_summary
@@ -52,7 +50,6 @@ def resolve_activity_name(record_id):
             return data_record.name
     return "[Activité inconnue]"
 
-# AJOUT MINIMAL : récupérer le Garant
 def get_garant_role(activity_id):
     """
     Retourne le rôle Garant associé à l'activité (status='Garant'), ou None.
@@ -211,6 +208,29 @@ def get_activity_details(activity_id):
     competencies = [{"id": comp.id, "description": comp.description} for comp in activity.competencies]
     softskills = [{"id": ss.id, "habilete": ss.habilete, "niveau": ss.niveau} for ss in activity.softskills]
 
+    # Extraction des connexions sortantes complètes
+    outgoing_links = Link.query.filter(
+        (Link.source_activity_id == activity.id) | (Link.source_data_id == activity.id)
+    ).all()
+    outgoing_list = []
+    for link in outgoing_links:
+        data_name = resolve_data_name_for_outgoing(link)
+        target_name = resolve_activity_name(link.target_id)
+        data_obj = Data.query.get(link.target_id)
+        perf_obj = None
+        if data_obj and data_obj.performance:
+            perf_obj = {
+                "id": data_obj.performance.id,
+                "name": data_obj.performance.name,
+                "description": data_obj.performance.description
+            }
+        outgoing_list.append({
+            "type": link.type,
+            "data_name": data_name,
+            "target_name": target_name,
+            "performance": perf_obj
+        })
+
     activity_data = {
         "id": activity.id,
         "name": activity.name,
@@ -220,7 +240,8 @@ def get_activity_details(activity_id):
         "tasks": tasks_list,
         "tools": tools_list,
         "competencies": competencies,
-        "softskills": softskills
+        "softskills": softskills,
+        "outgoing": outgoing_list  # Champ des connexions sortantes complètes
     }
     return jsonify(activity_data), 200
 
@@ -266,31 +287,24 @@ def view_activities():
             outgoing_links = Link.query.filter(
                 (Link.source_activity_id == activity.id) | (Link.source_data_id == activity.id)
             ).all()
-
             outgoing_list = []
             for link in outgoing_links:
                 data_name = resolve_data_name_for_outgoing(link)
                 target_name = resolve_activity_name(link.target_id)
-
-                # Vérifier si link.target_id correspond à une Data
                 data_obj = Data.query.get(link.target_id)
                 perf_obj = None
-                data_id = None
-                if data_obj:
-                    data_id = data_obj.id
-                    if data_obj.performance:
-                        perf_obj = {
-                            'id': data_obj.performance.id,
-                            'name': data_obj.performance.name,
-                            'description': data_obj.performance.description
-                        }
-
+                if data_obj and data_obj.performance:
+                    perf_obj = {
+                        'id': data_obj.performance.id,
+                        'name': data_obj.performance.name,
+                        'description': data_obj.performance.description
+                    }
                 outgoing_list.append({
                     'type': link.type,
                     'data_name': data_name,
                     'target_name': target_name,
-                    'data_id': data_id,     # <-- L'ID de la Data (ou None)
-                    'performance': perf_obj # <-- La performance associée, ou None
+                    'data_id': data_obj.id if data_obj else None,
+                    'performance': perf_obj
                 })
 
             # Tâches
@@ -311,7 +325,7 @@ def view_activities():
             # Garant
             garant = get_garant_role(activity.id)
 
-            # Contraintes (nouveau)
+            # Contraintes
             constraints_list = []
             for c in activity.constraints:
                 constraints_list.append({
@@ -319,14 +333,13 @@ def view_activities():
                     "description": c.description
                 })
 
-            # Ajouter la structure à activity_data
             activity_data.append({
                 'activity': activity,
                 'incoming': incoming_list,
                 'outgoing': outgoing_list,
                 'tasks': tasks_list,
                 'garant': garant,
-                'constraints': constraints_list  # <-- AJOUT
+                'constraints': constraints_list
             })
 
         return render_template('display_list.html', activity_data=activity_data)

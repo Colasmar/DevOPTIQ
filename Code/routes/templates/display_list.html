@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- Feuille de style principale -->
   <link rel="stylesheet" href="/static/optiq.css">
+  <!-- Styles du spinner (directement dans static) -->
+  <link rel="stylesheet" href="/static/spinner.css">
 </head>
 <body>
   <!-- Bouton pour mettre à jour la cartographie -->
@@ -80,9 +82,8 @@
                     <td>{{ conn.target_name }}</td>
                     <td>
                       {% if conn.performance %}
-                        <!-- Performance existante : conteneur + form caché -->
-                        <div id="perf-display-{{ conn.performance.id }}"
-                             data-dataid="{{ conn.data_id }}">
+                        <!-- Performance existante : conteneur + formulaire d'édition caché -->
+                        <div id="perf-display-{{ conn.performance.id }}" data-dataid="{{ conn.data_id }}">
                           <span id="perf-info-{{ conn.performance.id }}">
                             {{ conn.performance.name }}
                             {% if conn.performance.description %}
@@ -96,15 +97,13 @@
                             <i class="fa-solid fa-trash"></i>
                           </button>
                         </div>
-                        <!-- Formulaire d'édition en ligne, caché -->
                         <div id="perf-edit-form-{{ conn.performance.id }}" style="display:none; margin-top:5px;">
-                          <input type="text" id="perf-edit-input-{{ conn.performance.id }}"
-                                 style="width:120px;" />
+                          <input type="text" id="perf-edit-input-{{ conn.performance.id }}" style="width:120px;" />
                           <button onclick="submitEditPerf('{{ conn.performance.id }}')">Enregistrer</button>
                           <button onclick="hideEditPerfForm('{{ conn.performance.id }}')">Annuler</button>
                         </div>
                       {% else %}
-                        <!-- Aucune performance => bouton + form d'ajout -->
+                        <!-- Aucune performance => bouton + formulaire d'ajout -->
                         <div id="perf-container-{{ conn.data_id }}">
                           <button onclick="showAddPerfForm('{{ conn.data_id }}')">Performance</button>
                           <div id="perf-add-form-{{ conn.data_id }}" style="display:none; margin-top:5px;">
@@ -127,7 +126,7 @@
         <!-- Inclusion du bloc "Contraintes et Exigences" -->
         {% include "activity_constraints.html" %}
 
-        <!-- Autres sections de l'activité (tâches, compétences, softskills, etc.) -->
+        <!-- Inclusion des autres sections de l'activité -->
         {% include "activity_tasks.html" %}
         {% include "activity_competencies.html" %}
         {% include "activity_softskills.html" %}
@@ -135,8 +134,29 @@
     </div>
   {% endfor %}
 
-  <!-- Inclusion des scripts déjà utilisés -->
+  <!-- Conteneur du spinner (masqué par défaut, géré par spinner.js) -->
+  <!-- Au lieu de <img> on utilise un <div class="loader"></div> -->
+  <div id="spinnerOverlay" style="
+       display:none;
+       position:fixed;
+       top:0; left:0; right:0; bottom:0;
+       background:rgba(0,0,0,0.3);
+       z-index:9999;">
+    <div style="
+         position:absolute;
+         top:50%; left:50%;
+         transform:translate(-50%,-50%);
+         ">
+      <div class="loader"></div>
+    </div>
+  </div>
+
+  <!-- Inclusion du modal des compétences -->
+  {% include "competency_modal.html" %}
+
+  <!-- Scripts : L'ordre est important -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <!-- Le script spinner.js doit être chargé avant les scripts qui utilisent showSpinner/hideSpinner -->
   <script src="/static/js/spinner.js"></script>
   <script src="/static/js/tasks.js"></script>
   <script src="/static/js/tools.js"></script>
@@ -146,13 +166,11 @@
   <script src="/static/js/main.js"></script>
   <script src="/static/js/roles.js"></script>
   <script src="/static/js/tasks_roles.js"></script>
-
-  <!-- Ajout du fichier constraints.js -->
   <script src="/static/js/constraints.js"></script>
 
-  <!-- Fonctions Performance en DOM (sans reload) -->
+  <!-- Code inline pour la gestion des détails -->
   <script>
-    /* ---------- AFFICHAGE/MASQUAGE DETAILS ACTIVITÉ ---------- */
+    /* ---------- AFFICHAGE/MASQUAGE DES DÉTAILS D'UNE ACTIVITÉ ---------- */
     function toggleDetails(detailsId, headerElem) {
       const detailsElem = document.getElementById(detailsId);
       const iconElem = headerElem.querySelector('.toggle-icon');
@@ -163,131 +181,6 @@
         detailsElem.style.display = "none";
         iconElem.textContent = "▶";
       }
-    }
-
-    /* ---------- AJOUT PERFORMANCE ---------- */
-    function showAddPerfForm(dataId) {
-      document.getElementById("perf-add-form-" + dataId).style.display = "block";
-    }
-    function hideAddPerfForm(dataId) {
-      document.getElementById("perf-add-form-" + dataId).style.display = "none";
-    }
-    function submitAddPerf(dataId) {
-      const inputElem = document.getElementById("perf-add-input-" + dataId);
-      if (!inputElem) return;
-      const perfName = inputElem.value.trim();
-      if (!perfName) {
-        alert("Veuillez saisir un nom de performance.");
-        return;
-      }
-      fetch("/performance/add", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data_id: parseInt(dataId), name: perfName })
-      })
-      .then(r => r.json())
-      .then(resp => {
-        if (resp.error) {
-          alert("Erreur : " + resp.error);
-        } else {
-          // On remplace le bloc actuel par l'affichage de la nouvelle performance
-          const container = document.getElementById("perf-container-" + dataId);
-          if (!container) return;
-          container.innerHTML = `
-            <div id="perf-display-${resp.id}" data-dataid="${dataId}">
-              <span id="perf-info-${resp.id}">${resp.name}</span>
-              <button onclick="showEditPerfForm('${resp.id}','${resp.name}')">
-                <i class="fa-solid fa-pencil"></i>
-              </button>
-              <button onclick="deletePerformance('${resp.id}')">
-                <i class="fa-solid fa-trash"></i>
-              </button>
-            </div>
-            <div id="perf-edit-form-${resp.id}" style="display:none; margin-top:5px;">
-              <input type="text" id="perf-edit-input-${resp.id}" style="width:120px;" />
-              <button onclick="submitEditPerf('${resp.id}')">Enregistrer</button>
-              <button onclick="hideEditPerfForm('${resp.id}')">Annuler</button>
-            </div>
-          `;
-        }
-      })
-      .catch(err => {
-        console.error("Erreur lors de l'ajout de la performance :", err);
-        alert("Une erreur est survenue lors de l'ajout.");
-      });
-    }
-
-    /* ---------- MODIFICATION PERFORMANCE ---------- */
-    function showEditPerfForm(perfId, currentName) {
-      // Masquer le span existant
-      document.getElementById("perf-info-" + perfId).style.display = "none";
-      // Afficher le form
-      document.getElementById("perf-edit-form-" + perfId).style.display = "block";
-      // Pré-remplir
-      document.getElementById("perf-edit-input-" + perfId).value = currentName;
-    }
-    function hideEditPerfForm(perfId) {
-      document.getElementById("perf-edit-form-" + perfId).style.display = "none";
-      document.getElementById("perf-info-" + perfId).style.display = "inline";
-    }
-    function submitEditPerf(perfId) {
-      const inputElem = document.getElementById("perf-edit-input-" + perfId);
-      if (!inputElem) return;
-      const newName = inputElem.value.trim();
-      if (!newName) {
-        alert("Veuillez saisir un nom de performance.");
-        return;
-      }
-      fetch(`/performance/${perfId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newName })
-      })
-      .then(r => r.json())
-      .then(resp => {
-        if (resp.error) {
-          alert("Erreur : " + resp.error);
-        } else {
-          // Mettre à jour le texte + refermer form
-          document.getElementById("perf-info-" + perfId).textContent = resp.name;
-          hideEditPerfForm(perfId);
-        }
-      })
-      .catch(err => {
-        console.error("Erreur lors de la modification :", err);
-        alert("Une erreur est survenue lors de la modification.");
-      });
-    }
-
-    /* ---------- SUPPRESSION PERFORMANCE ---------- */
-    function deletePerformance(perfId) {
-      if (!confirm("Confirmez-vous la suppression de cette performance ?")) return;
-      fetch(`/performance/${perfId}`, { method: "DELETE" })
-      .then(r => r.json())
-      .then(resp => {
-        if (resp.error) {
-          alert("Erreur : " + resp.error);
-        } else {
-          // Récupérer le conteneur
-          const displayDiv = document.getElementById(`perf-display-${perfId}`);
-          if (!displayDiv) return;
-          // On retrouve l'ID dataId
-          const dataId = displayDiv.getAttribute("data-dataid");
-          // On remplace le bloc par le bouton initial
-          displayDiv.parentNode.innerHTML = `
-            <button onclick="showAddPerfForm('${dataId}')">Performance</button>
-            <div id="perf-add-form-${dataId}" style="display:none; margin-top:5px;">
-              <input type="text" id="perf-add-input-${dataId}" style="width:120px;" />
-              <button onclick="submitAddPerf('${dataId}')">Enregistrer</button>
-              <button onclick="hideAddPerfForm('${dataId}')">Annuler</button>
-            </div>
-          `;
-        }
-      })
-      .catch(err => {
-        console.error("Erreur lors de la suppression :", err);
-        alert("Une erreur est survenue lors de la suppression.");
-      });
     }
   </script>
 </body>

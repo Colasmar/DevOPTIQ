@@ -1,55 +1,88 @@
+from flask import Blueprint, request, jsonify
 import os
 import openai
-import json
-from flask import Blueprint, request, jsonify
 from Code.extensions import db
 from Code.models.models import Competency
 
+# Initialisation du blueprint pour les compétences
 skills_bp = Blueprint('skills', __name__, url_prefix='/skills')
 
 @skills_bp.route('/propose', methods=['POST'])
 def propose_skills():
     """
-    Génère 2 ou 3 propositions de compétences via l'IA (NF X50-124).
-    Reçoit en JSON les infos de l'activité (name, input_data, output_data, tasks, tools).
+    Génère exactement 3 propositions de compétences via l'IA (NF X50-124).
+    Reçoit en JSON les informations de l'activité, notamment :
+      - name, input_data, output_data, tasks, outgoing, tools.
+    Les propositions sont basées sur une synthèse des tâches et des connexions sortantes.
+    Si aucune tâche n'est renseignée, renvoie un message "Saisissez d'abord des tâches".
     """
+    print("DEBUG: /skills/propose route called")
+
     data = request.get_json() or {}
     activity_name = data.get("name", "Activité sans nom")
     input_data_value = data.get("input_data", "")
-    output_data_value = data.get("output_data", "")
 
-    # Extraire la liste de tâches
+    # Gestion du champ output_data : s'il est un dict, extraire le texte principal
+    output_data = data.get("output_data", "")
+    if isinstance(output_data, dict):
+        output_data_value = output_data.get("text", "")
+    else:
+        output_data_value = output_data
+
+    # Extraction de la liste des tâches en se concentrant sur le nom uniquement
     tasks_data = data.get("tasks", [])
-    if tasks_data and isinstance(tasks_data[0], dict):
-        tasks_list = [t.get("name", "") for t in tasks_data]
-    else:
-        tasks_list = tasks_data if isinstance(tasks_data, list) else []
-    tasks_str = ", ".join(tasks_list) if tasks_list else ""
+    tasks_list = []
+    if tasks_data and isinstance(tasks_data, list):
+        for t in tasks_data:
+            if isinstance(t, dict):
+                tasks_list.append(t.get("name", ""))
+            else:
+                tasks_list.append(str(t))
+    # Si aucune tâche n'est renseignée, renvoyer une erreur
+    if not tasks_list or all(not t.strip() for t in tasks_list):
+        return jsonify({"error": "Saisissez d'abord des tâches"}), 400
+    tasks_str = ", ".join([t.strip() for t in tasks_list if t.strip()])
 
-    # Extraire la liste d'outils
+    # Extraction de la liste des connexions sortantes en se concentrant sur le nom de la cible
+    outgoing_data = data.get("outgoing", [])
+    outgoing_list = []
+    if outgoing_data and isinstance(outgoing_data, list):
+        for conn in outgoing_data:
+            if isinstance(conn, dict):
+                # On privilégie "target_name", sinon "data_name"
+                val = conn.get("target_name", conn.get("data_name", "")).strip()
+                outgoing_list.append(val)
+            else:
+                outgoing_list.append(str(conn).strip())
+    outgoing_str = ", ".join([x for x in outgoing_list if x]) if outgoing_list else "Aucune connexion sortante"
+
+    # Extraction de la liste des outils en se concentrant sur le nom uniquement
     tools_data = data.get("tools", [])
-    if tools_data and isinstance(tools_data[0], dict):
-        tools_list = [t.get("name", "") for t in tools_data]
-    else:
-        tools_list = tools_data if isinstance(tools_data, list) else []
-    tools_str = ", ".join(tools_list) if tools_list else ""
+    tools_list = []
+    if tools_data and isinstance(tools_data, list):
+        for t in tools_data:
+            if isinstance(t, dict):
+                tools_list.append(t.get("name", "").strip())
+            else:
+                tools_list.append(str(t).strip())
+    tools_str = ", ".join([t for t in tools_list if t]) if tools_list else "Aucun outil"
 
     prompt = f"""
 Vous êtes un expert en gestion des compétences selon la norme NF X50-124.
-Proposez 2 ou 3 phrases de compétences pour l'activité suivante :
+Proposez exactement 3 formulations de compétences pour l'activité suivante, sans numéroter ni lister les phrases :
 
-- Nom : {activity_name}
+- Nom de l'activité : {activity_name}
 - Données d'entrée : {input_data_value}
 - Données de sortie : {output_data_value}
-- Tâches : {tasks_str or "Aucune tâche"}
-- Outils : {tools_str or "Aucun outil"}
+- Tâches : {tasks_str}
+- Connexions sortantes : {outgoing_str}
+- Outils : {tools_str}
 
 Contraintes :
-1) Chaque phrase doit être rédigée en une seule phrase sans utiliser de listes.
-2) Ne mentionnez pas l'environnement ni le niveau de performance.
-3) Ne listez pas explicitement "Données, Tâches, Outils".
-4) Chaque phrase doit commencer par un verbe d'action.
-5) Générez exactement 2 ou 3 phrases, chacune sur une nouvelle ligne.
+- Chaque phrase doit être rédigée en une seule phrase sans utiliser de listes ni de numérotation.
+- Ne mentionnez pas l'environnement ni le niveau de performance.
+- Chaque phrase doit commencer par un verbe d'action.
+- Générez exactement 3 phrases, chacune sur une nouvelle ligne, sans préfixe du type "1)" ou "2)".
 """
 
     openai.api_key = os.getenv("OPENAI_API_KEY")

@@ -1,26 +1,24 @@
-console.log("spinner.js chargé");
+/*******************************************************
+ * FICHIER : Code/static/js/spinner.js
+ * Gère l'affichage du voile gris + icône de chargement
+ ******************************************************/
 
+/**
+ * Affiche le div overlay (voile gris + icône).
+ */
 function showSpinner() {
-  console.log("showSpinner() appelé");
-  if (!document.getElementById('spinnerOverlay')) {
-    var overlay = document.createElement('div');
-    overlay.id = 'spinnerOverlay';
-    overlay.className = 'spinner-overlay';
-
-    var spinner = document.createElement('div');
-    spinner.className = 'spinner';
-
-    overlay.appendChild(spinner);
-    document.body.appendChild(overlay);
-    console.log("spinner affiché");
+  const overlay = document.getElementById("spinnerOverlay");
+  if (overlay) {
+    overlay.style.display = "block";
   }
 }
 
+/**
+ * Masque le div overlay (voile gris + icône).
+ */
 function hideSpinner() {
-  console.log("hideSpinner() appelé");
-  var overlay = document.getElementById('spinnerOverlay');
+  const overlay = document.getElementById("spinnerOverlay");
   if (overlay) {
-    document.body.removeChild(overlay);
-    console.log("spinner masqué");
+    overlay.style.display = "none";
   }
 }
