@@ -13,7 +13,7 @@ function openGarantModal(activityId) {
     .then(data => {
         data.forEach(r => {
             let opt = document.createElement('option');
-            opt.value = r.name;
+            opt.value = r.name; // on stocke le nom
             opt.textContent = r.name;
             selectElem.appendChild(opt);
         });
@@ -48,9 +48,12 @@ function submitGarantRole() {
         if(data.error) {
             alert("Erreur: " + data.error);
         } else {
-            // Mettre à jour l'affichage
+            // Mettre à jour l'affichage dans display_list.html
             let garantSpan = document.getElementById('activity-garant-' + activityId);
-            garantSpan.textContent = "Garant : " + data.role.name;
+
+            // MODIFIÉ ICI : on supprime le préfixe "Garant : "
+            garantSpan.textContent = data.role.name;
+
             closeGarantModal();
         }
     })

@@ -30,6 +30,19 @@
       <div class="activity-details" id="details-{{ item.activity.id }}" style="display: none;">
         <p>{{ item.activity.description or "" }}</p>
 
+        <!-- Section Garant (modifiée pour un seul bouton "Garant") -->
+        <div class="activity-garant" style="margin-bottom:10px;">
+          <button onclick="openGarantModal({{ item.activity.id }})">Garant</button>
+          <span id="activity-garant-{{ item.activity.id }}" style="margin-left:10px;">
+            {% if item.garant %}
+              {{ item.garant.name }}
+            {% else %}
+              Aucun
+            {% endif %}
+          </span>
+        </div>
+        <!-- Fin de la section Garant -->
+
         <div class="connections-container">
           <div class="incoming-connections">
             <h3>Connexions entrantes</h3>
@@ -148,6 +161,8 @@
 
   <!-- Inclusion du modal des compétences -->
   {% include "competency_modal.html" %}
+  <!-- Inclusion du modal Garant (indispensable pour le bouton "Garant") -->
+  {% include "roles_modal.html" %}
 
   <!-- Scripts : L'ordre est important -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
