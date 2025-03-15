@@ -38,13 +38,12 @@ function submitTask(activityId) {
       tasksSection.insertBefore(tasksList, tasksSection.firstChild);
     }
 
-    // Créer un <li> avec la colonne Rôles incluse
+    // Créer un <li> avec la même structure HTML que dans activity_tasks.html
     const li = document.createElement('li');
     li.className = 'task';
     li.id = 'task-' + data.id;
     li.setAttribute('data-task-id', data.id);
 
-    // IMPORTANT : on recopie la même structure HTML que dans activity_tasks.html
     li.innerHTML = `
       <div class="task-row" style="display:flex; gap:10px; align-items:flex-start;">
         <!-- Colonne gauche -->
@@ -221,10 +220,13 @@ document.addEventListener('DOMContentLoaded', function() {
   taskLists.forEach(list => {
     Sortable.create(list, {
       animation: 150,
-      handle: '.fa-bars',
+      handle: '.fa-bars',  // L'icône <i class="fa-solid fa-bars"> 
       onEnd: function(evt) {
-        const listId = list.getAttribute('id'); // ex: tasks-list-123
-        const activityId = listId.split('-')[2];   // ex: 123
+        // Ex: list.id = "tasks-list-123"
+        const listId = list.getAttribute('id');
+        // On récupère activityId depuis le 3e split : ["tasks", "list", "123"]
+        const splitted = listId.split('-');
+        const activityId = splitted[2];
         console.log("Reorder tasks for activityId=", activityId);
 
         let newOrder = [];
@@ -232,6 +234,7 @@ document.addEventListener('DOMContentLoaded', function() {
           newOrder.push(taskElem.getAttribute('data-task-id'));
         });
 
+        // Envoi au backend 
         fetch('/activities/' + activityId + '/tasks/reorder', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -241,6 +244,9 @@ document.addEventListener('DOMContentLoaded', function() {
           if (!response.ok) {
             console.error("Erreur de sauvegarde de l'ordre");
           }
+        })
+        .catch(err => {
+          console.error("Impossible de réordonner les tâches :", err);
         });
       }
     });
