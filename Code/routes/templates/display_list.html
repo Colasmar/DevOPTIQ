@@ -15,6 +15,11 @@
   <button id="update-cartography-button" class="update-btn">
     <i class="fa-solid fa-arrows-rotate"></i> Mettre à jour la cartographie
   </button>
+  
+  <!-- Bouton pour afficher la page des rôles -->
+  <button onclick="window.location.href='/roles_view'" class="update-btn">
+    <i class="fa-solid fa-user"></i> Afficher les rôles
+  </button>
 
   <h1>Liste des activités</h1>
 
@@ -229,12 +234,18 @@
         if (resp.error) {
           alert("Erreur : " + resp.error);
         } else {
+          // Masquer le formulaire et vider le champ
+          hideAddPerfForm(dataId);
+          inputElem.value = "";
+  
           // On remplace le bloc par l'affichage de la performance
           const container = document.getElementById("perf-container-" + dataId);
           if (!container) return;
           container.innerHTML = `
             <div id="perf-display-${resp.id}" data-dataid="${dataId}">
-              <span id="perf-info-${resp.id}">${resp.name}</span>
+              <span id="perf-info-${resp.id}">
+                ${resp.name}${resp.description ? ` - ${resp.description}` : ''}
+              </span>
               <button onclick="showEditPerfForm('${resp.id}','${resp.name}')">
                 <i class="fa-solid fa-pencil"></i>
               </button>
@@ -313,17 +324,19 @@
         if (resp.error) {
           alert("Erreur : " + resp.error);
         } else {
-          // On récupère dataId avant de remplacer le conteneur
+          // On récupère dataId avant de recréer le conteneur
           const displayDiv = document.getElementById(`perf-display-${perfId}`);
           if (!displayDiv) return;
           const dataId = displayDiv.getAttribute("data-dataid");
-          // On rétablit le bouton initial
+          // Recréer le conteneur de performance pour permettre l'ajout d'une nouvelle performance
           displayDiv.parentNode.innerHTML = `
-            <button onclick="showAddPerfForm('${dataId}')">Performance</button>
-            <div id="perf-add-form-${dataId}" style="display:none; margin-top:5px;">
-              <input type="text" id="perf-add-input-${dataId}" style="width:120px;" />
-              <button onclick="submitAddPerf('${dataId}')">Enregistrer</button>
-              <button onclick="hideAddPerfForm('${dataId}')">Annuler</button>
+            <div id="perf-container-${dataId}">
+              <button onclick="showAddPerfForm('${dataId}')">Performance</button>
+              <div id="perf-add-form-${dataId}" style="display:none; margin-top:5px;">
+                <input type="text" id="perf-add-input-${dataId}" style="width:120px;" />
+                <button onclick="submitAddPerf('${dataId}')">Enregistrer</button>
+                <button onclick="hideAddPerfForm('${dataId}')">Annuler</button>
+              </div>
             </div>
           `;
         }
@@ -336,3 +349,13 @@
   </script>
 </body>
 </html>
+
+
+
+  
+  
+  
+  
+  
+  
+  
