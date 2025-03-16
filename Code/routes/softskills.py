@@ -8,32 +8,25 @@ from Code.models.models import Softskill
 
 softskills_bp = Blueprint('softskills_bp', __name__, url_prefix='/softskills')
 
-
 @softskills_bp.route('/propose', methods=['POST'])
 def propose_softskills():
     """
-    Génère 3 ou 4 habiletés socio-cognitives en se basant sur la norme X50-766,
-    en indiquant un niveau (1..4) ET une justification.
-    Tient compte du contexte détaillé : nom de l'activité, tâches, outils, etc.
-
-    JSON attendu :
-    {
-      "activity": "...",
-      "tasks": "...",
-      "tools": "...",
-      "environment": "...",
-      "competencies": "...", (optionnel)
-      ...
-    }
+    Génère 3 ou 4 habiletés socio-cognitives (X50-766) avec niveau (1..4) et justification.
+    Reçoit un JSON complet (provenant de /activities/<id>/details).
+    S'il n'y a pas de tâches, renvoie "Saisissez d'abord des tâches".
     """
     data = request.get_json() or {}
-    activity_info = data.get("activity", "").strip()
-    tasks_info = data.get("tasks", "").strip()
-    tools_info = data.get("tools", "").strip()
-    environment_info = data.get("environment", "").strip()
-    competencies_info = data.get("competencies", "").strip()
 
-    # Liste officielle X50-766 (extrait) pour référence
+    tasks_list = data.get("tasks", [])
+    if not tasks_list or len(tasks_list) == 0:
+        return jsonify({"error": "Saisissez d'abord des tâches"}), 400
+
+    activity_name = data.get("name", "Activité sans nom")
+    input_data_value = data.get("input_data", "")
+    output_data_value = data.get("output_data", "")
+    tools = data.get("tools", [])
+    competencies = data.get("competencies", [])
+
     x50_766_hsc = """
 Les habiletés socio-cognitives officielles de la norme X50-766 sont :
 Relation à soi :
@@ -59,33 +52,28 @@ Relation à la complexité :
  - Approche globale
 """
 
+    tasks_str = ", ".join([t for t in tasks_list if t]) or "Aucune tâche"
+    tools_str = ", ".join(tools) or "Aucun outil"
+    comps_str = ", ".join([c.get("description","") for c in competencies]) or "Aucune compétence"
+
     prompt = f"""
 Vous êtes un expert en habiletés sociocognitives selon la norme X50-766.
-Voici des informations détaillées sur une activité et son contexte :
+Voici les informations sur une activité :
 
-- Nom de l'activité : {activity_info}
-- Tâches : {tasks_info}
-- Outils : {tools_info}
-- Environnement : {environment_info}
-- Compétences existantes : {competencies_info}
+- Nom de l'activité : {activity_name}
+- Données d'entrée : {input_data_value}
+- Données de sortie : {output_data_value}
+- Tâches : {tasks_str}
+- Outils : {tools_str}
+- Compétences existantes : {comps_str}
 
-En tenant compte de ces éléments, propose 3 ou 4 habiletés sociocognitives pertinentes parmi la liste X50-766 ci-dessous,
-en indiquant un niveau entre 1 et 4 (1 = Aptitude, 4 = Excellence).
-Le niveau doit être justifié brièvement (champ "justification").
+En vous basant sur la liste X50-766 ci-dessous, proposez 3 ou 4 habiletés pertinentes,
+avec un niveau (1..4) et une justification succincte :
 
-{ x50_766_hsc }
+{x50_766_hsc}
 
-Le résultat final doit être un tableau JSON, par exemple :
-[
-  {{
-    "habilete": "Auto-organisation",
-    "niveau": "2",
-    "justification": "Niveau intermédiaire car..."
-  }},
-  ...
-]
-
-Ne propose jamais plus de 4 habiletés. Ne propose pas d'habiletés en dehors de cette liste.
+Répondez sous forme de tableau JSON (3 ou 4 objets).
+Ne proposez jamais plus de 4 objets.
 """
 
     openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -93,7 +81,6 @@ Ne propose jamais plus de 4 habiletés. Ne propose pas d'habiletés en dehors de
         return jsonify({"error": "Clé OpenAI manquante (OPENAI_API_KEY)."}), 500
 
     try:
-        print("=== propose_softskills: Début de l'appel OpenAI ===")
         response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
@@ -103,42 +90,21 @@ Ne propose jamais plus de 4 habiletés. Ne propose pas d'habiletés en dehors de
             temperature=0.2,
             max_tokens=800
         )
-        print("=== propose_softskills: Réponse brute OpenAI ===")
-        print(response)  # Log l'intégralité de la réponse
-        print("=== Fin de la réponse ===")
-
-        raw_text = response['choices'][0]['message']['content']
-        print("RAW TEXT = ", repr(raw_text))  # Log du texte exact
-        raw_text = raw_text.strip()
-
+        raw_text = response['choices'][0]['message']['content'].strip()
         proposals = json.loads(raw_text)
-        return jsonify(proposals), 200
 
+        return jsonify(proposals), 200
     except Exception as e:
-        # Affiche l'erreur en console (terminal Flask) pour diagnostic
         print("ERREUR dans propose_softskills:", e)
-        # Retourne un JSON d'erreur explicite
         return jsonify({"error": f"Erreur lors de la proposition de HSC : {str(e)}"}), 500
 
 
 @softskills_bp.route('/add', methods=['POST'])
 def add_softskill():
     """
-    Enregistre ou met à jour une softskill (HSC) dans la table 'softskills'.
-    JSON attendu : 
-    {
-      "activity_id": <int>, 
-      "habilete": <str>, 
-      "niveau": <str>, 
-      "justification": <str> (optionnel)
-    }
-
-    Logique de non-duplication :
-    - Si la HSC (habilete) existe déjà pour la même activity_id (ignore la casse),
-      on compare les niveaux (convertis en int).
-        * Si le nouveau niveau > niveau existant, on met à jour (niveau + justification)
-        * Sinon, on ne fait rien
-    - On retourne l'objet final (existant ou nouvellement créé)
+    Enregistre ou met à jour une softskill (HSC).
+    JSON attendu : { "activity_id": <int>, "habilete": <str>, "niveau": <str>, "justification": <str> (opt) }
+    Compare les niveaux pour éviter les doublons.
     """
     data = request.get_json() or {}
     activity_id = data.get("activity_id")
@@ -149,7 +115,6 @@ def add_softskill():
     if not activity_id or not habilete or not niveau:
         return jsonify({"error": "activity_id, habilete and niveau are required"}), 400
 
-    # Convertir niveau en entier (si possible)
     try:
         new_level_int = int(niveau)
     except ValueError:
@@ -162,15 +127,17 @@ def add_softskill():
 
     try:
         if existing:
+            old_level_int = 0
             try:
                 old_level_int = int(existing.niveau)
             except ValueError:
-                old_level_int = 0
+                pass
 
             if new_level_int > old_level_int:
                 existing.niveau = str(new_level_int)
                 existing.habilete = habilete
-                existing.justification = justification or existing.justification
+                if justification:
+                    existing.justification = justification
                 db.session.commit()
 
             return jsonify({
@@ -204,15 +171,8 @@ def add_softskill():
 @softskills_bp.route('/translate', methods=['POST'])
 def translate_softskills():
     """
-    Reçoit un texte libre (user_input) et renvoie une liste d'HSC (3 à 5)
-    en se basant sur la norme X50-766, avec niveau (1..4) + justification.
-
-    JSON attendu :
-    {
-      "user_input": "<texte quelconque>",
-      ...
-      éventuellement "activity_info" si besoin, "tasks_info" etc.
-    }
+    Reçoit un texte libre (user_input) et renvoie 3 à 5 HSC X50-766 avec niveau et justification.
+    Utilisé par le bouton "Traduire Softskills".
     """
     data = request.get_json() or {}
     user_input = data.get("user_input", "").strip()
@@ -249,7 +209,7 @@ Voici un texte libre décrivant des soft skills ou un contexte d'activité :
 \"{user_input}\"
 
 Analyse ce texte et propose 3 à 5 habiletés sociocognitives issues de la norme X50-766
-en indiquant un niveau de 1 à 4 (1 = Aptitude, 4 = Excellence), et un champ "justification".
+avec un niveau de 1 à 4 (1 = Aptitude, 4 = Excellence) et un champ "justification".
 N'utilise que la liste suivante :
 {x50_766_hsc}
 
@@ -262,8 +222,7 @@ Le résultat doit être un tableau JSON, par exemple :
   }},
   ...
 ]
-
-Ne propose jamais plus de 5 objets dans le tableau.
+Ne propose jamais plus de 5 objets.
 """
 
     openai.api_key = os.getenv("OPENAI_API_KEY")

@@ -1,107 +1,93 @@
 /**************************************************************
- * softskills.js
+ * FICHIER : Code/static/js/softskills.js
  * Gère la logique front-end pour les habiletés socio-cognitives (HSC)
- * dans le contexte des activités (bouton "Proposer HSC").
- *
- * L'appel à /softskills/propose se fait depuis proposeSoftskills(activityId).
- * => Nous affichons un spinner et ajoutons la justification.
+ * dans le contexte des activités (boutons "Proposer HSC" et "Traduire Softskills").
+ * Version "robuste" : 
+ *   - mapping des clés (si l'IA renvoie "Habilitéé" au lieu de "habilete")
+ *   - conversion de niveau en string pour éviter l'erreur strip() côté backend.
  **************************************************************/
 
-// Récupère le texte "détails" d'une activité (pour l'IA)
-function getActivityDetails(activityId) {
-  const detailsElem = document.getElementById('details-' + activityId);
-  return detailsElem ? detailsElem.innerText : "";
+/**
+ * Fonction appelée quand on clique sur "Proposer HSC".
+ * Récupère les infos de l'activité via /activities/<id>/details, puis appelle proposeSoftskills().
+ */
+function fetchActivityDetailsForSoftskills(activityId) {
+  showSpinner();
+  fetch(`/activities/${activityId}/details`)
+    .then(response => {
+      if (!response.ok) {
+        hideSpinner();
+        throw new Error("Impossible de récupérer les détails de l'activité");
+      }
+      return response.json();
+    })
+    .then(activityData => {
+      hideSpinner();
+      proposeSoftskills(activityData);
+    })
+    .catch(error => {
+      hideSpinner();
+      alert("Erreur : " + error.message);
+    });
 }
-
-// Récupère la liste des compétences associées à l'activité (texte brut)
-function getCompetenciesData(activityId) {
-  const compElem = document.getElementById('competencies-list-' + activityId);
-  if (!compElem) return "";
-  let items = [];
-  compElem.querySelectorAll('li').forEach(li => items.push(li.textContent.trim()));
-  return items.join(", ");
-}
-
-// Convertit un niveau "1..4" en libellé
-function translateLevelToText(level) {
-  switch(level) {
-    case "1": return "Aptitude";
-    case "2": return "Acquisition";
-    case "3": return "Maîtrise";
-    case "4": return "Excellence";
-    default:  return "Inconnu";
-  }
-}
-
-// Convertit un libellé éventuel en un nombre (pour comparer)
-function parseLevelToNumber(level) {
-  // "1","2","3","4" => num
-  // ou "Aptitude","Acquisition", etc => on renvoie le num correspondant
-  switch(level.toLowerCase()) {
-    case "1": case "aptitude":        return 1;
-    case "2": case "acquisition":     return 2;
-    case "3": case "maîtrise":        return 3;
-    case "4": case "excellence":      return 4;
-  }
-  // Essai d'extraire un chiffre
-  let n = parseInt(level);
-  if (!isNaN(n)) return n;
-  return 0;
-}
-
-// Bouton "Proposer HSC" : on appelle proposeSoftskills(activityId)
-$(document).on('click', '.define-hsc-btn', function() {
-  const activityId = $(this).data('activity-id');
-  proposeSoftskills(activityId);
-});
 
 /**
- * Fonction principale pour proposer des HSC via /softskills/propose
- * 1) Récupère le contexte (détails activité, compétences existantes)
- * 2) Appelle /softskills/propose
- * 3) Pour chaque HSC renvoyée => /softskills/add
- * 4) Ajoute la HSC dans le DOM (sans doublon, justification incluse)
+ * Appelle le back-end (/softskills/propose) pour générer des HSC.
+ * Si aucune tâche n'est présente, le back-end renvoie "Saisissez d'abord des tâches".
+ * On fait ensuite un "mapping" des clés pour éviter l'erreur 400 si l'IA renvoie "Habilité" ou "Niveau".
+ * IMPORTANT : on convertit la valeur de niveau en string pour éviter l'erreur .strip() côté Python
+ * si l'IA renvoie un entier.
  */
-function proposeSoftskills(activityId) {
-  const activityData = getActivityDetails(activityId);
-  const competenciesData = getCompetenciesData(activityId);
-
+function proposeSoftskills(activityData) {
   showSpinner();
   fetch('/softskills/propose', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      activity: activityData,
-      competencies: competenciesData
-    })
+    body: JSON.stringify(activityData)
   })
-  .then(res => {
-    if (!res.ok) hideSpinner();
-    return res.json();
+  .then(response => {
+    if (!response.ok) hideSpinner();
+    return response.json();
   })
   .then(data => {
+    hideSpinner();
     if (data.error) {
-      hideSpinner();
-      alert(data.error);
+      alert("Erreur : " + data.error);
       return;
     }
-    // data = [ { habilete, niveau, justification }, ... ]
+
+    // data = [ { habilete, niveau, justification } ] dans l'idéal,
+    // mais l’IA peut renvoyer "Habilitéé", "Niveau": 3, etc.
     let addPromises = [];
     data.forEach(item => {
+      // --- MAPPING : on trouve la bonne clé pour habilete, niveau, justification ---
+      const rawHabilete = findClosestKey(item, ["habilete","habilite","habilité","habileté","Habilete","Habilité","Habilitéé"]);
+      const rawNiveauVal = findClosestKey(item, ["niveau","Niveau","level"]); 
+      // On force la conversion en chaîne :
+      const rawNiveau = rawNiveauVal !== "" ? String(rawNiveauVal) : "";
+
+      const rawJustif   = findClosestKey(item, ["justification","Justification","justif"]);
+
+      // Valeurs par défaut si introuvables
+      const habilete = rawHabilete || "Inconnue";
+      const niveau   = rawNiveau   || "1";
+      const justification = rawJustif || "";
+
+      // On appelle /softskills/add en passant niveau en chaîne
       let p = fetch('/softskills/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          activity_id: activityId,
-          habilete: item.habilete,
-          niveau: item.niveau,
-          justification: item.justification
+          activity_id: activityData.id,
+          habilete: habilete,
+          niveau:   niveau,          // toujours une chaîne
+          justification: justification
         })
       })
       .then(r => r.json())
       .then(added => {
         if (!added.error) {
-          addSoftskillItemToDOM(activityId, added.habilete, added.niveau, added.id, added.justification);
+          addSoftskillItemToDOM(activityData.id, added.habilete, added.niveau, added.id, added.justification);
         } else {
           console.error("Erreur ajout HSC:", added.error);
         }
@@ -113,82 +99,66 @@ function proposeSoftskills(activityId) {
     return Promise.all(addPromises);
   })
   .then(() => {
-    hideSpinner();
     alert("Proposition de HSC terminée !");
   })
   .catch(err => {
     hideSpinner();
-    alert("Erreur lors de la proposition HSC : " + err.message);
+    console.error("Erreur lors de la proposition HSC :", err);
+    alert("Impossible de proposer des HSC : " + err.message);
   });
 }
 
 /**
- * Ajoute (ou met à jour) une HSC dans le DOM en évitant les doublons
- * @param activityId
- * @param hscName
- * @param hscLevel
- * @param dbId
- * @param justification
+ * Ajoute ou met à jour une HSC dans le DOM, en évitant les doublons (même habilete).
  */
 function addSoftskillItemToDOM(activityId, hscName, hscLevel, dbId, justification) {
   const container = document.getElementById('softskills-list-' + activityId);
   if (!container) return;
 
-  // 1) Chercher si une HSC du même nom existe déjà
-  const existing = findSoftskillItemByName(container, hscName);
-  const newNumLevel = parseLevelToNumber(hscLevel);
+  const target = hscName.toLowerCase();
+  let existingItem = null;
+  container.querySelectorAll('.softskill-item').forEach(item => {
+    if (item.getAttribute('data-habilete-lower') === target) {
+      existingItem = item;
+    }
+  });
 
-  if (existing) {
-    // On compare les niveaux, si le nouveau est plus élevé, on met à jour
-    const existingLevelElem = existing.querySelector('.softskill-level');
-    const existingLevelText = existingLevelElem ? existingLevelElem.innerText.trim() : "";
-    const existingNumLevel = parseLevelToNumber(existingLevelText);
-
-    if (newNumLevel > existingNumLevel) {
-      // Mettre à jour le texte
-      existingLevelElem.innerText = translateLevelToText(hscLevel);
-
-      // Mettre à jour la justification si on le souhaite
-      if (justification && justification.trim() !== "") {
-        const justifElem = existing.querySelector('.softskill-justif');
+  const newLevelNum = parseInt(hscLevel) || 0;
+  if (existingItem) {
+    // Si l'item existe déjà, on compare les niveaux
+    const levelElem = existingItem.querySelector('.softskill-level');
+    const oldLevelNum = parseInt(levelElem ? levelElem.innerText : "0") || 0;
+    if (newLevelNum > oldLevelNum) {
+      levelElem.innerText = hscLevel;
+      if (justification) {
+        const justifElem = existingItem.querySelector('.softskill-justification');
         if (justifElem) {
           justifElem.innerText = justification;
         } else {
-          // Ajouter un bloc justification
           const newJustifDiv = document.createElement('div');
-          newJustifDiv.className = 'softskill-justif';
-          newJustifDiv.style.cssText = 'font-size:0.9em; margin-top:3px; color:#444;';
-          newJustifDiv.innerText = "Justification : " + justification;
-          existing.insertBefore(newJustifDiv, existing.querySelector('.edit-softskill-form'));
+          newJustifDiv.className = 'softskill-justification';
+          newJustifDiv.innerText = justification;
+          existingItem.appendChild(newJustifDiv);
         }
       }
     }
-    // On ne crée pas de doublon
     return;
   }
 
-  // 2) Sinon, créer un nouvel item
-  const levelLabel = translateLevelToText(hscLevel);
+  // Sinon, créer un nouvel item
   const div = document.createElement('div');
   div.className = 'softskill-item';
   div.style.marginBottom = '5px';
   div.setAttribute('data-ss-id', dbId);
+  div.setAttribute('data-habilete-lower', target);
 
-  // Optionnel: stocker le nom en data pour retrouver l'item
-  div.setAttribute('data-habilete-lower', hscName.toLowerCase());
-
-  let justificationHTML = "";
-  if (justification && justification.trim() !== "") {
-    justificationHTML = `
-      <div class="softskill-justif" style="font-size:0.9em; margin-top:3px; color:#444;">
-        Justification : ${justification}
-      </div>
-    `;
-  }
+  let justificationHTML = justification
+    ? `<div class="softskill-justification" style="font-size:0.9em; margin-top:3px; color:#444;">${justification}</div>`
+    : '';
 
   div.innerHTML = `
     <span class="softskill-text">
-      ${hscName} (Niveau: <span class="softskill-level">${levelLabel}</span>)
+      ${hscName} (Niveau: <span class="softskill-level">${hscLevel}</span>)
     </span>
     ${justificationHTML}
     <i class="fas fa-pencil-alt edit-softskill" title="Modifier"></i>
@@ -205,24 +175,8 @@ function addSoftskillItemToDOM(activityId, hscName, hscLevel, dbId, justificatio
   container.appendChild(div);
 }
 
-/**
- * Trouve un item .softskill-item dont le nom est hscName (ignorer la casse).
- * Retourne l'élément correspondant ou null.
- */
-function findSoftskillItemByName(containerElem, hscName) {
-  const target = hscName.toLowerCase();
-  const items = containerElem.querySelectorAll('.softskill-item');
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    const stored = item.getAttribute('data-habilete-lower');
-    if (stored && stored === target) {
-      return item;
-    }
-  }
-  return null;
-}
+/* --- Édition / Suppression existantes --- */
 
-// Edition (icône crayon)
 $(document).on('click', '.edit-softskill', function() {
   const itemElem = $(this).closest('.softskill-item');
   const dbId = itemElem.data('ss-id');
@@ -256,16 +210,10 @@ function submitEditSoftskillFromDOM(dbId) {
     if (data.error) {
       alert("Erreur : " + data.error);
     } else {
-      // On met à jour l'affichage
       const itemElem = document.querySelector(`.softskill-item[data-ss-id='${dbId}']`);
       if (itemElem) {
         const textElem = itemElem.querySelector('.softskill-text');
-        const levelLabel = translateLevelToText(data.niveau);
-        textElem.innerHTML = `${data.habilete} (Niveau: <span class="softskill-level">${levelLabel}</span>)`;
-
-        // Mettre à jour la justification s'il y en a une
-        // (data.justification si tu veux la récupérer)
-        // ...
+        textElem.innerHTML = `${data.habilete} (Niveau: <span class="softskill-level">${data.niveau}</span>)`;
         hideEditSoftskillForm(dbId);
         alert("HSC mise à jour en base.");
       }
@@ -277,7 +225,6 @@ function submitEditSoftskillFromDOM(dbId) {
   });
 }
 
-// Suppression (icône poubelle)
 $(document).on('click', '.delete-softskill', function() {
   const itemElem = $(this).closest('.softskill-item');
   const dbId = itemElem.data('ss-id');
@@ -298,3 +245,116 @@ $(document).on('click', '.delete-softskill', function() {
     console.error(err);
   });
 });
+
+/* --- TRADUCTION DES SOFTSKILLS --- */
+
+function openTranslateSoftskillsModal(activityId) {
+  window.translateSoftskillsActivityId = activityId;
+  document.getElementById('translateSoftskillsModal').style.display = 'block';
+}
+
+function closeTranslateSoftskillsModal() {
+  document.getElementById('translateSoftskillsModal').style.display = 'none';
+  window.translateSoftskillsActivityId = null;
+}
+
+function submitSoftskillsTranslation() {
+  const activityId = window.translateSoftskillsActivityId;
+  if (!activityId) {
+    alert("Identifiant de l'activité introuvable.");
+    return;
+  }
+  const userInputElem = document.getElementById('translateSoftskillsInput');
+  const userInput = userInputElem.value.trim();
+  if (!userInput) {
+    alert("Veuillez saisir du texte.");
+    return;
+  }
+
+  showSpinner();
+  $.ajax({
+    url: '/softskills/translate',
+    method: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({ user_input: userInput }),
+    success: function(response) {
+      hideSpinner();
+      if (!response.proposals) {
+        alert("Réponse inattendue : pas de 'proposals' !");
+        return;
+      }
+      let addPromises = [];
+      response.proposals.forEach(function(item) {
+        // Mapping minimal pour la traduction aussi
+        const rawHabilete = findClosestKey(item, ["habilete","habilite","habilité","habileté","Habilete","Habilité"]);
+        const rawNiveauVal = findClosestKey(item, ["niveau","Niveau","level"]);
+        // Convertit le niveau en string
+        const rawNiveau = rawNiveauVal !== "" ? String(rawNiveauVal) : "";
+        const rawJustif   = findClosestKey(item, ["justification","Justification","justif"]);
+
+        const habilete = rawHabilete || "Inconnue";
+        const niveau   = rawNiveau   || "1";
+        const justification = rawJustif || "";
+
+        let p = $.ajax({
+          url: '/softskills/add',
+          method: 'POST',
+          contentType: 'application/json',
+          data: JSON.stringify({
+            activity_id: activityId,
+            habilete: habilete,
+            niveau:   niveau,  // toujours une chaîne
+            justification: justification
+          }),
+          success: function(added) {
+            if (added.error) {
+              console.error("Erreur ajout HSC:", added.error);
+            } else {
+              addSoftskillItemToDOM(activityId, added.habilete, added.niveau, added.id, added.justification);
+            }
+          },
+          error: function(err) {
+            console.error("Erreur /softskills/add:", err);
+          }
+        });
+        addPromises.push(p);
+      });
+      $.when.apply($, addPromises).then(function() {
+        userInputElem.value = "";
+        closeTranslateSoftskillsModal();
+      });
+    },
+    error: function() {
+      hideSpinner();
+      alert("Erreur lors de la traduction des softskills.");
+    }
+  });
+}
+
+/**
+ * findClosestKey(obj, possibleKeys)
+ * Parcourt les clés de obj pour trouver la première qui ressemble
+ * (en minuscules, sans accents) à l'une des possibleKeys.
+ * Retourne la valeur de cette clé, ou "" si rien trouvé.
+ */
+function findClosestKey(obj, possibleKeys) {
+  // Fonction locale pour normaliser une chaîne (minuscules, pas d'accents)
+  const normalize = (s) => s
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // supprime accents
+    .toLowerCase();
+
+  // Parcourir toutes les clés de l'objet
+  for (let key of Object.keys(obj)) {
+    const normKey = normalize(key);
+    // Pour chaque candidate
+    for (let pk of possibleKeys) {
+      const normPk = normalize(pk);
+      // Si normKey contient normPk, on renvoie la valeur
+      if (normKey.includes(normPk)) {
+        return obj[key];
+      }
+    }
+  }
+  // Si rien trouvé
+  return "";
+}

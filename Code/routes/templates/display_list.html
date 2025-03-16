@@ -30,7 +30,7 @@
       <div class="activity-details" id="details-{{ item.activity.id }}" style="display: none;">
         <p>{{ item.activity.description or "" }}</p>
 
-        <!-- Section Garant (modifiée pour un seul bouton "Garant") -->
+        <!-- Section Garant (un seul bouton "Garant") -->
         <div class="activity-garant" style="margin-bottom:10px;">
           <button onclick="openGarantModal({{ item.activity.id }})">Garant</button>
           <span id="activity-garant-{{ item.activity.id }}" style="margin-left:10px;">
@@ -163,9 +163,15 @@
   {% include "competency_modal.html" %}
   <!-- Inclusion du modal Garant (indispensable pour le bouton "Garant") -->
   {% include "roles_modal.html" %}
+  <!-- Inclusion du modal de traduction Softskills (pour le bouton "Traduire Softskills") -->
+  {% include "translate_softskills_modal.html" %}
 
   <!-- Scripts : L'ordre est important -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+  <!-- NOUVELLE LIGNE : Import de SortableJS pour éviter "Sortable is not defined" -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
   <script src="/static/js/spinner.js"></script>
   <script src="/static/js/tasks.js"></script>
   <script src="/static/js/tools.js"></script>
