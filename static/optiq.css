@@ -61,13 +61,6 @@ select {
   box-sizing: border-box;
 }
 
-/* Si vous avez des selects multiples (multiple), 
-   vous pouvez ajuster la hauteur. Exemple : 
-select[multiple] {
-  height: 200px;
-}
-*/
-
 /* ========================================
    ACTIVITÉS, ENTÊTES, TABLES
    ======================================== */
@@ -166,23 +159,48 @@ select[multiple] {
   display: flex;
   flex-direction: column;
 }
-.task-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+
+/* ===============================
+   LAYOUT EN GRILLE POUR LES TÂCHES
+   =============================== */
+
+/* 
+   On transforme .task-row en une grille à 3 colonnes :
+   1) Tâche (nom, description, icône drag)
+   2) Outils
+   3) Rôles
+*/
+.tasks-section .task-row {
+  display: grid !important;
+  grid-template-columns: 40% 30% 30% !important; /* Ajustez à votre guise */
+  gap: 10px !important;
+  align-items: start !important; /* Aligne le contenu en haut */
 }
-.task-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1;
+
+/* Colonne 1 : nom/description de la tâche */
+.tasks-section .task-left {
+  grid-column: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
 }
-.task-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 10px;
-  max-width: 400px;
+
+/* Colonne 2 : outils */
+.tasks-section .task-right {
+  grid-column: 2 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 10px !important;
+  max-width: 100% !important;
+}
+
+/* Colonne 3 : rôles */
+.tasks-section .task-roles {
+  grid-column: 3 !important;
+  text-align: center !important;
+  margin-left: 0 !important;
+  align-self: start !important;
 }
 
 /* Nom + description de la tâche */
@@ -191,20 +209,20 @@ select[multiple] {
   word-wrap: break-word;
 }
 
-/* Liste des outils : inline-block, text-align: left */
-.tools-list ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  text-align: left;
+/* Liste des outils : inline-block et alignement à gauche */
+.tasks-section .tools-list ul {
+  list-style: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  text-align: left !important;
 }
-.tools-list li {
-  background: #f0f0f0;
-  padding: 8px 10px;
-  border-radius: 3px;
-  margin-bottom: 10px;
-  display: inline-block;
-  margin-right: 10px;
+.tasks-section .tools-list li {
+  background: #f0f0f0 !important;
+  padding: 8px 10px !important;
+  border-radius: 3px !important;
+  margin-bottom: 5px !important;
+  display: inline-block !important;
+  margin-right: 8px !important;
 }
 
 /* Bouton d'ajout d'outil (ex: +) */
@@ -236,4 +254,12 @@ select[multiple] {
 .softskill-justification {
   font-size: 1em !important; /* => 30px */
   line-height: 1.4;
+}
+
+/* Fin du fichier */
+/* For the "Performance" input forms */
+#perf-add-form-*, #perf-edit-form-* input[type="text"] {
+  width: 40ch !important;   /* ~ 5..7 mots */
+  min-width: 300px !important; 
+  box-sizing: border-box;
 }

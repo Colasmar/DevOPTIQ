@@ -119,7 +119,7 @@
                         <!-- Formulaire d'édition en ligne, caché -->
                         <div id="perf-edit-form-{{ conn.performance.id }}" style="display:none; margin-top:5px;">
                           <input type="text" id="perf-edit-input-{{ conn.performance.id }}"
-                                 style="width:120px;" />
+                                 style="width:350px;" />
                           <button onclick="submitEditPerf('{{ conn.performance.id }}')">Enregistrer</button>
                           <button onclick="hideEditPerfForm('{{ conn.performance.id }}')">Annuler</button>
                         </div>
@@ -128,7 +128,7 @@
                         <div id="perf-container-{{ conn.data_id }}">
                           <button onclick="showAddPerfForm('{{ conn.data_id }}')">Performance</button>
                           <div id="perf-add-form-{{ conn.data_id }}" style="display:none; margin-top:5px;">
-                            <input type="text" id="perf-add-input-{{ conn.data_id }}" style="width:120px;" />
+                            <input type="text" id="perf-add-input-{{ conn.data_id }}" style="width:350px;" />
                             <button onclick="submitAddPerf('{{ conn.data_id }}')">Enregistrer</button>
                             <button onclick="hideAddPerfForm('{{ conn.data_id }}')">Annuler</button>
                           </div>
@@ -254,7 +254,7 @@
               </button>
             </div>
             <div id="perf-edit-form-${resp.id}" style="display:none; margin-top:5px;">
-              <input type="text" id="perf-edit-input-${resp.id}" style="width:120px;" />
+              <input type="text" id="perf-edit-input-${resp.id}" style="width:350px;" />
               <button onclick="submitEditPerf('${resp.id}')">Enregistrer</button>
               <button onclick="hideEditPerfForm('${resp.id}')">Annuler</button>
             </div>
@@ -337,7 +337,7 @@
             <div id="perf-container-${dataId}">
               <button onclick="showAddPerfForm('${dataId}')">Performance</button>
               <div id="perf-add-form-${dataId}" style="display:none; margin-top:5px;">
-                <input type="text" id="perf-add-input-${dataId}" style="width:120px;" />
+                <input type="text" id="perf-add-input-${dataId}" style="width:350px;" />
                 <button onclick="submitAddPerf('${dataId}')">Enregistrer</button>
                 <button onclick="hideAddPerfForm('${dataId}')">Annuler</button>
               </div>
