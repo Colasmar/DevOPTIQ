@@ -212,11 +212,14 @@
   <script src="/static/js/spinner.js"></script>
 
   <script>
+    // Mise à jour des fonctions pour vérifier le style effectif via getComputedStyle
+
     function toggleRoleContainer(containerId, headerElem) {
       var container = document.getElementById(containerId);
       var roleId = containerId.split('-')[1];
       var icon = document.getElementById('role-icon-' + roleId);
-      if (container.style.display === "none") {
+      var currentDisplay = container.style.display || window.getComputedStyle(container, null).display;
+      if (currentDisplay === "none") {
         container.style.display = "block";
         icon.textContent = "▼";
       } else {
@@ -227,11 +230,9 @@
 
     function toggleBlock(blockId, headerElem) {
       var block = document.getElementById(blockId);
-      var icon = document.getElementById(blockId.replace('block', 'block-icon'));
-      if (!icon) {
-        icon = headerElem.querySelector('.toggle-icon');
-      }
-      if (block.style.display === "none") {
+      var icon = document.getElementById(blockId.replace('block', 'block-icon')) || headerElem.querySelector('.toggle-icon');
+      var currentDisplay = block.style.display || window.getComputedStyle(block, null).display;
+      if (currentDisplay === "none") {
         block.style.display = "block";
         if (icon) { icon.textContent = "▼"; }
       } else {
@@ -240,8 +241,7 @@
       }
     }
 
-    // Version améliorée de generateOnboarding :
-    // Le spinner est affiché immédiatement et reste visible pendant toute la durée de la requête.
+    // Version améliorée de generateOnboarding : le spinner s'affiche immédiatement et reste visible pendant toute la requête
     function generateOnboarding(roleId) {
       showSpinner();
       // Récupérer la liste des HSC à partir du bloc 4 du rôle
