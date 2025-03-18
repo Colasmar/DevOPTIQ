@@ -29,7 +29,7 @@ def create_app():
     db.init_app(app)
     migrate = Migrate(app, db)
 
-    # Enregistrement des blueprints existants
+    # Blueprints existants
     from Code.routes.activities import activities_bp
     app.register_blueprint(activities_bp)
 
@@ -39,31 +39,34 @@ def create_app():
     from Code.routes.skills import skills_bp
     app.register_blueprint(skills_bp)
 
-    from Code.routes.softskills import softskills_bp
-    app.register_blueprint(softskills_bp)
-
     from Code.routes.roles import roles_bp
     app.register_blueprint(roles_bp)
 
-    # Enregistrement du blueprint pour la vue des rôles
     from Code.routes.roles_view import roles_view_bp
     app.register_blueprint(roles_view_bp)
 
-    # Enregistrement du blueprint pour l'onboarding
     from Code.routes.onboarding import onboarding_bp
     app.register_blueprint(onboarding_bp)
 
-    # AJOUT IMPORTANT : enregistrer le blueprint tasks_bp
     from Code.routes.tasks import tasks_bp
     app.register_blueprint(tasks_bp)
-    
-    # Enregistrement du blueprint pour la performance
+
     from Code.routes.performance import performance_bp
     app.register_blueprint(performance_bp)
 
-    # Enregistrement du blueprint pour les contraintes
     from Code.routes.constraints import constraints_bp
     app.register_blueprint(constraints_bp)
+
+    # Nouveaux blueprints IA
+    from Code.routes.propose_softskills import propose_softskills_bp
+    app.register_blueprint(propose_softskills_bp)
+
+    from Code.routes.translate_softskills import translate_softskills_bp
+    app.register_blueprint(translate_softskills_bp)
+
+    # CRUD pour /softskills
+    from Code.routes.softskills import softskills_crud_bp
+    app.register_blueprint(softskills_crud_bp)
 
     @app.route('/')
     def home():

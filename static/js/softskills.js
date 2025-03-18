@@ -1,15 +1,20 @@
 /**************************************************************
  * FICHIER : Code/static/js/softskills.js
- * Gère la logique front-end pour les habiletés socio-cognitives (HSC)
- * dans le contexte des activités (boutons "Proposer HSC" et "Traduire Softskills").
+ * Objet : Gérer le CRUD (ajout, mise à jour, suppression) des HSC
+ *         et insérer/mettre à jour ces habiletés dans le DOM.
+ * 
+ * Note : Nous avons supprimé les anciennes fonctions
+ *       fetchActivityDetailsForSoftskills, proposeSoftskills et submitSoftskillsTranslation,
+ *       car elles appelaient les routes /softskills/propose et /softskills/translate,
+ *       désormais remplacées par /propose_softskills/propose et /translate_softskills/translate.
  **************************************************************/
 
 /**
  * Convertit la valeur numérique du niveau (1..4) en texte selon la norme :
- * 1 -> aptitude
- * 2 -> acquisition
- * 3 -> maîtrise
- * 4 -> excellence
+ *  1 -> aptitude
+ *  2 -> acquisition
+ *  3 -> maîtrise
+ *  4 -> excellence
  */
 function levelToLabel(lvl) {
   switch (lvl) {
@@ -22,190 +27,13 @@ function levelToLabel(lvl) {
 }
 
 /**
- * ================================
- *   FONCTION "PROPOSER HSC"
- * ================================
- * Elle récupère les infos de l'activité, puis appelle /softskills/propose
- */
-function fetchActivityDetailsForSoftskills(activityId) {
-  showSpinner();
-  fetch(`/activities/${activityId}/details`)
-    .then(response => {
-      if (!response.ok) {
-        hideSpinner();
-        throw new Error("Impossible de récupérer les détails de l'activité");
-      }
-      return response.json();
-    })
-    .then(activityData => {
-      hideSpinner();
-      proposeSoftskills(activityData);
-    })
-    .catch(error => {
-      hideSpinner();
-      alert("Erreur : " + error.message);
-    });
-}
-
-function proposeSoftskills(activityData) {
-  showSpinner();
-  fetch('/softskills/propose', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(activityData)
-  })
-  .then(response => {
-    if (!response.ok) hideSpinner();
-    return response.json();
-  })
-  .then(data => {
-    hideSpinner();
-    if (data.error) {
-      alert("Erreur : " + data.error);
-      return;
-    }
-    // data = tableau d'objets { habilete, niveau, justification }
-    let addPromises = [];
-    data.forEach(item => {
-      // MAPPING : on cherche la bonne clé "habilete", "niveau", "justification"
-      const rawHabilete = findClosestKey(item, ["habilete","habilite","habilité","habileté"]);
-      const rawNiveauVal = findClosestKey(item, ["niveau","Niveau","level"]);
-      const rawJustif = findClosestKey(item, ["justification","Justification","justif"]);
-
-      const habilete = rawHabilete || "Inconnue";
-      const niveau = rawNiveauVal ? String(rawNiveauVal) : "1";
-      const justification = rawJustif || "";
-
-      let p = fetch('/softskills/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          activity_id: activityData.id,
-          habilete: habilete,
-          niveau:   niveau,
-          justification: justification
-        })
-      })
-      .then(r => r.json())
-      .then(added => {
-        if (!added.error) {
-          addSoftskillItemToDOM(activityData.id, added.habilete, added.niveau, added.id, added.justification);
-        } else {
-          console.error("Erreur ajout HSC:", added.error);
-        }
-      })
-      .catch(err => console.error("Erreur /softskills/add:", err));
-
-      addPromises.push(p);
-    });
-    return Promise.all(addPromises);
-  })
-  .then(() => {
-    alert("Proposition de HSC terminée !");
-  })
-  .catch(err => {
-    hideSpinner();
-    alert("Erreur lors de la proposition HSC : " + err.message);
-  });
-}
-
-/**
- * ================================
- *   FONCTION "TRADUIRE SOFTSKILLS"
- * ================================
- * On récupère d'abord l'activité, puis on appelle /softskills/translate
- * en passant user_input et activity_data
- */
-function submitSoftskillsTranslation() {
-  const activityId = window.translateSoftskillsActivityId;
-  if (!activityId) {
-    alert("Aucun ID d'activité n'est défini pour la traduction.");
-    return;
-  }
-  const userInputElem = document.getElementById('translateSoftskillsInput');
-  const userInput = userInputElem.value.trim();
-  if (!userInput) {
-    alert("Veuillez saisir des softskills en langage naturel.");
-    return;
-  }
-
-  showSpinner();
-
-  // 1) Récupération de l'activité
-  fetch(`/activities/${activityId}/details`)
-    .then(res => {
-      if (!res.ok) throw new Error("Impossible de récupérer les détails de l'activité");
-      return res.json();
-    })
-    .then(activityData => {
-      // 2) Appel à /softskills/translate
-      return fetch('/softskills/translate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_input: userInput,
-          activity_data: activityData
-        })
-      });
-    })
-    .then(r => r.json())
-    .then(data => {
-      hideSpinner();
-      if (!data.proposals) {
-        alert("Réponse inattendue : pas de 'proposals' !");
-        return;
-      }
-      // 3) On ajoute chaque proposition
-      let addPromises = [];
-      data.proposals.forEach(item => {
-        const rawHabilete = findClosestKey(item, ["habilete","habilite","habilité","habileté"]);
-        const rawNiveauVal = findClosestKey(item, ["niveau","Niveau","level"]);
-        const rawJustif = findClosestKey(item, ["justification","Justification","justif"]);
-
-        const habilete = rawHabilete || "Inconnue";
-        const niveau   = rawNiveauVal ? String(rawNiveauVal) : "1";
-        const justification = rawJustif || "";
-
-        let p = fetch('/softskills/add', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            activity_id: activityId,
-            habilete: habilete,
-            niveau:   niveau,
-            justification: justification
-          })
-        })
-        .then(rr => rr.json())
-        .then(added => {
-          if (added.error) {
-            console.error("Erreur ajout HSC:", added.error);
-          } else {
-            addSoftskillItemToDOM(activityId, added.habilete, added.niveau, added.id, added.justification);
-          }
-        })
-        .catch(err => console.error("Erreur /softskills/add:", err));
-
-        addPromises.push(p);
-      });
-      // 4) On vide le champ et on ferme le modal
-      return Promise.all(addPromises).then(() => {
-        userInputElem.value = "";
-        closeTranslateSoftskillsModal();
-      });
-    })
-    .catch(err => {
-      hideSpinner();
-      alert("Erreur lors de la traduction des softskills : " + err.message);
-      console.error(err);
-    });
-}
-
-/**
- * ================================
- *    AJOUT / MISE À JOUR DOM
- * ================================
- * Ajoute ou met à jour une HSC dans le DOM, en évitant les doublons
+ * Ajoute ou met à jour une HSC (habileté) dans le DOM, pour l'activité donnée.
+ * 
+ * @param {number} activityId  L'ID de l'activité
+ * @param {string} hscName     Le nom (habilete) de la HSC
+ * @param {string} hscLevel    Le niveau (ex: "1", "2", "3", "4")
+ * @param {number} dbId        L'ID de la HSC dans la base
+ * @param {string} justification (facultatif)
  */
 function addSoftskillItemToDOM(activityId, hscName, hscLevel, dbId, justification) {
   const container = document.getElementById('softskills-list-' + activityId);
@@ -213,6 +41,8 @@ function addSoftskillItemToDOM(activityId, hscName, hscLevel, dbId, justificatio
 
   const label = levelToLabel(hscLevel);
   const target = hscName.toLowerCase();
+
+  // Vérifier si on a déjà une HSC du même nom
   let existingItem = null;
   container.querySelectorAll('.softskill-item').forEach(item => {
     if (item.getAttribute('data-habilete-lower') === target) {
@@ -220,8 +50,8 @@ function addSoftskillItemToDOM(activityId, hscName, hscLevel, dbId, justificatio
     }
   });
 
+  // Si la HSC existe déjà, on met simplement à jour son niveau et sa justification
   if (existingItem) {
-    // Mise à jour
     const levelElem = existingItem.querySelector('.softskill-level');
     levelElem.innerText = label;
 
@@ -240,7 +70,7 @@ function addSoftskillItemToDOM(activityId, hscName, hscLevel, dbId, justificatio
     return;
   }
 
-  // Sinon, création
+  // Sinon, on crée un nouvel élément
   const div = document.createElement('div');
   div.className = 'softskill-item';
   div.style.marginBottom = '5px';
@@ -258,6 +88,8 @@ function addSoftskillItemToDOM(activityId, hscName, hscLevel, dbId, justificatio
     ${justificationHTML}
     <i class="fas fa-pencil-alt edit-softskill" title="Modifier"></i>
     <i class="fas fa-trash delete-softskill" title="Supprimer"></i>
+
+    <!-- Formulaire d'édition caché -->
     <div class="edit-softskill-form" id="edit-softskill-form-${dbId}" style="display:none;">
       <label>Habileté :</label>
       <input type="text" id="edit-softskill-name-${dbId}" value="${hscName}" />
@@ -271,30 +103,34 @@ function addSoftskillItemToDOM(activityId, hscName, hscLevel, dbId, justificatio
 }
 
 /**
- * ================================
- *    ÉDITION / SUPPRESSION
- * ================================
+ * Événement : clic sur l'icône crayon pour éditer
+ * => on affiche le formulaire d'édition local.
  */
-// Édition
 $(document).on('click', '.edit-softskill', function() {
   const itemElem = $(this).closest('.softskill-item');
   const dbId = itemElem.data('ss-id');
   document.getElementById(`edit-softskill-form-${dbId}`).style.display = 'block';
 });
 
+/**
+ * Cache le formulaire d'édition d'une HSC.
+ */
 function hideEditSoftskillForm(dbId) {
   document.getElementById(`edit-softskill-form-${dbId}`).style.display = 'none';
 }
 
+/**
+ * Soumet la modification (PUT /softskills/<dbId>) et met à jour le DOM.
+ */
 function submitEditSoftskillFromDOM(dbId) {
   const newName = document.getElementById(`edit-softskill-name-${dbId}`).value.trim();
   const newLevel = document.getElementById(`edit-softskill-level-${dbId}`).value.trim();
 
-  if(!newName) {
+  if (!newName) {
     alert("Veuillez saisir un nom d'habileté.");
     return;
   }
-  if(!["1","2","3","4"].includes(newLevel)) {
+  if (!["1","2","3","4"].includes(newLevel)) {
     alert("Le niveau doit être 1, 2, 3 ou 4.");
     return;
   }
@@ -327,11 +163,14 @@ function submitEditSoftskillFromDOM(dbId) {
   });
 }
 
-// Suppression
+/**
+ * Événement : clic sur l'icône poubelle => suppression
+ * => DELETE /softskills/<dbId>
+ */
 $(document).on('click', '.delete-softskill', function() {
   const itemElem = $(this).closest('.softskill-item');
   const dbId = itemElem.data('ss-id');
-  if(!confirm("Voulez-vous supprimer cette habileté ?")) return;
+  if (!confirm("Voulez-vous supprimer cette habileté ?")) return;
 
   fetch(`/softskills/${dbId}`, { method: 'DELETE' })
   .then(res => res.json())
@@ -350,19 +189,13 @@ $(document).on('click', '.delete-softskill', function() {
 });
 
 /**
- * ================================
- *   OUTILS DIVERS
- * ================================
- */
-
-/**
- * findClosestKey(obj, possibleKeys)
- * Cherche la première clé de obj qui ressemble (en minuscules, sans accents) à l'une de possibleKeys.
- * Retourne la valeur, ou "" si non trouvée.
+ * Fonction utilitaire pour chercher la clé la plus proche
+ * dans un objet JSON (si vous en avez besoin).
+ * 
+ * Ex: findClosestKey(item, ["habilete","habilite"]) => renvoie item.habilete si elle existe
  */
 function findClosestKey(obj, possibleKeys) {
   const normalize = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-
   for (let key of Object.keys(obj)) {
     const normKey = normalize(key);
     for (let pk of possibleKeys) {

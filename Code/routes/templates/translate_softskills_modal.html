@@ -33,11 +33,9 @@ function submitSoftskillsTranslation() {
     alert("Veuillez saisir du texte.");
     return;
   }
-
   showSpinner();
-
   $.ajax({
-    url: '/softskills/translate',
+    url: '/translate_softskills/translate',
     method: 'POST',
     contentType: 'application/json',
     data: JSON.stringify({ user_input: userInput }),
@@ -56,13 +54,14 @@ function submitSoftskillsTranslation() {
           data: JSON.stringify({
             activity_id: activityId,
             habilete: item.habilete,
-            niveau: item.niveau
+            niveau: item.niveau,
+            justification: item.justification
           }),
           success: function(added) {
             if (added.error) {
               console.error("Erreur ajout HSC:", added.error);
             } else {
-              addSoftskillItemToDOM(activityId, added.habilete, added.niveau, added.id);
+              addSoftskillItemToDOM(activityId, added.habilete, added.niveau, added.id, added.justification);
             }
           },
           error: function(err) {

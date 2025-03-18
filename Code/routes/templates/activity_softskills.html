@@ -4,22 +4,19 @@
 
 <div id="softskills-list-{{ item.activity.id }}">
   {% for ss in item.activity.softskills %}
+    <!-- Affichage existant de chaque HSC -->
     <div class="softskill-item" style="margin-bottom:5px;"
          data-ss-id="{{ ss.id }}"
          data-habilete-lower="{{ ss.habilete|lower }}">
-      <!-- Affichage du nom d'habilete et du niveau -->
       <span class="softskill-text">
         {{ ss.habilete }} (Niveau: <span class="softskill-level">{{ ss.niveau }}</span>)
       </span>
-
-      <!-- Justification si elle existe -->
       {% if ss.justification %}
         <div class="softskill-justification" style="font-size:0.9em; margin-top:3px; color:#444;">
           {{ ss.justification }}
         </div>
       {% endif %}
-
-      <!-- Icônes de modification/suppression -->
+      <!-- Boutons d'édition/suppression -->
       <i class="fas fa-pencil-alt edit-softskill" title="Modifier"></i>
       <i class="fas fa-trash delete-softskill" title="Supprimer"></i>
 
@@ -36,10 +33,17 @@
   {% endfor %}
 </div>
 
-<!-- Boutons : proposer et traduire -->
-<button onclick="fetchActivityDetailsForSoftskills({{ item.activity.id }})">
+<!-- Bouton "Proposer HSC" -->
+<button onclick="fetchActivityDetailsForPropose({{ item.activity.id }})">
   Proposer HSC
 </button>
+
+<!-- Bouton "Traduire Softskills" -->
 <button onclick="openTranslateSoftskillsModal({{ item.activity.id }})">
   Traduire Softskills
 </button>
+
+<!-- Inclusions des scripts -->
+<script src="/static/js/softskills.js"></script>
+<script src="/static/js/propose_softskills.js"></script>
+<script src="/static/js/translate_softskills.js"></script>
