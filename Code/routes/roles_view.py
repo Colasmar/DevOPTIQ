@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template
 from sqlalchemy import text, func
+import re
 from Code.extensions import db
 from Code.models.models import Role
 
@@ -12,7 +13,7 @@ def view_roles():
 
     roles_data = []
     for role in roles:
-        # Bloc 1 : Activités où le rôle est Garant (pas modifié)
+        # Bloc 1 : Activités où le rôle est Garant
         garant_activities = db.session.execute(
             text("""
                 SELECT a.id, a.name, a.description
@@ -24,8 +25,7 @@ def view_roles():
         ).fetchall()
         block1 = [{"id": row[0], "name": row[1], "description": row[2]} for row in garant_activities]
 
-        # Bloc 2 : Tâches où ce rôle intervient (via task_roles).
-        # On récupère l'activité parente, le nom de la tâche et le statut.
+        # Bloc 2 : Tâches où ce rôle intervient (via task_roles)
         non_garant_tasks = db.session.execute(
             text("""
                 SELECT a.id AS activity_id, a.name AS activity_name,
@@ -39,7 +39,6 @@ def view_roles():
             """),
             {"rid": role.id}
         ).fetchall()
-        # On construit block2 en listant chaque activité/tâche/statut
         block2 = []
         for row in non_garant_tasks:
             block2.append({
@@ -50,7 +49,7 @@ def view_roles():
                 "status": row.role_status
             })
 
-        # Bloc 3 : Compétences associées aux activités Garant (inchangé)
+        # Bloc 3 : Compétences associées aux activités Garant
         competencies = db.session.execute(
             text("""
                 SELECT c.id, c.description
@@ -63,8 +62,8 @@ def view_roles():
         ).fetchall()
         block3 = [{"id": comp[0], "description": comp[1]} for comp in competencies]
 
-        # Bloc 4 : Habiletés socio-cognitives (inchangé)
-        # On agrège en conservant la plus haute valeur de niveau
+        # Bloc 4 : Habiletés socio-cognitives associées aux activités Garant
+        # On agrège en conservant la chaîne complète de niveau associée à la plus haute valeur numérique
         softskills_raw = db.session.execute(
             text("""
                 SELECT s.id, s.habilete, s.niveau
@@ -78,17 +77,23 @@ def view_roles():
         hsc_dict = {}
         for row in softskills_raw:
             hsc_name = row[1]
-            try:
-                niveau = int(row[2])
-            except ValueError:
-                niveau = 0
+            full_niveau = row[2]
+            # Extraire le premier chiffre (1 à 4) de la chaîne (ex: "2 (acquisition)")
+            match = re.search(r"([1-4])", full_niveau)
+            numeric_level = int(match.group(1)) if match else 0
             if hsc_name in hsc_dict:
-                # Conserver l'enregistrement si le nouveau niveau est supérieur
-                if niveau > hsc_dict[hsc_name]["niveau"]:
-                    hsc_dict[hsc_name] = {"id": row[0], "habilete": hsc_name, "niveau": niveau}
+                # Conserver l'entrée si le niveau numérique est supérieur
+                if numeric_level > hsc_dict[hsc_name]["numeric"]:
+                    hsc_dict[hsc_name] = {"id": row[0], "habilete": hsc_name, "niveau": full_niveau, "numeric": numeric_level}
             else:
-                hsc_dict[hsc_name] = {"id": row[0], "habilete": hsc_name, "niveau": niveau}
-        block4 = list(hsc_dict.values())
+                hsc_dict[hsc_name] = {"id": row[0], "habilete": hsc_name, "niveau": full_niveau, "numeric": numeric_level}
+        block4 = []
+        for key in hsc_dict:
+            block4.append({
+                "id": hsc_dict[key]["id"],
+                "habilete": hsc_dict[key]["habilete"],
+                "niveau": hsc_dict[key]["niveau"]
+            })
 
         roles_data.append({
             "role": {"id": role.id, "name": role.name},

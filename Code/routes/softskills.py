@@ -48,15 +48,14 @@ def add_softskill():
             if match_old:
                 old_level_int = int(match_old.group(1))
 
-            # Si le nouveau niveau est supérieur, on met à jour
-            if new_level_int > old_level_int:
-                existing.niveau = niveau_str  # on stocke la chaîne entière (ex: "2 (acquisition)")
-                existing.habilete = habilete
-                if justification:
-                    existing.justification = justification
-                db.session.commit()
+            # On met à jour la HSC :
+            # Le nom et le niveau sont mis à jour systématiquement
+            existing.habilete = habilete
+            existing.niveau = niveau_str  # On stocke toujours la chaîne entière
+            if justification:
+                existing.justification = justification
+            db.session.commit()
 
-            # On renvoie la HSC (avec le niveau final, éventuellement inchangé)
             return jsonify({
                 "id": existing.id,
                 "activity_id": existing.activity_id,
@@ -96,6 +95,10 @@ def update_softskill(softskill_id):
       "niveau": <str> ex: "2 (acquisition)",
       "justification": <str> (optionnel)
     }
+    
+    Logique :
+    - Le nom (habilete) et la justification sont toujours mis à jour si fournis.
+    - Le niveau est mis à jour quelle que soit la modification.
     """
     data = request.get_json() or {}
     new_habilete = data.get("habilete", "").strip()
@@ -110,26 +113,17 @@ def update_softskill(softskill_id):
         return jsonify({"error": "Softskill not found"}), 404
 
     try:
-        # Extraire chiffre du nouveau niveau
-        new_level_int = 0
-        match_new = re.search(r"(\d)", new_niveau_str)
-        if match_new:
-            new_level_int = int(match_new.group(1))
+        # Mise à jour du nom (habilete) systématique
+        ss.habilete = new_habilete
 
-        # Extraire chiffre de l'ancien niveau
-        old_level_int = 0
-        match_old = re.search(r"(\d)", ss.niveau or "")
-        if match_old:
-            old_level_int = int(match_old.group(1))
+        # Mise à jour de la justification si fournie
+        if new_justification:
+            ss.justification = new_justification
 
-        # Si le nouveau est supérieur, on met à jour
-        if new_level_int > old_level_int:
-            ss.habilete = new_habilete
-            ss.niveau = new_niveau_str
-            if new_justification:
-                ss.justification = new_justification
-            db.session.commit()
+        # Mise à jour du niveau : on le met à jour quelle que soit la modification
+        ss.niveau = new_niveau_str
 
+        db.session.commit()
         return jsonify({
             "id": ss.id,
             "habilete": ss.habilete,

@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import openai
 from flask import Blueprint, request, jsonify
 
@@ -20,9 +21,10 @@ def translate_softskills():
     performances = [o.get("performance") for o in activity_data.get("outgoing", []) if o.get("performance")]
 
     tasks_text = "\n".join([f"T{i+1}: {task}" for i, task in enumerate(tasks)])
-    constraints_text = "\n".join([f"C{i+1}: {constraint.get('description')}" for i, constraint in enumerate(constraints)])
+    constraints_text = "\n".join([f"C{i+1}: {c.get('description')}" for i, c in enumerate(constraints)])
     perf_text = "\n".join([f"P{i+1}: {perf.get('name', '')}" for i, perf in enumerate(performances)])
 
+    # ---- PROMPT renforcé ----
     prompt = f"""
 Tu es expert en habiletés socio-cognitives (HSC).
 
@@ -48,12 +50,16 @@ Relation à la complexité : Flexibilité mentale, Projection, Approche globale
 
 Pour chaque HSC proposée, indique clairement :
 - « habilete » : nom de l'HSC
-- « niveau » : chiffre (1 à 4) et niveau écrit (acquisition, maîtrise...)
-- « justification » : précise explicitement comment l'habileté couvre les qualités («{user_input} ») en lien avec au moins une tâche (T(i)), contrainte (C(i)) ou performance (P(i)).
+- « niveau » : chiffre (1..4) ET son label EXACT entre parenthèses :
+    1 (Aptitude), 2 (Acquisition), 3 (Maîtrise), 4 (Excellence)
+- « justification » : précise explicitement comment l'habileté couvre les qualités («{user_input} »)
+   en lien avec au moins une tâche (T(i)), contrainte (C(i)) ou performance (P(i)).
 
 IMPORTANT :
 - N'utilise JAMAIS les mots « compétence » ou « soft skill », uniquement « habileté » ou « qualité ».
 - Réponds UNIQUEMENT avec un tableau JSON (3 à 5 objets), sans aucun texte avant ni après.
+- Le champ "niveau" DOIT impérativement être au format "X (Label)" parmi :
+    "1 (Aptitude)", "2 (Acquisition)", "3 (Maîtrise)", "4 (Excellence)".
 """
 
     openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -71,7 +77,24 @@ IMPORTANT :
             max_tokens=1200
         )
         ai_response = response.choices[0].message['content'].strip()
-        proposals = json.loads(ai_response)
+        proposals = json.loads(ai_response)  # tableau d'objets
+
+        # ---- Post-traitement : normalisation du champ "niveau" ----
+        level_map = {
+            "1": "1 (Aptitude)",
+            "2": "2 (Acquisition)",
+            "3": "3 (Maîtrise)",
+            "4": "4 (Excellence)"
+        }
+        for p in proposals:
+            niv = p.get("niveau", "")
+            # Chercher la première occurrence de chiffre 1..4
+            match = re.search(r"([1-4])", niv)
+            if match:
+                digit = match.group(1)
+                # Remplacer par le label officiel
+                p["niveau"] = level_map.get(digit, niv)
+
         return jsonify({"proposals": proposals}), 200
 
     except Exception as e:
