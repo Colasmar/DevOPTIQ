@@ -2,9 +2,10 @@ import os
 import io
 import contextlib
 from flask import Blueprint, jsonify, request, render_template
-from sqlalchemy import text  # pour la requête brute du Garant
+from sqlalchemy import text
 from Code.extensions import db
 from Code.models.models import Activities, Data, Link, Task, Tool, Competency, Softskill, Constraint
+# Importez la fonction print_summary et process_visio_file depuis extract_visio.py
 from Code.scripts.extract_visio import process_visio_file, print_summary
 
 activities_bp = Blueprint('activities', __name__, url_prefix='/activities', template_folder='templates')
@@ -208,7 +209,7 @@ def get_activity_details(activity_id):
     competencies = [{"id": comp.id, "description": comp.description} for comp in activity.competencies]
     softskills = [{"id": ss.id, "habilete": ss.habilete, "niveau": ss.niveau} for ss in activity.softskills]
 
-    # Extraction des connexions sortantes complètes
+    # Connexions sortantes complètes
     outgoing_links = Link.query.filter(
         (Link.source_activity_id == activity.id) | (Link.source_data_id == activity.id)
     ).all()
@@ -241,19 +242,28 @@ def get_activity_details(activity_id):
         "tools": tools_list,
         "competencies": competencies,
         "softskills": softskills,
-        "outgoing": outgoing_list  # Champ des connexions sortantes complètes
+        "outgoing": outgoing_list
     }
     return jsonify(activity_data), 200
 
 @activities_bp.route('/update-cartography', methods=['GET'])
 def update_cartography():
+    """
+    Met à jour la cartographie Visio en appelant process_visio_file(...)
+    puis récupère le résumé depuis la fonction print_summary() importée
+    de extract_visio.py, qui s'appuie sur link_summaries et rename_summaries
+    globales dans ce module.
+    """
     try:
         vsdx_path = os.path.join("Code", "example.vsdx")
         process_visio_file(vsdx_path)
+
+        # Récupérer le résumé de la console
         summary_output = io.StringIO()
         with contextlib.redirect_stdout(summary_output):
-            print_summary()
+            print_summary()  # <-- c'est la fonction importée de extract_visio.py
         summary_text = summary_output.getvalue()
+
         return jsonify({
             "message": "Cartographie mise à jour (partielle)",
             "summary": summary_text
@@ -345,18 +355,3 @@ def view_activities():
         return render_template('display_list.html', activity_data=activity_data)
     except Exception as e:
         return f"Erreur lors de l'affichage des activités: {e}", 500
-
-def print_summary():
-    print("\n--- RÉSUMÉ DES LIENS ---")
-    if link_summaries:
-        for (data_name, data_type, s_name, t_name) in link_summaries:
-            print(f"  - '{data_name}' ({data_type}) : {s_name} -> {t_name}")
-    else:
-        print("  Aucun lien créé")
-    print("--- Fin du résumé ---\n")
-    if rename_summaries:
-        print("--- Renommages détectés ---")
-        for (old, new) in rename_summaries:
-            print(f"  * '{old}' => '{new}'")
-        print("--- Fin des renommages ---\n")
-    print("CONFIRMATION : toutes les opérations ont été effectuées avec succès.")

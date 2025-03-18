@@ -280,9 +280,13 @@
     }
     function hideEditPerfForm(perfId) {
       const formDiv = document.getElementById("perf-edit-form-" + perfId);
-      if (formDiv) formDiv.style.display = "none";
+      if (formDiv) {
+        formDiv.style.display = "none";
+      }
       const infoSpan = document.getElementById("perf-info-" + perfId);
-      if (infoSpan) infoSpan.style.display = "inline";
+      if (infoSpan) {
+        infoSpan.style.display = "inline";
+      }
     }
     function submitEditPerf(perfId) {
       const input = document.getElementById("perf-edit-input-" + perfId);
@@ -346,16 +350,32 @@
         alert("Une erreur est survenue lors de la suppression.");
       });
     }
+
+    // -------------------------------------------------
+    // NOUVEAU : écouteur de clic pour "Mettre à jour la cartographie"
+    // -------------------------------------------------
+    const updateBtn = document.getElementById('update-cartography-button');
+    if (updateBtn) {
+      updateBtn.addEventListener('click', function() {
+        showSpinner();
+        fetch('/activities/update-cartography')
+          .then(r => r.json())
+          .then(resp => {
+            hideSpinner();
+            if (resp.error) {
+              alert("Erreur : " + resp.error);
+            } else {
+              alert(resp.message + "\n" + (resp.summary || ""));
+              // Recharger la page pour actualiser l'affichage
+              window.location.reload();
+            }
+          })
+          .catch(err => {
+            hideSpinner();
+            alert("Une erreur est survenue : " + err.message);
+          });
+      });
+    }
   </script>
 </body>
 </html>
-
-
-
-  
-  
-  
-  
-  
-  
-  
