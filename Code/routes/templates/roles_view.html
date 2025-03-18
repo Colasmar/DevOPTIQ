@@ -199,7 +199,16 @@
     <div id="onboardingContent"></div>
   </div>
 
-  <!-- Inclusion du script du spinner (dans /static/js/spinner.js) -->
+  <!-- Ajout du conteneur du spinner -->
+  <div id="spinnerOverlay"
+       style="display:none; position:fixed; top:0; left:0; right:0; bottom:0;
+              background:rgba(0,0,0,0.3); z-index:9999;">
+    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);">
+      <div class="loader"></div>
+    </div>
+  </div>
+
+  <!-- Inclusion du script du spinner -->
   <script src="/static/js/spinner.js"></script>
 
   <script>
@@ -231,67 +240,63 @@
       }
     }
 
-    // Génération du plan avec affichage du sablier et délai avant fetch
+    // Version améliorée de generateOnboarding :
+    // Le spinner est affiché immédiatement et reste visible pendant toute la durée de la requête.
     function generateOnboarding(roleId) {
       showSpinner();
-      setTimeout(function() {
-        // Sélectionner les items de bloc4
-        var hscBlock = document.getElementById('block4-' + roleId);
-        if (!hscBlock) {
-          alert("Aucune HSC trouvée pour ce rôle.");
-          hideSpinner();
-          return;
-        }
-        var hscItems = hscBlock.querySelectorAll('li');
-        var hscList = [];
-        hscItems.forEach(function(li) {
-          hscList.push(li.innerText.trim());
-        });
+      // Récupérer la liste des HSC à partir du bloc 4 du rôle
+      var hscBlock = document.getElementById('block4-' + roleId);
+      if (!hscBlock) {
+        alert("Aucune HSC trouvée pour ce rôle.");
+        hideSpinner();
+        return;
+      }
+      var hscItems = hscBlock.querySelectorAll('li');
+      var hscList = [];
+      hscItems.forEach(function(li) {
+        hscList.push(li.innerText.trim());
+      });
 
-        fetch(`/roles/${roleId}/onboarding/generate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ hsc_list: hscList })
-        })
-        .then(response => response.json())
-        .then(data => {
-          hideSpinner();
-          if (data.error) {
-            alert("Erreur : " + data.error);
-          } else {
-            // Afficher le plan généré dans la modale
-            document.getElementById('onboardingContent').innerText = data.onboarding_plan;
-            document.getElementById('onboardingModal').style.display = 'block';
-          }
-        })
-        .catch(error => {
-          hideSpinner();
-          alert("Erreur lors de la génération : " + error.message);
-        });
-      }, 100);
+      fetch(`/roles/${roleId}/onboarding/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hsc_list: hscList })
+      })
+      .then(response => response.json())
+      .then(data => {
+        hideSpinner();
+        if (data.error) {
+          alert("Erreur : " + data.error);
+        } else {
+          document.getElementById('onboardingContent').innerText = data.onboarding_plan;
+          document.getElementById('onboardingModal').style.display = 'block';
+        }
+      })
+      .catch(error => {
+        hideSpinner();
+        alert("Erreur lors de la génération : " + error.message);
+      });
     }
 
     function viewOnboarding(roleId) {
       showSpinner();
-      setTimeout(function() {
-        fetch(`/roles/${roleId}/onboarding`, {
-          method: 'GET'
-        })
-        .then(response => response.json())
-        .then(data => {
-          hideSpinner();
-          if (data.error) {
-            alert("Erreur : " + data.error);
-          } else {
-            document.getElementById('onboardingContent').innerText = data.onboarding_plan;
-            document.getElementById('onboardingModal').style.display = 'block';
-          }
-        })
-        .catch(error => {
-          hideSpinner();
-          alert("Erreur lors de la récupération du plan : " + error.message);
-        });
-      }, 100);
+      fetch(`/roles/${roleId}/onboarding`, {
+        method: 'GET'
+      })
+      .then(response => response.json())
+      .then(data => {
+        hideSpinner();
+        if (data.error) {
+          alert("Erreur : " + data.error);
+        } else {
+          document.getElementById('onboardingContent').innerText = data.onboarding_plan;
+          document.getElementById('onboardingModal').style.display = 'block';
+        }
+      })
+      .catch(error => {
+        hideSpinner();
+        alert("Erreur lors de la récupération du plan : " + error.message);
+      });
     }
 
     function closeOnboardingModal() {
