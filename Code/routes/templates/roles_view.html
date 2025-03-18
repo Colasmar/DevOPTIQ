@@ -141,22 +141,26 @@
         </div>
         <!-- Bloc 2 : Activités/Tâches où ce rôle intervient (non Garant) -->
         <div class="role-block block-2">
-          <div class="block-header" onclick="toggleBlock('block2-{{ item.role.id }}', this)">
-            <span class="toggle-icon" id="block2-icon-{{ item.role.id }}">▶</span>
-            Bloc 2 : Activités/Tâches où ce rôle intervient (non Garant)
-          </div>
-          <div id="block2-{{ item.role.id }}" class="block-content">
-            {% if item.block2 %}
-              <ul>
-                {% for act in item.block2 %}
-                  <li>{{ act.name }} (ID: {{ act.id }})</li>
-                {% endfor %}
-              </ul>
-            {% else %}
-              <p>Aucune donnée pour ce bloc.</p>
-            {% endif %}
-          </div>
-        </div>
+         <div class="block-header" onclick="toggleBlock('block2-{{ item.role.id }}', this)">
+          <span class="toggle-icon" id="block2-icon-{{ item.role.id }}">▶</span>
+         Bloc 2 : Activités/Tâches où ce rôle intervient (non Garant)
+       </div>
+      <div id="block2-{{ item.role.id }}" class="block-content">
+        {% if item.block2 and item.block2|length > 0 %}
+          <ul>
+           {% for row in item.block2 %}
+             <li>
+               Activité : {{ row.activity_name }} / 
+               Tâche : {{ row.task_name }} / 
+               Statut : {{ row.status }}
+            </li>
+         {% endfor %}
+        </ul>
+      {% else %}
+        <p>Aucune donnée pour ce bloc.</p>
+     {% endif %}
+    </div>
+  </div>
         <!-- Bloc 3 : Compétences associées aux activités Garant -->
         <div class="role-block block-3">
           <div class="block-header" onclick="toggleBlock('block3-{{ item.role.id }}', this)">
@@ -216,7 +220,7 @@
       var container = document.getElementById(containerId);
       var roleId = containerId.split('-')[1];
       var icon = document.getElementById('role-icon-' + roleId);
-      if (container.style.display === "none") {
+      if (!container.style.display || container.style.display === "none") {
         container.style.display = "block";
         icon.textContent = "▼";
       } else {
@@ -231,7 +235,7 @@
       if (!icon) {
         icon = headerElem.querySelector('.toggle-icon');
       }
-      if (block.style.display === "none") {
+      if (!block.style.display || block.style.display === "none") {
         block.style.display = "block";
         if (icon) { icon.textContent = "▼"; }
       } else {
