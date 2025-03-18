@@ -1,7 +1,7 @@
 # Code/routes/roles.py
 
 from flask import Blueprint, request, jsonify
-from sqlalchemy import text
+from sqlalchemy import text, func
 from Code.extensions import db
 from Code.models.models import Role
 
@@ -10,9 +10,9 @@ roles_bp = Blueprint('roles', __name__, url_prefix='/roles')
 @roles_bp.route('/list', methods=['GET'])
 def list_roles():
     """
-    Retourne la liste de tous les rôles, triés par ordre alphabétique.
+    Retourne la liste de tous les rôles, triés par ordre alphabétique insensible à la casse.
     """
-    roles = Role.query.order_by(Role.name).all()
+    roles = Role.query.order_by(func.lower(Role.name)).all()
     data = [{"id": r.id, "name": r.name} for r in roles]
     return jsonify(data), 200
 
@@ -42,7 +42,7 @@ def set_garant_role(activity_id):
         text("DELETE FROM activity_roles WHERE activity_id=:aid AND status='Garant'"),
         {"aid": activity_id}
     )
-    # Ajouter le nouveau
+    # Ajouter le nouveau Garant
     db.session.execute(
         text("INSERT INTO activity_roles (activity_id, role_id, status) VALUES (:aid, :rid, 'Garant')"),
         {"aid": activity_id, "rid": existing.id}
@@ -53,3 +53,44 @@ def set_garant_role(activity_id):
         "message": f"Rôle Garant '{existing.name}' assigné à l'activité {activity_id}",
         "role": {"id": existing.id, "name": existing.name}
     }), 200
+
+@roles_bp.route('/<int:role_id>', methods=['PUT'])
+def update_role(role_id):
+    """
+    Met à jour le nom d'un rôle.
+    JSON attendu : { "name": "<str>" }
+    Si le rôle est utilisé dans des activités (comme garant) ou dans des tâches pour d'autres statuts,
+    cette modification doit être répercutée grâce à l'utilisation de l'ID du rôle.
+    """
+    role = Role.query.get(role_id)
+    if not role:
+        return jsonify({"error": "Role not found"}), 404
+    data = request.get_json() or {}
+    new_name = data.get("name", "").strip()
+    if not new_name:
+        return jsonify({"error": "Name is required"}), 400
+    role.name = new_name
+    db.session.commit()
+    return jsonify({"message": "Role updated", "role": {"id": role.id, "name": role.name}}), 200
+
+@roles_bp.route('/<int:role_id>', methods=['DELETE'])
+def delete_role(role_id):
+    """
+    Supprime un rôle.
+    Avant suppression, supprime les associations dans les tables activity_roles et task_roles pour éviter les incohérences.
+    """
+    role = Role.query.get(role_id)
+    if not role:
+        return jsonify({"error": "Role not found"}), 404
+    # Supprimer les associations du rôle dans activity_roles et task_roles
+    db.session.execute(
+        text("DELETE FROM activity_roles WHERE role_id=:rid"),
+        {"rid": role_id}
+    )
+    db.session.execute(
+        text("DELETE FROM task_roles WHERE role_id=:rid"),
+        {"rid": role_id}
+    )
+    db.session.delete(role)
+    db.session.commit()
+    return jsonify({"message": "Role deleted"}), 200

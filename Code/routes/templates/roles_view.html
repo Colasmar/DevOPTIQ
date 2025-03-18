@@ -24,9 +24,17 @@
       font-weight: bold;
       padding: 5px;
       background-color: #27ae60;
+      position: relative;
     }
     .toggle-icon {
       margin-right: 5px;
+    }
+    /* Icônes d'édition et de suppression pour les rôles */
+    .role-edit-icon, .role-delete-icon {
+      font-size: 0.8em;
+      margin-left: 10px;
+      cursor: pointer;
+      color: #fff;
     }
     /* Blocs internes (le header conserve la couleur d'origine) */
     .role-block {
@@ -105,10 +113,12 @@
   
   {% for item in roles_data %}
     <div class="role-container">
-      <!-- En-tête du rôle, cliquable pour déplier/replier le conteneur complet -->
+      <!-- En-tête du rôle avec icônes d'édition et de suppression -->
       <div class="role-header" onclick="toggleRoleContainer('role-body-{{ item.role.id }}', this)">
         <span class="toggle-icon" id="role-icon-{{ item.role.id }}">▶</span>
-        Rôle : {{ item.role.name }}
+        Rôle : <span id="role-name-{{ item.role.id }}">{{ item.role.name }}</span>
+        <i class="fas fa-pencil-alt role-edit-icon" onclick="editRole(event, {{ item.role.id }})"></i>
+        <i class="fas fa-trash role-delete-icon" onclick="deleteRole(event, {{ item.role.id }})"></i>
       </div>
       <div id="role-body-{{ item.role.id }}" style="display:none;">
         <!-- Bloc 1 : Activités où ce rôle est Garant -->
@@ -184,7 +194,7 @@
           </div>
         </div>
 
-        <!-- Section On-boarding : les deux boutons et la modale -->
+        <!-- Section On-boarding -->
         <div class="role-onboarding" style="margin-top:10px;">
           <button class="onboarding-btn" onclick="generateOnboarding({{ item.role.id }})">Générer On-boarding</button>
           <button class="onboarding-btn" onclick="viewOnboarding({{ item.role.id }})">Voir On-boarding</button>
@@ -199,27 +209,14 @@
     <div id="onboardingContent"></div>
   </div>
 
-  <!-- Ajout du conteneur du spinner -->
-  <div id="spinnerOverlay"
-       style="display:none; position:fixed; top:0; left:0; right:0; bottom:0;
-              background:rgba(0,0,0,0.3); z-index:9999;">
-    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);">
-      <div class="loader"></div>
-    </div>
-  </div>
-
   <!-- Inclusion du script du spinner -->
   <script src="/static/js/spinner.js"></script>
-
   <script>
-    // Mise à jour des fonctions pour vérifier le style effectif via getComputedStyle
-
     function toggleRoleContainer(containerId, headerElem) {
       var container = document.getElementById(containerId);
       var roleId = containerId.split('-')[1];
       var icon = document.getElementById('role-icon-' + roleId);
-      var currentDisplay = container.style.display || window.getComputedStyle(container, null).display;
-      if (currentDisplay === "none") {
+      if (container.style.display === "none") {
         container.style.display = "block";
         icon.textContent = "▼";
       } else {
@@ -230,9 +227,11 @@
 
     function toggleBlock(blockId, headerElem) {
       var block = document.getElementById(blockId);
-      var icon = document.getElementById(blockId.replace('block', 'block-icon')) || headerElem.querySelector('.toggle-icon');
-      var currentDisplay = block.style.display || window.getComputedStyle(block, null).display;
-      if (currentDisplay === "none") {
+      var icon = document.getElementById(blockId.replace('block', 'block-icon'));
+      if (!icon) {
+        icon = headerElem.querySelector('.toggle-icon');
+      }
+      if (block.style.display === "none") {
         block.style.display = "block";
         if (icon) { icon.textContent = "▼"; }
       } else {
@@ -241,66 +240,120 @@
       }
     }
 
-    // Version améliorée de generateOnboarding : le spinner s'affiche immédiatement et reste visible pendant toute la requête
+    // Génération du plan d'on-boarding
     function generateOnboarding(roleId) {
       showSpinner();
-      // Récupérer la liste des HSC à partir du bloc 4 du rôle
-      var hscBlock = document.getElementById('block4-' + roleId);
-      if (!hscBlock) {
-        alert("Aucune HSC trouvée pour ce rôle.");
-        hideSpinner();
-        return;
-      }
-      var hscItems = hscBlock.querySelectorAll('li');
-      var hscList = [];
-      hscItems.forEach(function(li) {
-        hscList.push(li.innerText.trim());
-      });
-
-      fetch(`/roles/${roleId}/onboarding/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hsc_list: hscList })
-      })
-      .then(response => response.json())
-      .then(data => {
-        hideSpinner();
-        if (data.error) {
-          alert("Erreur : " + data.error);
-        } else {
-          document.getElementById('onboardingContent').innerText = data.onboarding_plan;
-          document.getElementById('onboardingModal').style.display = 'block';
+      setTimeout(function() {
+        var hscBlock = document.getElementById('block4-' + roleId);
+        if (!hscBlock) {
+          alert("Aucune HSC trouvée pour ce rôle.");
+          hideSpinner();
+          return;
         }
-      })
-      .catch(error => {
-        hideSpinner();
-        alert("Erreur lors de la génération : " + error.message);
-      });
+        var hscItems = hscBlock.querySelectorAll('li');
+        var hscList = [];
+        hscItems.forEach(function(li) {
+          hscList.push(li.innerText.trim());
+        });
+
+        fetch(`/roles/${roleId}/onboarding/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hsc_list: hscList })
+        })
+        .then(response => response.json())
+        .then(data => {
+          hideSpinner();
+          if (data.error) {
+            alert("Erreur : " + data.error);
+          } else {
+            document.getElementById('onboardingContent').innerText = data.onboarding_plan;
+            document.getElementById('onboardingModal').style.display = 'block';
+          }
+        })
+        .catch(error => {
+          hideSpinner();
+          alert("Erreur lors de la génération : " + error.message);
+        });
+      }, 100);
     }
 
     function viewOnboarding(roleId) {
       showSpinner();
-      fetch(`/roles/${roleId}/onboarding`, {
-        method: 'GET'
-      })
-      .then(response => response.json())
-      .then(data => {
-        hideSpinner();
-        if (data.error) {
-          alert("Erreur : " + data.error);
-        } else {
-          document.getElementById('onboardingContent').innerText = data.onboarding_plan;
-          document.getElementById('onboardingModal').style.display = 'block';
-        }
-      })
-      .catch(error => {
-        hideSpinner();
-        alert("Erreur lors de la récupération du plan : " + error.message);
-      });
+      setTimeout(function() {
+        fetch(`/roles/${roleId}/onboarding`, {
+          method: 'GET'
+        })
+        .then(response => response.json())
+        .then(data => {
+          hideSpinner();
+          if (data.error) {
+            alert("Erreur : " + data.error);
+          } else {
+            document.getElementById('onboardingContent').innerText = data.onboarding_plan;
+            document.getElementById('onboardingModal').style.display = 'block';
+          }
+        })
+        .catch(error => {
+          hideSpinner();
+          alert("Erreur lors de la récupération du plan : " + error.message);
+        });
+      }, 100);
     }
 
     function closeOnboardingModal() {
       document.getElementById('onboardingModal').style.display = 'none';
+    }
+
+    // Fonction pour éditer un rôle
+    function editRole(event, roleId) {
+      event.stopPropagation();
+      var currentName = document.getElementById('role-name-' + roleId).textContent.trim();
+      var newName = prompt("Modifier le nom du rôle :", currentName);
+      if (newName === null || newName.trim() === "") {
+        return; // Annulation ou saisie vide
+      }
+      fetch(`/roles/${roleId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.error) {
+          alert("Erreur lors de la mise à jour du rôle : " + data.error);
+        } else {
+          document.getElementById('role-name-' + roleId).textContent = data.role.name;
+          alert("Rôle mis à jour avec succès.");
+        }
+      })
+      .catch(error => {
+        alert("Erreur : " + error.message);
+      });
+    }
+
+    // Fonction pour supprimer un rôle
+    function deleteRole(event, roleId) {
+      event.stopPropagation();
+      if (!confirm("Confirmez-vous la suppression de ce rôle ?")) return;
+      fetch(`/roles/${roleId}`, {
+        method: "DELETE"
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.error) {
+          alert("Erreur lors de la suppression du rôle : " + data.error);
+        } else {
+          var roleContainer = document.getElementById('role-icon-' + roleId).closest('.role-container');
+          if (roleContainer) {
+            roleContainer.remove();
+          }
+          alert("Rôle supprimé avec succès.");
+        }
+      })
+      .catch(error => {
+        alert("Erreur : " + error.message);
+      });
     }
   </script>
 </body>
