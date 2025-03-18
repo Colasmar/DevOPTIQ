@@ -1,21 +1,76 @@
-/* ====== Reprise complète du style de la dernière version fonctionnelle ====== */
+/* ====== Style global à ~30px pour tout ====== */
 
-/* Corps de page */
+/* Corps de page : 30px pour tout le texte */
 body {
   font-family: Arial, sans-serif;
+  font-size: 30px; 
+  line-height: 1.5;
 }
 
-/* Bouton de mise à jour de la cartographie */
+/* ========================================
+   BOUTONS ET ICÔNES
+   ======================================== */
+
+/* Tous les boutons généraux (Mettre à jour, Garant, etc.) */
+button,
+.update-btn,
+.onboarding-btn,
+.icon-btn {
+  font-size: 1em; /* => 30px */
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+/* Bouton "Mettre à jour la cartographie", etc. */
 .update-btn {
   background-color: green;
   color: white;
-  padding: 10px 15px;
+  padding: 18px 28px; /* adapté à la taille 30px */
   border: none;
   border-radius: 5px;
-  cursor: pointer;
   margin-bottom: 20px;
-  font-size: 1em;
 }
+
+/* Icônes dans les boutons (poubelle, crayon, etc.) */
+button i,
+.icon-btn i {
+  font-size: 1em; /* => 30px */
+}
+
+/* Boutons icônes simples (ex: poubelle) */
+.icon-btn {
+  background: none;
+  border: none;
+  margin-left: 10px;
+}
+
+/* ========================================
+   ZONES DE SAISIE (inputs, textarea, select)
+   ======================================== */
+
+/* On agrandit les champs pour ~5..6 mots */
+input[type="text"],
+input[type="number"],
+textarea,
+select {
+  font-size: 1em;      /* => 30px, même que le corps */
+  line-height: 1.3;
+  padding: 8px 10px;
+  width: 40ch;         /* Assez large pour ~5..6 mots */
+  min-height: 48px;    /* Pour ne pas être trop écrasé */
+  box-sizing: border-box;
+}
+
+/* Si vous avez des selects multiples (multiple), 
+   vous pouvez ajuster la hauteur. Exemple : 
+select[multiple] {
+  height: 200px;
+}
+*/
+
+/* ========================================
+   ACTIVITÉS, ENTÊTES, TABLES
+   ======================================== */
 
 /* Conteneur principal de chaque activité */
 .activity-container {
@@ -24,28 +79,31 @@ body {
   overflow: hidden;
 }
 
-/* En-tête de l'activité, police réduite */
+/* En-tête de l'activité */
 .activity-header {
   background-color: #add8e6;
-  padding: 5px;
-  font-size: 0.8em; /* police un peu réduite */
-  cursor: pointer;
+  padding: 14px;
   display: flex;
   align-items: center;
+  cursor: pointer;
 }
+
+/* Titre d’activité : un peu plus grand => 1.2em => ~36px */
 .activity-header h2 {
   margin: 0;
   flex-grow: 1;
-  font-size: 1em;
-}
-.toggle-icon {
-  font-size: 1em;
-  margin-right: 5px;
+  font-size: 1.2em;
 }
 
-/* Détails de l'activité masqués par défaut */
+/* Icône de bascule (▶) : 1.2em => ~36px */
+.toggle-icon {
+  font-size: 1.2em;
+  margin-right: 8px;
+}
+
+/* Contenu d'activité masqué par défaut */
 .activity-details {
-  padding: 5px;
+  padding: 14px;
   display: none;
 }
 
@@ -54,34 +112,33 @@ body {
   display: flex;
   justify-content: space-between;
   flex-wrap: wrap;
-  margin-top: 10px;
+  margin-top: 14px;
 }
 .connections-container > div {
   width: 48%;
 }
-/* Titre plus petit pour "Connexions entrantes" et "Connexions sortantes" */
 .connections-container h3 {
-  font-size: 0.9em;
-  margin: 0 0 5px 0;
+  font-size: 1em; /* => 30px */
+  margin: 0 0 8px 0;
 }
 
-/* Tableau de connexions */
+/* Tableaux (connexions, etc.) */
 .conn-table {
   width: 100%;
   border-collapse: collapse;
-  margin-bottom: 10px;
+  margin-bottom: 14px;
 }
 .conn-table th,
 .conn-table td {
   border: 1px solid #ccc;
-  padding: 4px;
+  padding: 10px;
   text-align: left;
 }
 .conn-table th {
   background-color: #cce5ff;
 }
 
-/* Mise en forme conditionnelle : déclenchante/nourrissante */
+/* Mise en forme conditionnelle */
 .declenchante {
   font-weight: bold;
 }
@@ -89,25 +146,26 @@ body {
   font-style: italic;
 }
 
-/* Section Tâches */
+/* ========================================
+   TÂCHES 
+   ======================================== */
+
 .tasks-section {
-  margin-top: 10px;
+  margin-top: 14px;
 }
 .tasks-section h3 {
-  font-size: 0.9em;
-  margin-bottom: 5px;
+  font-size: 1em; /* => 30px */
+  margin-bottom: 10px;
 }
 
 /* Conteneur de chaque tâche */
 .task {
   border: 1px solid #ddd;
-  padding: 5px;
-  margin-bottom: 10px;
+  padding: 12px;
+  margin-bottom: 14px;
   display: flex;
   flex-direction: column;
 }
-
-/* Ligne principale de la tâche */
 .task-row {
   display: flex;
   justify-content: space-between;
@@ -116,24 +174,24 @@ body {
 .task-left {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 10px;
   flex: 1;
 }
 .task-right {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 5px;
-  max-width: 250px;
+  gap: 10px;
+  max-width: 400px;
 }
 
-/* Titre de la tâche (nom + description) */
+/* Nom + description de la tâche */
 .task-title {
-  max-width: 45ch;
+  max-width: 50ch;
   word-wrap: break-word;
 }
 
-/* Liste des outils : inline-block pour les aligner sur une ligne, text-align: left */
+/* Liste des outils : inline-block, text-align: left */
 .tools-list ul {
   list-style: none;
   padding: 0;
@@ -142,23 +200,22 @@ body {
 }
 .tools-list li {
   background: #f0f0f0;
-  padding: 2px 5px;
+  padding: 8px 10px;
   border-radius: 3px;
-  margin-bottom: 5px;
-  display: inline-block; /* pour aligner sur une ligne */
-  margin-right: 5px;
+  margin-bottom: 10px;
+  display: inline-block;
+  margin-right: 10px;
 }
 
-/* Bouton d'ajout d'outil : stylé plus petit, mieux aligné */
+/* Bouton d'ajout d'outil (ex: +) */
 .add-tool-btn {
-  width: 24px;
-  height: 24px;
+  width: 40px;
+  height: 40px;
   border: 1px solid #ccc;
   background-color: #fafafa;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  vertical-align: middle;
   margin: 0;
   padding: 0;
 }
@@ -166,27 +223,17 @@ body {
 /* Formulaire d'édition de tâche */
 .edit-task-form {
   display: none;
-  margin-top: 5px;
+  margin-top: 10px;
   border: 1px solid #ccc;
-  padding: 5px;
+  padding: 10px;
   width: 100%;
 }
 
-/* Formulaires d'ajout de tâche / d'outils */
-.task-form,
-.tool-form {
-  margin-top: 5px;
-  border: 1px solid #ccc;
-  padding: 5px;
-}
+/* ========================================
+   HSC, JUSTIFICATION
+   ======================================== */
 
-/* Boutons icônes (poubelle, crayon, etc.) */
-.icon-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  margin-left: 5px;
-}
-.icon-btn i {
-  font-size: 1em;
+.softskill-justification {
+  font-size: 1em !important; /* => 30px */
+  line-height: 1.4;
 }
