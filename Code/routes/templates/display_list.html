@@ -147,9 +147,17 @@
         <!-- Inclusion du bloc "Contraintes et Exigences" -->
         {% include "activity_constraints.html" %}
 
-        <!-- Inclusion des autres sections de l'activité -->
-        {% include "activity_tasks.html" %}
+        <!-- TÂCHES : on définit 'activity' et 'tasks' avant d'inclure tasks_partial.html -->
+        <div id="tasks-section-{{ item.activity.id }}">
+          {% set activity = item.activity %}
+          {% set tasks = item.tasks %}
+          {% include "tasks_partial.html" %}
+        </div>
+
+        <!-- Compétences -->
         {% include "activity_competencies.html" %}
+
+        <!-- Softskills -->
         {% include "activity_softskills.html" %}
       </div>
     </div>
@@ -173,8 +181,7 @@
 
   <!-- Scripts : L'ordre est important -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-
-  <!-- NOUVELLE LIGNE : Import de SortableJS pour éviter "Sortable is not defined" -->
+  <!-- SortableJS pour le drag & drop -->
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
   <script src="/static/js/spinner.js"></script>
@@ -352,7 +359,7 @@
     }
 
     // -------------------------------------------------
-    // NOUVEAU : écouteur de clic pour "Mettre à jour la cartographie"
+    // Écouteur de clic pour "Mettre à jour la cartographie"
     // -------------------------------------------------
     const updateBtn = document.getElementById('update-cartography-button');
     if (updateBtn) {

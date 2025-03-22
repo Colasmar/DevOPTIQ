@@ -1,6 +1,7 @@
 import os
 import io
 import contextlib
+import traceback
 from flask import Blueprint, jsonify, request, render_template
 from sqlalchemy import text
 from Code.extensions import db
@@ -77,6 +78,7 @@ def get_activities():
             })
         return jsonify(data), 200
     except Exception as e:
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @activities_bp.route('/', methods=['POST'])
@@ -95,6 +97,7 @@ def create_activity():
         }), 201
     except Exception as e:
         db.session.rollback()
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @activities_bp.route('/<int:activity_id>/tasks/add', methods=['POST'])
@@ -117,6 +120,7 @@ def add_task_to_activity(activity_id):
         }), 201
     except Exception as e:
         db.session.rollback()
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @activities_bp.route('/<int:activity_id>/tasks/<int:task_id>', methods=['DELETE'])
@@ -130,6 +134,7 @@ def delete_task(activity_id, task_id):
         return jsonify({"message": "Task deleted"}), 200
     except Exception as e:
         db.session.rollback()
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @activities_bp.route('/<int:activity_id>/tasks/<int:task_id>', methods=['PUT'])
@@ -151,6 +156,7 @@ def update_task(activity_id, task_id):
         }), 200
     except Exception as e:
         db.session.rollback()
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @activities_bp.route('/tasks/<int:task_id>/tools/<int:tool_id>', methods=['DELETE'])
@@ -171,6 +177,7 @@ def delete_tool_from_task(task_id, tool_id):
         return jsonify({"message": "Tool removed from task"}), 200
     except Exception as e:
         db.session.rollback()
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @activities_bp.route('/<int:activity_id>/tasks/reorder', methods=['POST'])
@@ -188,6 +195,7 @@ def reorder_tasks(activity_id):
         return jsonify({"message": "Order updated"}), 200
     except Exception as e:
         db.session.rollback()
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @activities_bp.route('/<int:activity_id>/details', methods=['GET'])
@@ -209,7 +217,6 @@ def get_activity_details(activity_id):
     competencies = [{"id": comp.id, "description": comp.description} for comp in activity.competencies]
     softskills = [{"id": ss.id, "habilete": ss.habilete, "niveau": ss.niveau} for ss in activity.softskills]
 
-    # Connexions sortantes complètes
     outgoing_links = Link.query.filter(
         (Link.source_activity_id == activity.id) | (Link.source_data_id == activity.id)
     ).all()
@@ -221,15 +228,15 @@ def get_activity_details(activity_id):
         perf_obj = None
         if data_obj and data_obj.performance:
             perf_obj = {
-                "id": data_obj.performance.id,
-                "name": data_obj.performance.name,
-                "description": data_obj.performance.description
+                'id': data_obj.performance.id,
+                'name': data_obj.performance.name,
+                'description': data_obj.performance.description
             }
         outgoing_list.append({
-            "type": link.type,
-            "data_name": data_name,
-            "target_name": target_name,
-            "performance": perf_obj
+            'type': link.type,
+            'data_name': data_name,
+            'target_name': target_name,
+            'performance': perf_obj
         })
 
     activity_data = {
@@ -248,38 +255,27 @@ def get_activity_details(activity_id):
 
 @activities_bp.route('/update-cartography', methods=['GET'])
 def update_cartography():
-    """
-    Met à jour la cartographie Visio en appelant process_visio_file(...)
-    puis récupère le résumé depuis la fonction print_summary() importée
-    de extract_visio.py, qui s'appuie sur link_summaries et rename_summaries
-    globales dans ce module.
-    """
     try:
         vsdx_path = os.path.join("Code", "example.vsdx")
         process_visio_file(vsdx_path)
-
-        # Récupérer le résumé de la console
         summary_output = io.StringIO()
         with contextlib.redirect_stdout(summary_output):
-            print_summary()  # <-- c'est la fonction importée de extract_visio.py
+            print_summary()
         summary_text = summary_output.getvalue()
-
         return jsonify({
             "message": "Cartographie mise à jour (partielle)",
             "summary": summary_text
         }), 200
     except Exception as e:
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @activities_bp.route('/view', methods=['GET'])
 def view_activities():
     try:
-        # Récupère uniquement les activités non marquées comme résultat
         activities = Activities.query.filter_by(is_result=False).all()
-
         activity_data = []
         for activity in activities:
-            # Connexions entrantes
             incoming_links = Link.query.filter(
                 (Link.target_activity_id == activity.id) | (Link.target_data_id == activity.id)
             ).all()
@@ -293,7 +289,6 @@ def view_activities():
                     'source_name': source_name
                 })
 
-            # Connexions sortantes
             outgoing_links = Link.query.filter(
                 (Link.source_activity_id == activity.id) | (Link.source_data_id == activity.id)
             ).all()
@@ -317,7 +312,6 @@ def view_activities():
                     'performance': perf_obj
                 })
 
-            # Tâches
             tasks = sorted(activity.tasks, key=lambda x: x.order if x.order is not None else 0)
             tasks_list = []
             for t in tasks:
@@ -332,10 +326,8 @@ def view_activities():
                     ]
                 })
 
-            # Garant
             garant = get_garant_role(activity.id)
 
-            # Contraintes
             constraints_list = []
             for c in activity.constraints:
                 constraints_list.append({
@@ -354,4 +346,5 @@ def view_activities():
 
         return render_template('display_list.html', activity_data=activity_data)
     except Exception as e:
+        traceback.print_exc()
         return f"Erreur lors de l'affichage des activités: {e}", 500

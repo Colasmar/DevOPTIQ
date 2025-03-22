@@ -1,190 +1,159 @@
-/* tasks.js - Gestion des tâches */
+/*******************************************************
+ * FICHIER : Code/static/js/tasks.js
+ * Description :
+ *    Gère les Tâches (CRUD), l'association d'Outils,
+ *    l'association de Rôles, le reorder, etc.
+ *    Désormais, on utilise un rendu partiel "tasks_partial.html"
+ *    pour rafraîchir le bloc HTML des tâches après chaque opération.
+ ******************************************************/
 
-// Affiche le formulaire d'ajout d'une tâche pour une activité donnée
+/* =====================================================
+   FONCTIONS GLOBALES POUR LE RENDU PARTIEL
+   ===================================================== */
+
+/**
+ * updateTasks(activityId)
+ * Va chercher le HTML partiel sur /tasks/<activityId>/render
+ * et remplace le bloc "tasks-section-<activityId>"
+ * Ensuite, réinitialise le drag & drop via SortableJS.
+ */
+function updateTasks(activityId) {
+  fetch(`/tasks/${activityId}/render`)
+    .then(resp => {
+      if (!resp.ok) {
+        throw new Error("Impossible de rafraîchir la liste des tâches");
+      }
+      return resp.text();
+    })
+    .then(html => {
+      const container = document.getElementById(`tasks-section-${activityId}`);
+      if (container) {
+        container.innerHTML = html;
+        // Réinitialiser le drag & drop sur la liste des tâches
+        const taskList = container.querySelector(`#tasks-list-${activityId}`);
+        if (taskList) {
+          new Sortable(taskList, {
+            animation: 150,
+            handle: '.fa-bars',  // Utilise l'icône "bars" comme poignée
+            onEnd: function (evt) {
+              var newOrder = [];
+              taskList.querySelectorAll('li').forEach(function(li) {
+                newOrder.push(li.getAttribute('data-task-id'));
+              });
+              // Envoyer le nouvel ordre vers le serveur
+              fetch(`/tasks/${activityId}/tasks/reorder`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ order: newOrder })
+              })
+              .then(function(response) { return response.json(); })
+              .then(function(data) {
+                if (data.error) { alert("Erreur réordonnancement : " + data.error); }
+              })
+              .catch(function(err) { console.error("Erreur lors du réordonnancement : ", err); });
+            }
+          });
+        }
+      } else {
+        console.warn(`Aucun conteneur #tasks-section-${activityId} trouvé dans le DOM.`);
+      }
+    })
+    .catch(err => {
+      console.error("Erreur updateTasks:", err);
+      alert(err.message);
+    });
+}
+
+/* =====================================================
+   FONCTIONS POUR L'AJOUT / EDIT / SUPPRESSION DE TÂCHES
+   ===================================================== */
+
 function showTaskForm(activityId) {
-  document.getElementById('task-form-' + activityId).style.display = 'block';
+  const formDiv = document.getElementById(`task-form-${activityId}`);
+  if (formDiv) {
+    formDiv.style.display = 'block';
+  }
 }
 
-// Cache le formulaire d'ajout d'une tâche pour une activité donnée
 function hideTaskForm(activityId) {
-  document.getElementById('task-form-' + activityId).style.display = 'none';
+  const formDiv = document.getElementById(`task-form-${activityId}`);
+  if (formDiv) {
+    formDiv.style.display = 'none';
+  }
+  const nameInput = document.getElementById(`task-name-${activityId}`);
+  const descInput = document.getElementById(`task-desc-${activityId}`);
+  if (nameInput) nameInput.value = "";
+  if (descInput) descInput.value = "";
 }
 
-// Soumet une nouvelle tâche pour une activité
 function submitTask(activityId) {
-  const taskName = document.getElementById('task-name-' + activityId).value;
-  const taskDesc = document.getElementById('task-desc-' + activityId).value;
+  const nameInput = document.getElementById(`task-name-${activityId}`);
+  const descInput = document.getElementById(`task-desc-${activityId}`);
+  if (!nameInput || !descInput) return;
+
+  const taskName = nameInput.value.trim();
+  const taskDesc = descInput.value.trim();
+
   if (!taskName) {
     alert("Le nom de la tâche est requis.");
     return;
   }
 
-  fetch('/activities/' + activityId + '/tasks/add', {
+  fetch('/tasks/add', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: taskName, description: taskDesc })
+    body: JSON.stringify({
+      activity_id: activityId,
+      name: taskName,
+      description: taskDesc
+    })
   })
-  .then(response => {
-    if (response.ok) return response.json();
-    throw new Error("Erreur lors de l'ajout de la tâche.");
-  })
-  .then(data => {
-    // Récupérer la <ul> des tâches existantes
-    let tasksList = document.getElementById('tasks-list-' + activityId);
-    if (!tasksList) {
-      tasksList = document.createElement('ul');
-      tasksList.id = 'tasks-list-' + activityId;
-      const tasksSection = document.getElementById('task-form-' + activityId).parentNode;
-      tasksSection.insertBefore(tasksList, tasksSection.firstChild);
-    }
-
-    // Créer un <li> avec la même structure HTML que dans activity_tasks.html
-    const li = document.createElement('li');
-    li.className = 'task';
-    li.id = 'task-' + data.id;
-    li.setAttribute('data-task-id', data.id);
-
-    li.innerHTML = `
-      <div class="task-row" style="display:flex; gap:10px; align-items:flex-start;">
-        <!-- Colonne gauche -->
-        <div class="task-left" style="display:flex; align-items:center; gap:5px;">
-          <i class="fa-solid fa-bars icon-btn" style="cursor: move;"></i>
-          <span class="task-title">
-            <strong id="task-name-display-${data.id}">${data.name}</strong>
-            ${data.description
-              ? ' - <span id="task-desc-display-' + data.id + '">' + data.description + '</span>'
-              : ''
-            }
-          </span>
-          <button class="icon-btn" onclick="deleteTask('${activityId}', '${data.id}')">
-            <i class="fa-solid fa-trash"></i>
-          </button>
-          <button class="icon-btn"
-                  onclick="showEditTaskForm('${activityId}', '${data.id}', '${data.name}', '${data.description || ''}')">
-            <i class="fa-solid fa-pencil"></i>
-          </button>
-        </div>
-
-        <!-- Colonne Outils -->
-        <div class="task-right" style="display:flex; flex-direction:column; gap:5px;">
-          <div class="tools-list" id="tools-for-task-${data.id}">
-            <ul>
-              <li id="no-tools-msg-${data.id}">Aucun outil associé.</li>
-              <li class="add-tool-li">
-                <button class="icon-btn add-tool-btn" onclick="showToolForm('${data.id}')">
-                  <i class="fa-solid fa-plus"></i>
-                </button>
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        <!-- Colonne Rôles -->
-        <div class="task-roles" id="roles-for-task-${data.id}"
-             style="display:flex; flex-direction:column; gap:5px;">
-          <ul style="list-style:none; padding:0; margin:0;"></ul>
-          <button class="icon-btn" onclick="showTaskRoleForm('${data.id}')"
-                  style="border:1px solid #ccc; padding:5px;">
-            <i class="fa-solid fa-plus"></i> Rôle
-          </button>
-          <!-- Formulaire d'ajout de rôles (caché) -->
-          <div id="task-role-form-${data.id}" class="role-form"
-               style="display: none; border:1px solid #ccc; padding:5px; margin-top:5px;">
-            <label for="existing-roles-${data.id}">Rôles existants:</label>
-            <select id="existing-roles-${data.id}" multiple style="width:100%; height:80px;"></select>
-
-            <label for="new-roles-${data.id}">Nouveaux rôles (séparés par des virgules):</label>
-            <input type="text" id="new-roles-${data.id}" placeholder="Ex: Expert Contrôle, Pilote Drone"
-                   style="width:100%;" />
-
-            <label for="role-status-${data.id}">Statut:</label>
-            <select id="role-status-${data.id}" style="width:100%;">
-              <option value="Réalisateur">Réalisateur</option>
-              <option value="Conseil">Conseil</option>
-              <option value="Approbateur">Approbateur</option>
-              <option value="Ressource">Ressource</option>
-            </select>
-
-            <button onclick="submitTaskRoles('${data.id}')">Enregistrer</button>
-            <button onclick="hideTaskRoleForm('${data.id}')">Annuler</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Formulaire d'édition de la tâche -->
-      <div class="edit-task-form" id="edit-task-form-${data.id}" style="display:none;">
-        <input type="text" id="edit-task-name-${data.id}" placeholder="Nom de la tâche" />
-        <input type="text" id="edit-task-desc-${data.id}" placeholder="Description (optionnelle)" />
-        <button onclick="submitEditTask('${activityId}', '${data.id}')">Enregistrer</button>
-        <button onclick="hideEditTaskForm('${data.id}')">Annuler</button>
-      </div>
-
-      <!-- Formulaire d'ajout d'outils -->
-      <div id="tool-form-${data.id}" class="tool-form" style="display: none;">
-        <div>
-          <label for="existing-tools-${data.id}">Outils existants:</label>
-          <select id="existing-tools-${data.id}" multiple style="width: 100%;"></select>
-        </div>
-        <div>
-          <label for="new-tools-${data.id}">Nouveaux outils (séparés par des virgules):</label>
-          <input type="text" id="new-tools-${data.id}" placeholder="Ex: Outil1, Outil2" style="width: 100%;" />
-        </div>
-        <button onclick="submitTools('${data.id}')">Enregistrer</button>
-        <button onclick="hideToolForm('${data.id}')">Annuler</button>
-      </div>
-    `;
-
-    tasksList.appendChild(li);
-
-    // Réinitialiser le formulaire d'ajout
-    document.getElementById('task-name-' + activityId).value = "";
-    document.getElementById('task-desc-' + activityId).value = "";
-    hideTaskForm(activityId);
-
-    // Charger la liste de rôles (au départ vide) pour la nouvelle tâche
-    loadTaskRolesForDisplay(data.id);
-  })
-  .catch(error => {
-    alert(error.message);
-  });
-}
-
-// Supprime une tâche donnée
-function deleteTask(activityId, taskId) {
-  if (!confirm("Confirmez-vous la suppression de cette tâche ?")) return;
-  fetch(`/activities/${activityId}/tasks/${taskId}`, { method: 'DELETE' })
   .then(response => response.json())
   .then(data => {
-    const taskElem = document.getElementById('task-' + taskId);
-    if (taskElem) {
-      taskElem.parentNode.removeChild(taskElem);
+    if (data.error) {
+      alert("Erreur : " + data.error);
+    } else {
+      hideTaskForm(activityId);
+      updateTasks(activityId);
     }
   })
   .catch(error => {
-    alert(error.message);
+    console.error("Erreur lors de l'ajout de la tâche:", error);
+    alert("Impossible d'ajouter la tâche.");
   });
 }
 
-// Affiche le formulaire d'édition d'une tâche
-function showEditTaskForm(activityId, taskId, name, description) {
-  document.getElementById('edit-task-form-' + taskId).style.display = 'block';
-  document.getElementById('edit-task-name-' + taskId).value = name;
-  document.getElementById('edit-task-desc-' + taskId).value = description;
+function showEditTaskForm(activityId, taskId, currentName, currentDesc) {
+  const formDiv = document.getElementById(`edit-task-form-${taskId}`);
+  const nameInput = document.getElementById(`edit-task-name-${taskId}`);
+  const descInput = document.getElementById(`edit-task-desc-${taskId}`);
+  if (formDiv && nameInput && descInput) {
+    formDiv.style.display = 'block';
+    nameInput.value = currentName || "";
+    descInput.value = currentDesc || "";
+  }
 }
 
-// Cache le formulaire d'édition d'une tâche
 function hideEditTaskForm(taskId) {
-  document.getElementById('edit-task-form-' + taskId).style.display = 'none';
+  const formDiv = document.getElementById(`edit-task-form-${taskId}`);
+  if (formDiv) {
+    formDiv.style.display = 'none';
+  }
 }
 
-// Soumet les modifications d'une tâche
 function submitEditTask(activityId, taskId) {
-  const newName = document.getElementById('edit-task-name-' + taskId).value;
-  const newDesc = document.getElementById('edit-task-desc-' + taskId).value;
+  const nameInput = document.getElementById(`edit-task-name-${taskId}`);
+  const descInput = document.getElementById(`edit-task-desc-${taskId}`);
+  if (!nameInput || !descInput) return;
+
+  const newName = nameInput.value.trim();
+  const newDesc = descInput.value.trim();
+
   if (!newName) {
     alert("Le nom de la tâche est requis.");
     return;
   }
+
   fetch(`/activities/${activityId}/tasks/${taskId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -192,63 +161,285 @@ function submitEditTask(activityId, taskId) {
   })
   .then(response => response.json())
   .then(data => {
-    const nameElem = document.getElementById('task-name-display-' + taskId);
-    if (nameElem) {
-      nameElem.textContent = data.name;
+    if (data.error) {
+      alert("Erreur : " + data.error);
+    } else {
+      updateTasks(activityId);
     }
-    const descElem = document.getElementById('task-desc-display-' + taskId);
-    if (descElem) {
-      descElem.textContent = data.description;
-    } else if (data.description) {
-      const taskTitle = document.querySelector('#task-name-display-' + taskId).parentNode;
-      const span = document.createElement('span');
-      span.id = 'task-desc-display-' + taskId;
-      span.textContent = data.description;
-      taskTitle.appendChild(document.createTextNode(" - "));
-      taskTitle.appendChild(span);
-    }
-    hideEditTaskForm(taskId);
   })
   .catch(error => {
-    alert(error.message);
+    console.error("Erreur lors de la modification de la tâche:", error);
+    alert("Impossible de modifier la tâche.");
   });
 }
 
-/* --- DRAG & DROP POUR LES TÂCHES --- */
-document.addEventListener('DOMContentLoaded', function() {
-  const taskLists = document.querySelectorAll('[id^="tasks-list-"]');
-  taskLists.forEach(list => {
-    Sortable.create(list, {
-      animation: 150,
-      handle: '.fa-bars',  // L'icône <i class="fa-solid fa-bars"> 
-      onEnd: function(evt) {
-        // Ex: list.id = "tasks-list-123"
-        const listId = list.getAttribute('id');
-        // On récupère activityId depuis le 3e split : ["tasks", "list", "123"]
-        const splitted = listId.split('-');
-        const activityId = splitted[2];
-        console.log("Reorder tasks for activityId=", activityId);
+function deleteTask(activityId, taskId) {
+  if (!confirm("Confirmez-vous la suppression de cette tâche ?")) return;
 
-        let newOrder = [];
-        list.querySelectorAll('li.task').forEach(taskElem => {
-          newOrder.push(taskElem.getAttribute('data-task-id'));
-        });
-
-        // Envoi au backend 
-        fetch('/activities/' + activityId + '/tasks/reorder', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ order: newOrder })
-        })
-        .then(function(response) {
-          if (!response.ok) {
-            console.error("Erreur de sauvegarde de l'ordre");
-          }
-        })
-        .catch(err => {
-          console.error("Impossible de réordonner les tâches :", err);
-        });
-      }
-    });
+  fetch(`/activities/${activityId}/tasks/${taskId}`, {
+    method: 'DELETE'
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.error) {
+      alert("Erreur : " + data.error);
+    } else {
+      updateTasks(activityId);
+    }
+  })
+  .catch(error => {
+    console.error("Erreur lors de la suppression de la tâche:", error);
+    alert("Impossible de supprimer la tâche.");
   });
-});
+}
+
+/* =====================================================
+   REORDER
+   ===================================================== */
+function reorderTasks(activityId, newOrderArray) {
+  fetch(`/tasks/${activityId}/tasks/reorder`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ order: newOrderArray })
+  })
+  .then(resp => resp.json())
+  .then(data => {
+    if (data.error) {
+      alert("Erreur : " + data.error);
+    } else {
+      updateTasks(activityId);
+    }
+  })
+  .catch(err => {
+    console.error("Erreur reorderTasks:", err);
+  });
+}
+
+/* =====================================================
+   GESTION DES OUTILS (tools)
+   ===================================================== */
+
+function showToolForm(taskId) {
+  const form = document.getElementById(`tool-form-${taskId}`);
+  if (form) {
+    form.style.display = 'block';
+    loadExistingTools(taskId);
+  }
+}
+
+function hideToolForm(taskId) {
+  const form = document.getElementById(`tool-form-${taskId}`);
+  if (form) {
+    form.style.display = 'none';
+  }
+}
+
+function loadExistingTools(taskId) {
+  fetch('/tools/all')
+    .then(resp => resp.json())
+    .then(data => {
+      const select = document.getElementById(`existing-tools-${taskId}`);
+      if (!select) return;
+      select.innerHTML = "";
+      data.forEach(tool => {
+        const opt = document.createElement('option');
+        opt.value = tool.id;
+        opt.textContent = tool.name;
+        select.appendChild(opt);
+      });
+    })
+    .catch(err => {
+      console.error("Erreur loadExistingTools:", err);
+    });
+}
+
+function submitTools(taskId) {
+  const existingSelect = document.getElementById(`existing-tools-${taskId}`);
+  const newToolsInput = document.getElementById(`new-tools-${taskId}`);
+  if (!existingSelect || !newToolsInput) return;
+
+  const selectedOptions = [...existingSelect.options].filter(opt => opt.selected);
+  const existing_tool_ids = selectedOptions.map(opt => parseInt(opt.value));
+
+  const newToolsStr = newToolsInput.value.trim();
+  let new_tools = [];
+  if (newToolsStr) {
+    new_tools = newToolsStr.split(',').map(s => s.trim()).filter(s => s);
+  }
+
+  fetch('/tools/add', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      task_id: parseInt(taskId),
+      existing_tool_ids: existing_tool_ids,
+      new_tools: new_tools
+    })
+  })
+  .then(resp => resp.json())
+  .then(data => {
+    if (data.error) {
+      alert("Erreur : " + data.error);
+    } else {
+      // On cherche l'activitéId pour updateTasks
+      const li = document.getElementById(`task-${taskId}`);
+      if (li) {
+        const activityId = li.getAttribute("data-activity-id");
+        if (activityId) {
+          updateTasks(activityId);
+        } else {
+          location.reload();
+        }
+      } else {
+        location.reload();
+      }
+    }
+  })
+  .catch(err => {
+    console.error("Erreur submitTools:", err);
+  });
+}
+
+/* =====================================================
+   GESTION DES RÔLES (task_roles)
+   ===================================================== */
+
+function showTaskRoleForm(taskId) {
+  const form = document.getElementById(`task-role-form-${taskId}`);
+  if (form) {
+    form.style.display = 'block';
+    loadRolesForTaskForm(taskId);
+  }
+}
+
+function hideTaskRoleForm(taskId) {
+  const form = document.getElementById(`task-role-form-${taskId}`);
+  if (form) {
+    form.style.display = 'none';
+  }
+}
+
+function loadRolesForTaskForm(taskId) {
+  fetch('/roles/list')
+    .then(resp => resp.json())
+    .then(data => {
+      const select = document.getElementById(`existing-roles-${taskId}`);
+      if (!select) return;
+      select.innerHTML = "";
+      data.forEach(role => {
+        const opt = document.createElement('option');
+        opt.value = role.id;
+        opt.textContent = role.name;
+        select.appendChild(opt);
+      });
+    })
+    .catch(err => {
+      console.error("Erreur loadRolesForTaskForm:", err);
+    });
+}
+
+function submitTaskRoles(taskId) {
+  const existingSelect = document.getElementById(`existing-roles-${taskId}`);
+  const newRolesInput = document.getElementById(`new-roles-${taskId}`);
+  const statusSelect = document.getElementById(`role-status-${taskId}`);
+  if (!existingSelect || !newRolesInput || !statusSelect) return;
+
+  const selectedOptions = [...existingSelect.options].filter(opt => opt.selected);
+  const existing_role_ids = selectedOptions.map(opt => parseInt(opt.value));
+
+  const newRolesStr = newRolesInput.value.trim();
+  let new_roles = [];
+  if (newRolesStr) {
+    new_roles = newRolesStr.split(',').map(s => s.trim()).filter(s => s);
+  }
+
+  const chosen_status = statusSelect.value;
+
+  fetch(`/tasks/${taskId}/roles/add`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      existing_role_ids: existing_role_ids,
+      new_roles: new_roles,
+      status: chosen_status
+    })
+  })
+  .then(resp => resp.json())
+  .then(data => {
+    if (data.error) {
+      alert("Erreur : " + data.error);
+    } else {
+      const li = document.getElementById(`task-${taskId}`);
+      if (li) {
+        const activityId = li.getAttribute("data-activity-id");
+        if (activityId) {
+          updateTasks(activityId);
+        } else {
+          location.reload();
+        }
+      } else {
+        location.reload();
+      }
+    }
+  })
+  .catch(err => {
+    console.error("Erreur submitTaskRoles:", err);
+  });
+}
+
+function loadTaskRolesForDisplay(taskId) {
+  fetch(`/tasks/${taskId}/roles`)
+    .then(resp => resp.json())
+    .then(data => {
+      if (data.error) {
+        console.error("Erreur loadTaskRolesForDisplay:", data.error);
+        return;
+      }
+      const rolesUL = document.querySelector(`#roles-for-task-${taskId} ul`);
+      if (!rolesUL) return;
+      rolesUL.innerHTML = "";
+      data.roles.forEach(role => {
+        const li = document.createElement('li');
+        li.textContent = `${role.name} (${role.status})`;
+        // Bouton pour retirer ce rôle
+        const btn = document.createElement('button');
+        btn.textContent = "X";
+        btn.onclick = () => {
+          deleteRoleFromTask(taskId, role.id);
+        };
+        li.appendChild(btn);
+        rolesUL.appendChild(li);
+      });
+    })
+    .catch(err => {
+      console.error("Erreur loadTaskRolesForDisplay:", err);
+    });
+}
+
+function deleteRoleFromTask(taskId, roleId) {
+  if (!confirm("Supprimer ce rôle de la tâche ?")) return;
+  fetch(`/tasks/${taskId}/roles/${roleId}`, {
+    method: 'DELETE'
+  })
+  .then(resp => resp.json())
+  .then(data => {
+    if (data.error) {
+      alert("Erreur : " + data.error);
+    } else {
+      const li = document.getElementById(`task-${taskId}`);
+      if (li) {
+        const activityId = li.getAttribute("data-activity-id");
+        if (activityId) {
+          updateTasks(activityId);
+        } else {
+          location.reload();
+        }
+      } else {
+        location.reload();
+      }
+    }
+  })
+  .catch(err => {
+    console.error("Erreur deleteRoleFromTask:", err);
+  });
+}

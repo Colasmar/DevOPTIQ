@@ -1,41 +1,50 @@
-<!-- activity_constraints.html -->
+<!-- Code/routes/templates/activity_constraints.html -->
 
 <div class="constraints-section">
-    <h3>Contraintes et Exigences</h3>
-  
-    <!-- Conteneur principal -->
-    <div id="constraints-container-{{ item.activity.id }}">
-      {% if item.constraints and item.constraints|length > 0 %}
-        <ul>
-          {% for c in item.constraints %}
-            <li id="constraint-{{ c.id }}">
-              <span class="constraint-text">{{ c.description }}</span>
-              <button onclick="showEditConstraintForm('{{ item.activity.id }}','{{ c.id }}','{{ c.description|escape }}')">
-                <i class="fa-solid fa-pencil"></i>
-              </button>
-              <button onclick="deleteConstraint('{{ item.activity.id }}','{{ c.id }}')">
-                <i class="fa-solid fa-trash"></i>
-              </button>
-              <!-- Formulaire d'édition caché -->
-              <div id="edit-constraint-form-{{ c.id }}" style="display:none; margin-top:5px;">
-                <input type="text" id="edit-constraint-input-{{ c.id }}" />
-                <button onclick="submitEditConstraint('{{ item.activity.id }}','{{ c.id }}')">Enregistrer</button>
-                <button onclick="hideEditConstraintForm('{{ c.id }}')">Annuler</button>
-              </div>
-            </li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p>Aucune contrainte enregistrée.</p>
-      {% endif %}
-    </div>
-  
-    <!-- Bouton + form inline pour ajouter une contrainte -->
-    <button onclick="showAddConstraintForm('{{ item.activity.id }}')">+ Ajouter une contrainte</button>
-    <div id="add-constraint-form-{{ item.activity.id }}" style="display:none; margin-top:5px;">
-      <input type="text" id="add-constraint-input-{{ item.activity.id }}" />
-      <button onclick="submitAddConstraint('{{ item.activity.id }}')">Enregistrer</button>
-      <button onclick="hideAddConstraintForm('{{ item.activity.id }}')">Annuler</button>
-    </div>
+  <h3>Contraintes et Exigences</h3>
+
+  <div id="constraints-container-{{ item.activity.id }}">
+    {% if item.constraints and item.constraints|length > 0 %}
+      <ul>
+        {% for c in item.constraints %}
+          <li id="constraint-{{ c.id }}">
+            <span class="constraint-text">{{ c.description }}</span>
+
+            <!-- 
+                 On stocke la contrainte complète dans data-constraint,
+                 au format JSON, sans faire de replace() manuel.
+                 Jinja gère l'échappement via |tojson.
+            -->
+            <button
+              class="edit-constraint-btn"
+              data-constraint='{{ {"id": c.id, "description": c.description}|tojson|safe }}'
+              onclick="showEditConstraintForm(this)"
+            >
+              <i class="fa-solid fa-pencil"></i>
+            </button>
+
+            <button onclick="deleteConstraint('{{ item.activity.id }}','{{ c.id }}')">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+
+            <!-- Formulaire d'édition caché -->
+            <div id="edit-constraint-form-{{ c.id }}" style="display:none; margin-top:5px;">
+              <input type="text" id="edit-constraint-input-{{ c.id }}" />
+              <button onclick="submitEditConstraint('{{ item.activity.id }}','{{ c.id }}')">Enregistrer</button>
+              <button onclick="hideEditConstraintForm('{{ c.id }}')">Annuler</button>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>Aucune contrainte enregistrée.</p>
+    {% endif %}
   </div>
-  
+
+  <button onclick="showAddConstraintForm('{{ item.activity.id }}')">+ Ajouter une contrainte</button>
+  <div id="add-constraint-form-{{ item.activity.id }}" style="display:none; margin-top:5px;">
+    <input type="text" id="add-constraint-input-{{ item.activity.id }}" />
+    <button onclick="submitAddConstraint('{{ item.activity.id }}')">Enregistrer</button>
+    <button onclick="hideAddConstraintForm('{{ item.activity.id }}')">Annuler</button>
+  </div>
+</div>

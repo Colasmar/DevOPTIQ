@@ -1,0 +1,23 @@
+<div id="perf-container-{{ data_id }}">
+    {% if performance %}
+      <div id="perf-display-{{ data_id }}">
+        <span>{{ performance.name }}</span>
+        <button class="edit-perf-btn" 
+                data-dataid="{{ data_id }}" 
+                data-perfid="{{ performance.id }}" 
+                data-perfname="{{ performance.name }}">
+          <i class="fa-solid fa-pencil"></i>
+        </button>
+        <button class="delete-perf-btn" 
+                data-perfid="{{ performance.id }}" 
+                data-dataid="{{ data_id }}">
+          <i class="fa-solid fa-trash"></i>
+        </button>
+      </div>
+    {% else %}
+      <button class="add-perf-btn" data-dataid="{{ data_id }}">
+        Ajouter Performance
+      </button>
+    {% endif %}
+  </div>
+  

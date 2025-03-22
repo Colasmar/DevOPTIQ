@@ -19,6 +19,10 @@ def create_app():
     static_folder = os.path.join(parent_dir, 'static')
     app = Flask(__name__, static_folder=static_folder)
 
+    # Active le mode debug et la propagation des exceptions
+    app.config['DEBUG'] = True
+    app.config['PROPAGATE_EXCEPTIONS'] = True
+
     instance_path = os.path.join(os.path.dirname(__file__), 'instance')
     if not os.path.exists(instance_path):
         os.makedirs(instance_path)

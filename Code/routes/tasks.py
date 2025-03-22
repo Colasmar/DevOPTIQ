@@ -1,6 +1,6 @@
 # Code/routes/tasks.py
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, render_template
 from sqlalchemy import text
 from Code.extensions import db
 from Code.models.models import Task, Activities, Role, task_roles
@@ -77,12 +77,6 @@ def add_roles_to_task(task_id):
           "new_roles": ["Chef de projet", "Expert Contrôle"],
           "status": "Réalisateur"
         }
-
-    - "existing_role_ids": liste d'ID pour des rôles déjà existants
-    - "new_roles": liste de noms pour créer de nouveaux rôles si besoin
-    - "status": le statut commun (ex: "Réalisateur", "Approbateur", etc.)
-
-    Renvoie: { "task_id": 42, "added_roles": [ {id, name, status} ... ] }
     """
     data = request.get_json() or {}
     task = Task.query.get(task_id)
@@ -125,15 +119,12 @@ def add_roles_to_task(task_id):
             role_name = role_name.strip()
             if not role_name:
                 continue
-            # Chercher si un rôle du même nom existe déjà
             existing_role = Role.query.filter_by(name=role_name).first()
             if not existing_role:
-                # Créer le nouveau role
                 new_role = Role(name=role_name)
                 db.session.add(new_role)
                 db.session.flush()  # pour obtenir l'id
                 rid = new_role.id
-                # Associer
                 db.session.execute(
                     text("""INSERT INTO task_roles (task_id, role_id, status)
                             VALUES (:tid, :rid, :st)"""),
@@ -145,7 +136,6 @@ def add_roles_to_task(task_id):
                     "status": chosen_status
                 })
             else:
-                # Le rôle existe déjà
                 rid = existing_role.id
                 res = db.session.execute(
                     text("SELECT 1 FROM task_roles WHERE task_id=:tid AND role_id=:rid"),
@@ -176,7 +166,6 @@ def delete_role_from_task(task_id, role_id):
     """
     Supprime un rôle associé à la tâche dans la table d'association task_roles.
     Ex: DELETE /tasks/42/roles/7
-    Renvoie: { "message": "Role 7 removed from task 42" }
     """
     task = Task.query.get(task_id)
     if not task:
@@ -213,7 +202,6 @@ def get_roles_for_task(task_id):
     """
     Retourne la liste des rôles associés à la tâche <task_id>,
     avec le status de chacun.
-    Renvoie : { "task_id": 4, "roles": [ { "id": <int>, "name": <str>, "status": <str> }, ... ] }
     """
     task = Task.query.get(task_id)
     if not task:
@@ -242,3 +230,27 @@ def get_roles_for_task(task_id):
         "task_id": task_id,
         "roles": roles_list
     }), 200
+
+
+# -----------------------------------------------
+# NOUVELLE ROUTE : Rendu partiel des tâches
+# -----------------------------------------------
+@tasks_bp.route('/<int:activity_id>/render', methods=['GET'])
+def render_tasks(activity_id):
+    """
+    Retourne le bloc HTML (partial) des tâches de l'activité <activity_id>.
+    Ici, on trie la liste de tâches côté Python, 
+    pour éviter le filtre |sort dans le template.
+    """
+    activity = Activities.query.get(activity_id)
+    if not activity:
+        return "Activité introuvable.", 404
+
+    # On trie en Python (par "order")
+    sorted_tasks = sorted(activity.tasks, key=lambda t: t.order if t.order is not None else 0)
+
+    # On passe 'sorted_tasks' au template, 
+    # et on garde 'activity' pour avoir activity.id, etc.
+    return render_template('tasks_partial.html',
+                           activity=activity,
+                           tasks=sorted_tasks)

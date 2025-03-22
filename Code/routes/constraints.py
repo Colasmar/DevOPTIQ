@@ -1,6 +1,6 @@
 # Code/routes/constraints.py
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, render_template
 from Code.extensions import db
 from Code.models.models import Activities, Constraint
 
@@ -33,7 +33,6 @@ def add_constraint(activity_id):
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
-
 @constraints_bp.route('/<int:activity_id>/<int:constraint_id>', methods=['PUT'])
 def update_constraint(activity_id, constraint_id):
     """
@@ -60,7 +59,6 @@ def update_constraint(activity_id, constraint_id):
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
-
 @constraints_bp.route('/<int:activity_id>/<int:constraint_id>', methods=['DELETE'])
 def delete_constraint(activity_id, constraint_id):
     """
@@ -77,3 +75,13 @@ def delete_constraint(activity_id, constraint_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
+
+# -----------------------------
+# NOUVELLE ROUTE : Rendu partiel des contraintes
+# -----------------------------
+@constraints_bp.route('/<int:activity_id>/render', methods=['GET'])
+def render_constraints(activity_id):
+    activity = Activities.query.get(activity_id)
+    if not activity:
+        return jsonify({"error": "Activité non trouvée"}), 404
+    return render_template('constraints_partial.html', activity=activity)
