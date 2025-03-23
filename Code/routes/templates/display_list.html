@@ -35,7 +35,7 @@
       <div class="activity-details" id="details-{{ item.activity.id }}" style="display: none;">
         <p>{{ item.activity.description or "" }}</p>
 
-        <!-- Section Garant (un seul bouton "Garant") -->
+        <!-- Section Garant -->
         <div class="activity-garant" style="margin-bottom:10px;">
           <button onclick="openGarantModal({{ item.activity.id }})">Garant</button>
           <span id="activity-garant-{{ item.activity.id }}" style="margin-left:10px;">
@@ -48,6 +48,7 @@
         </div>
         <!-- Fin de la section Garant -->
 
+        <!-- Connexions entrantes / sortantes -->
         <div class="connections-container">
           <div class="incoming-connections">
             <h3>Connexions entrantes</h3>
@@ -100,9 +101,8 @@
                     <td>{{ conn.target_name }}</td>
                     <td>
                       {% if conn.performance %}
-                        <!-- Performance existante : conteneur + form caché -->
-                        <div id="perf-display-{{ conn.performance.id }}"
-                             data-dataid="{{ conn.data_id }}">
+                        <!-- Performance existante -->
+                        <div id="perf-display-{{ conn.performance.id }}" data-dataid="{{ conn.data_id }}">
                           <span id="perf-info-{{ conn.performance.id }}">
                             {{ conn.performance.name }}
                             {% if conn.performance.description %}
@@ -116,10 +116,9 @@
                             <i class="fa-solid fa-trash"></i>
                           </button>
                         </div>
-                        <!-- Formulaire d'édition en ligne, caché -->
+                        <!-- Formulaire d'édition caché -->
                         <div id="perf-edit-form-{{ conn.performance.id }}" style="display:none; margin-top:5px;">
-                          <input type="text" id="perf-edit-input-{{ conn.performance.id }}"
-                                 style="width:350px;" />
+                          <input type="text" id="perf-edit-input-{{ conn.performance.id }}" style="width:350px;" />
                           <button onclick="submitEditPerf('{{ conn.performance.id }}')">Enregistrer</button>
                           <button onclick="hideEditPerfForm('{{ conn.performance.id }}')">Annuler</button>
                         </div>
@@ -143,11 +142,12 @@
             {% endif %}
           </div>
         </div>
+        <!-- Fin des connexions -->
 
-        <!-- Inclusion du bloc "Contraintes et Exigences" -->
+        <!-- Contraintes et Exigences -->
         {% include "activity_constraints.html" %}
 
-        <!-- TÂCHES : on définit 'activity' et 'tasks' avant d'inclure tasks_partial.html -->
+        <!-- TÂCHES -->
         <div id="tasks-section-{{ item.activity.id }}">
           {% set activity = item.activity %}
           {% set tasks = item.tasks %}
@@ -163,44 +163,51 @@
     </div>
   {% endfor %}
 
-  <!-- Conteneur du spinner (masqué par défaut, géré par spinner.js) -->
-  <div id="spinnerOverlay"
-       style="display:none; position:fixed; top:0; left:0; right:0; bottom:0;
-              background:rgba(0,0,0,0.3); z-index:9999;">
+  <!-- Conteneur du spinner (masqué par défaut) -->
+  <div id="spinnerOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.3); z-index:9999;">
     <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);">
       <div class="loader"></div>
     </div>
   </div>
 
-  <!-- Inclusion du modal des compétences -->
+  <!-- Modal Compétences -->
   {% include "competency_modal.html" %}
-  <!-- Inclusion du modal Garant (indispensable pour le bouton "Garant") -->
+  <!-- Modal Garant -->
   {% include "roles_modal.html" %}
-  <!-- Inclusion du modal de traduction Softskills (pour le bouton "Traduire Softskills") -->
+  <!-- Modal Traduction Softskills -->
   {% include "translate_softskills_modal.html" %}
 
-  <!-- Scripts : L'ordre est important -->
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <!-- SortableJS pour le drag & drop -->
+  <!-- 1) Charger jQuery (local), AVANT tout code qui utilise $ -->
+  <script src="/static/js/jquery-3.6.0.min.js"></script>
+  
+  <!-- Vérif console -->
+  <script>
+    console.log("DEBUG jQuery =>", typeof $ !== 'undefined' ? "OK" : "NOT LOADED");
+  </script>
+
+  <!-- 2) Charger SortableJS (pour le drag/drop des tâches) -->
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
+  <!-- 3) Charger tous les autres scripts du projet, qui peuvent s'appuyer sur $ -->
   <script src="/static/js/spinner.js"></script>
   <script src="/static/js/tasks.js"></script>
   <script src="/static/js/tools.js"></script>
   <script src="/static/js/competencies.js"></script>
   <script src="/static/js/softskills.js"></script>
+  <script src="/static/js/propose_softskills.js"></script>
   <script src="/static/js/translate_softskills.js"></script>
   <script src="/static/js/main.js"></script>
   <script src="/static/js/roles.js"></script>
   <script src="/static/js/tasks_roles.js"></script>
   <script src="/static/js/constraints.js"></script>
 
-  <!-- Code inline pour la gestion des détails ET de la Performance -->
+  <!-- Gestion des détails et Performance inline -->
   <script>
-    /* ---------- AFFICHAGE/MASQUAGE DES DÉTAILS D'UNE ACTIVITÉ ---------- */
     function toggleDetails(detailsId, headerElem) {
       const detailsElem = document.getElementById(detailsId);
       const iconElem = headerElem.querySelector('.toggle-icon');
+      if (!detailsElem || !iconElem) return;
+
       if (detailsElem.style.display === "none" || detailsElem.style.display === "") {
         detailsElem.style.display = "block";
         iconElem.textContent = "▼";
@@ -210,157 +217,7 @@
       }
     }
 
-    /* ---------- AJOUT PERFORMANCE ---------- */
-    function showAddPerfForm(dataId) {
-      const formDiv = document.getElementById("perf-add-form-" + dataId);
-      if (formDiv) {
-        formDiv.style.display = "block";
-      }
-    }
-    function hideAddPerfForm(dataId) {
-      const formDiv = document.getElementById("perf-add-form-" + dataId);
-      if (formDiv) {
-        formDiv.style.display = "none";
-      }
-    }
-    function submitAddPerf(dataId) {
-      const inputElem = document.getElementById("perf-add-input-" + dataId);
-      if (!inputElem) return;
-      const perfName = inputElem.value.trim();
-      if (!perfName) {
-        alert("Veuillez saisir un nom de performance.");
-        return;
-      }
-      fetch("/performance/add", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data_id: parseInt(dataId), name: perfName })
-      })
-      .then(r => r.json())
-      .then(resp => {
-        if (resp.error) {
-          alert("Erreur : " + resp.error);
-        } else {
-          // Masquer le formulaire et vider le champ
-          hideAddPerfForm(dataId);
-          inputElem.value = "";
-  
-          // On remplace le bloc par l'affichage de la performance
-          const container = document.getElementById("perf-container-" + dataId);
-          if (!container) return;
-          container.innerHTML = `
-            <div id="perf-display-${resp.id}" data-dataid="${dataId}">
-              <span id="perf-info-${resp.id}">
-                ${resp.name}${resp.description ? ` - ${resp.description}` : ''}
-              </span>
-              <button onclick="showEditPerfForm('${resp.id}','${resp.name}')">
-                <i class="fa-solid fa-pencil"></i>
-              </button>
-              <button onclick="deletePerformance('${resp.id}')">
-                <i class="fa-solid fa-trash"></i>
-              </button>
-            </div>
-            <div id="perf-edit-form-${resp.id}" style="display:none; margin-top:5px;">
-              <input type="text" id="perf-edit-input-${resp.id}" style="width:350px;" />
-              <button onclick="submitEditPerf('${resp.id}')">Enregistrer</button>
-              <button onclick="hideEditPerfForm('${resp.id}')">Annuler</button>
-            </div>
-          `;
-        }
-      })
-      .catch(err => {
-        console.error("Erreur lors de l'ajout de la performance :", err);
-        alert("Une erreur est survenue lors de l'ajout.");
-      });
-    }
-
-    /* ---------- MODIFICATION PERFORMANCE ---------- */
-    function showEditPerfForm(perfId, currentName) {
-      const infoSpan = document.getElementById("perf-info-" + perfId);
-      if (infoSpan) infoSpan.style.display = "none";
-      const formDiv = document.getElementById("perf-edit-form-" + perfId);
-      if (formDiv) {
-        formDiv.style.display = "block";
-        const input = document.getElementById("perf-edit-input-" + perfId);
-        if (input) input.value = currentName;
-      }
-    }
-    function hideEditPerfForm(perfId) {
-      const formDiv = document.getElementById("perf-edit-form-" + perfId);
-      if (formDiv) {
-        formDiv.style.display = "none";
-      }
-      const infoSpan = document.getElementById("perf-info-" + perfId);
-      if (infoSpan) {
-        infoSpan.style.display = "inline";
-      }
-    }
-    function submitEditPerf(perfId) {
-      const input = document.getElementById("perf-edit-input-" + perfId);
-      if (!input) return;
-      const newName = input.value.trim();
-      if (!newName) {
-        alert("Veuillez saisir un nom de performance.");
-        return;
-      }
-      fetch(`/performance/${perfId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newName })
-      })
-      .then(r => r.json())
-      .then(resp => {
-        if (resp.error) {
-          alert("Erreur : " + resp.error);
-        } else {
-          const infoSpan = document.getElementById("perf-info-" + perfId);
-          if (infoSpan) {
-            infoSpan.textContent = resp.name;
-          }
-          hideEditPerfForm(perfId);
-        }
-      })
-      .catch(err => {
-        console.error("Erreur lors de la modification :", err);
-        alert("Une erreur est survenue lors de la modification.");
-      });
-    }
-
-    /* ---------- SUPPRESSION PERFORMANCE ---------- */
-    function deletePerformance(perfId) {
-      if (!confirm("Confirmez-vous la suppression de cette performance ?")) return;
-      fetch(`/performance/${perfId}`, { method: "DELETE" })
-      .then(r => r.json())
-      .then(resp => {
-        if (resp.error) {
-          alert("Erreur : " + resp.error);
-        } else {
-          // On récupère dataId avant de recréer le conteneur
-          const displayDiv = document.getElementById(`perf-display-${perfId}`);
-          if (!displayDiv) return;
-          const dataId = displayDiv.getAttribute("data-dataid");
-          // Recréer le conteneur de performance pour permettre l'ajout d'une nouvelle performance
-          displayDiv.parentNode.innerHTML = `
-            <div id="perf-container-${dataId}">
-              <button onclick="showAddPerfForm('${dataId}')">Performance</button>
-              <div id="perf-add-form-${dataId}" style="display:none; margin-top:5px;">
-                <input type="text" id="perf-add-input-${dataId}" style="width:350px;" />
-                <button onclick="submitAddPerf('${dataId}')">Enregistrer</button>
-                <button onclick="hideAddPerfForm('${dataId}')">Annuler</button>
-              </div>
-            </div>
-          `;
-        }
-      })
-      .catch(err => {
-        console.error("Erreur lors de la suppression :", err);
-        alert("Une erreur est survenue lors de la suppression.");
-      });
-    }
-
-    // -------------------------------------------------
     // Écouteur de clic pour "Mettre à jour la cartographie"
-    // -------------------------------------------------
     const updateBtn = document.getElementById('update-cartography-button');
     if (updateBtn) {
       updateBtn.addEventListener('click', function() {
@@ -373,7 +230,6 @@
               alert("Erreur : " + resp.error);
             } else {
               alert(resp.message + "\n" + (resp.summary || ""));
-              // Recharger la page pour actualiser l'affichage
               window.location.reload();
             }
           })

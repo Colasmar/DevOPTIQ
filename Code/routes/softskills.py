@@ -150,3 +150,4 @@ def delete_softskill(softskill_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
+

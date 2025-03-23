@@ -4,7 +4,7 @@
 
 <div id="softskills-list-{{ item.activity.id }}">
   {% for ss in item.activity.softskills %}
-    <!-- Affichage existant de chaque HSC -->
+    <!-- Affichage de chaque HSC -->
     <div class="softskill-item" style="margin-bottom:5px;"
          data-ss-id="{{ ss.id }}"
          data-habilete-lower="{{ ss.habilete|lower }}">
@@ -24,8 +24,11 @@
       <div class="edit-softskill-form" id="edit-softskill-form-{{ ss.id }}" style="display:none;">
         <label>Habileté :</label>
         <input type="text" id="edit-softskill-name-{{ ss.id }}" value="{{ ss.habilete }}" />
+        
         <label>Niveau (1..4) :</label>
-        <input type="number" min="1" max="4" id="edit-softskill-level-{{ ss.id }}" value="{{ ss.niveau }}" />
+        <!-- On utilise type="text" pour éviter les erreurs de parsing -->
+        <input type="text" id="edit-softskill-level-{{ ss.id }}" value="{{ ss.niveau }}" />
+        
         <button onclick="submitEditSoftskillFromDOM('{{ ss.id }}')">Enregistrer</button>
         <button onclick="hideEditSoftskillForm('{{ ss.id }}')">Annuler</button>
       </div>
@@ -43,7 +46,8 @@
   Traduire Softskills
 </button>
 
-<!-- Inclusions des scripts -->
-<script src="/static/js/softskills.js"></script>
-<script src="/static/js/propose_softskills.js"></script>
-<script src="/static/js/translate_softskills.js"></script>
+<!-- Inclusions des scripts ci-dessous (si besoin) 
+     => Dans ce projet, on inclut habituellement tout
+     => dans display_list.html, donc c'est possible
+     => que ces <script> soient déjà ailleurs.
+-->

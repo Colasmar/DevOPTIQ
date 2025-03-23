@@ -216,3 +216,4 @@ $(document).on('click', '.delete-softskill', function() {
     console.error(err);
   });
 });
+
