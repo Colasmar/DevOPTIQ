@@ -27,6 +27,7 @@
       <p>Aucune connexion entrante.</p>
     {% endif %}
   </div>
+
   <div class="outgoing-connections">
     <h3>Connexions sortantes</h3>
     {% if item.outgoing and item.outgoing|length > 0 %}
@@ -49,17 +50,23 @@
             </td>
             <td>{{ conn.target_name }}</td>
             <td>
-              {% if conn.performance %}
-                <span class="perf-info">{{ conn.performance.name }} - {{ conn.performance.description }}</span>
-                <button class="edit-perf-btn" onclick="editPerformance({{ conn.performance.id }})">
-                  <i class="fa-solid fa-pencil"></i>
-                </button>
-                <button class="delete-perf-btn" onclick="deletePerformance({{ conn.performance.id }}, {{ conn.target_id }})">
-                  <i class="fa-solid fa-trash"></i>
-                </button>
-              {% else %}
-                <button class="add-perf-btn" onclick="addPerformance({{ conn.target_id }})">Performance</button>
-              {% endif %}
+              <!-- On attribue un id = "perf-cell-<link_id>" et data-linkid = <link_id> -->
+              <div 
+                id="perf-cell-{{ conn.link_id }}"
+                class="perf-container"
+                data-linkid="{{ conn.link_id }}">
+                {% if conn.performance %}
+                  <span class="perf-info">{{ conn.performance.name }} - {{ conn.performance.description }}</span>
+                  <button class="edit-perf-btn" onclick="editPerformance({{ conn.performance.id }})">
+                    <i class="fa-solid fa-pencil"></i>
+                  </button>
+                  <button class="delete-perf-btn" onclick="deletePerformance({{ conn.performance.id }}, {{ conn.target_id }})">
+                    <i class="fa-solid fa-trash"></i>
+                  </button>
+                {% else %}
+                  <button class="add-perf-btn" onclick="addPerformance({{ conn.target_id }})">Performance</button>
+                {% endif %}
+              </div>
             </td>
           </tr>
         {% endfor %}

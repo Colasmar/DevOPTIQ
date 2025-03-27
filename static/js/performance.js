@@ -1,104 +1,169 @@
-// performance.js
+/*******************************************************
+ * Gère l'ajout, l'édition et la suppression d'une Performance
+ * associée à un Link (link_id).
+ ******************************************************/
 
-// ---------- AJOUT PERFORMANCE ----------
-function showAddPerfForm(dataId) {
-  const formDiv = document.getElementById("perf-add-form-" + dataId);
-  if (formDiv) formDiv.style.display = "block";
+/**
+ * Ouvre le formulaire d'ajout d'une Performance.
+ */
+function showAddPerfForm(linkId) {
+  const formId = `perf-add-form-${linkId}`;
+  const formDiv = document.getElementById(formId);
+  if (formDiv) {
+    formDiv.style.display = "block";
+  }
 }
-function hideAddPerfForm(dataId) {
-  const formDiv = document.getElementById("perf-add-form-" + dataId);
+function hideAddPerfForm(linkId) {
+  const formId = `perf-add-form-${linkId}`;
+  const formDiv = document.getElementById(formId);
   if (formDiv) formDiv.style.display = "none";
 }
-function submitAddPerf(dataId) {
-  const inputElem = document.getElementById("perf-add-input-" + dataId);
-  if (!inputElem) return;
-  const perfName = inputElem.value.trim();
-  if (!perfName) {
-    alert("Veuillez saisir un nom de performance.");
+
+/**
+ * Valide le formulaire d'ajout et appelle /performance/add (POST).
+ */
+function submitAddPerf(linkId) {
+  const inputElem = document.getElementById(`perf-add-input-${linkId}`);
+  if (!inputElem) {
+    alert("Champ Performance introuvable.");
     return;
   }
+  const name = inputElem.value.trim();
+  if (!name) {
+    alert("Veuillez saisir un nom de Performance.");
+    return;
+  }
+  // ICI vous pouvez gérer la description si besoin
+  const description = "";
+
   fetch("/performance/add", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ data_id: parseInt(dataId), name: perfName })
+    body: JSON.stringify({ link_id: linkId, name: name, description: description })
   })
-  .then(r => r.json())
-  .then(resp => {
-    if (resp.error) {
-      alert("Erreur : " + resp.error);
+  .then(resp => resp.json())
+  .then(data => {
+    if (data.error) {
+      alert("Erreur création performance: " + data.error);
     } else {
-      window.location.reload(); // simple rechargement
+      hideAddPerfForm(linkId);
+      refreshPerformanceDOM(linkId);
     }
   })
   .catch(err => {
-    console.error("Erreur lors de l'ajout de la performance :", err);
-    alert("Une erreur est survenue lors de l'ajout.");
+    console.error("Erreur POST /performance/add:", err);
+    alert("Impossible de créer la performance (voir console).");
   });
 }
 
-// ---------- ÉDITION PERFORMANCE ----------
-function showEditPerfForm(perfId, currentName) {
-  const infoSpan = document.getElementById("perf-info-" + perfId);
-  if (infoSpan) infoSpan.style.display = "none";
-  const formDiv = document.getElementById("perf-edit-form-" + perfId);
+/**
+ * Recharge le fragment HTML /performance/render/<linkId>
+ * et remplace le contenu de #perf-cell-<linkId>.
+ */
+function refreshPerformanceDOM(linkId) {
+  fetch(`/performance/render/${linkId}`)
+    .then(r => {
+      if (!r.ok) throw new Error("Performance partial not found");
+      return r.text();
+    })
+    .then(html => {
+      const container = document.getElementById(`perf-cell-${linkId}`);
+      if (container) container.innerHTML = html;
+    })
+    .catch(err => {
+      console.error(`Erreur chargement /performance/render/${linkId}:`, err);
+    });
+}
+
+/**
+ * Ouvre le formulaire d'édition d'une Performance existante.
+ */
+function showEditPerfForm(perfId, perfName) {
+  const formDiv = document.getElementById(`perf-edit-form-${perfId}`);
   if (formDiv) {
     formDiv.style.display = "block";
-    const input = document.getElementById("perf-edit-input-" + perfId);
-    if (input) input.value = currentName;
+    // On pré-remplit
+    const inputElem = document.getElementById(`perf-edit-input-${perfId}`);
+    if (inputElem) {
+      inputElem.value = perfName || "";
+    }
   }
 }
 function hideEditPerfForm(perfId) {
-  const formDiv = document.getElementById("perf-edit-form-" + perfId);
+  const formDiv = document.getElementById(`perf-edit-form-${perfId}`);
   if (formDiv) formDiv.style.display = "none";
-  const infoSpan = document.getElementById("perf-info-" + perfId);
-  if (infoSpan) infoSpan.style.display = "inline";
 }
+
+/**
+ * Valide l'édition et appelle PUT /performance/<perfId>.
+ */
 function submitEditPerf(perfId) {
-  const input = document.getElementById("perf-edit-input-" + perfId);
-  if (!input) return;
-  const newName = input.value.trim();
+  const inputElem = document.getElementById(`perf-edit-input-${perfId}`);
+  if (!inputElem) return;
+  const newName = inputElem.value.trim();
   if (!newName) {
-    alert("Veuillez saisir un nom de performance.");
+    alert("Veuillez saisir un nom de Performance.");
     return;
   }
+  // Pas de description pour l'instant
+  const newDesc = "";
+
+  // On a besoin du linkId pour rafraîchir ensuite
+  const displayDiv = document.getElementById(`perf-display-${perfId}`);
+  if (!displayDiv) {
+    alert("Impossible de localiser la performance dans le DOM.");
+    return;
+  }
+  const perfContainer = displayDiv.closest(".perf-container");
+  const linkId = perfContainer ? perfContainer.getAttribute("data-linkid") : null;
+
   fetch(`/performance/${perfId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: newName })
+    body: JSON.stringify({ name: newName, description: newDesc })
   })
-  .then(r => r.json())
-  .then(resp => {
-    if (resp.error) {
-      alert("Erreur : " + resp.error);
+  .then(resp => resp.json())
+  .then(data => {
+    if (data.error) {
+      alert("Erreur mise à jour performance: " + data.error);
     } else {
-      const infoSpan = document.getElementById("perf-info-" + perfId);
-      if (infoSpan) {
-        infoSpan.textContent = resp.name
-          + (resp.description ? ` - ${resp.description}` : "");
-      }
       hideEditPerfForm(perfId);
+      if (linkId) refreshPerformanceDOM(linkId);
     }
   })
   .catch(err => {
-    console.error("Erreur lors de la modification :", err);
-    alert("Une erreur est survenue lors de la modification.");
+    console.error("Erreur PUT /performance/<id>:", err);
+    alert("Impossible de modifier la performance (voir console).");
   });
 }
 
-// ---------- SUPPRESSION PERFORMANCE ----------
+/**
+ * Supprime la Performance (DELETE /performance/<perfId>),
+ * puis rafraîchit la zone correspondante.
+ */
 function deletePerformance(perfId) {
   if (!confirm("Confirmez-vous la suppression de cette performance ?")) return;
+
+  // Récup linkId
+  const displayDiv = document.getElementById(`perf-display-${perfId}`);
+  if (!displayDiv) {
+    alert("Impossible de localiser la performance dans le DOM.");
+    return;
+  }
+  const perfContainer = displayDiv.closest(".perf-container");
+  const linkId = perfContainer ? perfContainer.getAttribute("data-linkid") : null;
+
   fetch(`/performance/${perfId}`, { method: "DELETE" })
-  .then(r => r.json())
-  .then(resp => {
-    if (resp.error) {
-      alert("Erreur : " + resp.error);
-    } else {
-      window.location.reload();
-    }
-  })
-  .catch(err => {
-    console.error("Erreur lors de la suppression de la performance :", err);
-    alert("Une erreur est survenue lors de la suppression.");
-  });
+    .then(resp => resp.json())
+    .then(data => {
+      if (data.error) {
+        alert("Erreur suppression performance: " + data.error);
+      } else {
+        if (linkId) refreshPerformanceDOM(linkId);
+      }
+    })
+    .catch(err => {
+      console.error("Erreur DELETE /performance/<id>:", err);
+      alert("Impossible de supprimer la performance (voir console).");
+    });
 }

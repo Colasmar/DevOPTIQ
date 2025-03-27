@@ -217,26 +217,24 @@ def get_activity_details(activity_id):
     competencies = [{"id": comp.id, "description": comp.description} for comp in activity.competencies]
     softskills = [{"id": ss.id, "habilete": ss.habilete, "niveau": ss.niveau} for ss in activity.softskills]
 
-    outgoing_links = Link.query.filter(
-        (Link.source_activity_id == activity.id) | (Link.source_data_id == activity.id)
-    ).all()
+    outgoing_links = Link.query.filter_by(source_activity_id=activity.id, type='output').all()
     outgoing_list = []
     for link in outgoing_links:
-        data_name = resolve_data_name_for_outgoing(link)
-        target_name = resolve_activity_name(link.target_id)
-        data_obj = Data.query.get(link.target_id)
-        perf_obj = None
-        if data_obj and data_obj.performance:
-            perf_obj = {
-                'id': data_obj.performance.id,
-                'name': data_obj.performance.name,
-                'description': data_obj.performance.description
-            }
+        data_obj = Data.query.get(link.target_id) if link.target_id else None
+        perf_obj = {
+            'id': data_obj.performance.id,
+            'name': data_obj.performance.name,
+            'description': data_obj.performance.description
+        } if data_obj and data_obj.performance else None
+
         outgoing_list.append({
             'type': link.type,
-            'data_name': data_name,
-            'target_name': target_name,
-            'performance': perf_obj
+            'data_name': resolve_data_name_for_outgoing(link),
+            'target_name': resolve_activity_name(link.target_activity_id),
+            'data_id': data_obj.id if data_obj else None,
+            'performance': perf_obj,
+            # On met maintenant le vrai identifiant du lien
+            'link_id': link.id
         })
 
     activity_data = {
@@ -275,65 +273,51 @@ def view_activities():
     try:
         activities = Activities.query.filter_by(is_result=False).all()
         activity_data = []
+
         for activity in activities:
             incoming_links = Link.query.filter(
                 (Link.target_activity_id == activity.id) | (Link.target_data_id == activity.id)
             ).all()
-            incoming_list = []
-            for link in incoming_links:
-                data_name = resolve_data_name_for_incoming(link)
-                source_name = resolve_activity_name(link.source_id)
-                incoming_list.append({
-                    'type': link.type,
-                    'data_name': data_name,
-                    'source_name': source_name
-                })
+            incoming_list = [{
+                'type': link.type,
+                'data_name': resolve_data_name_for_incoming(link),
+                'source_name': resolve_activity_name(link.source_id)
+            } for link in incoming_links]
 
             outgoing_links = Link.query.filter(
                 (Link.source_activity_id == activity.id) | (Link.source_data_id == activity.id)
             ).all()
             outgoing_list = []
             for link in outgoing_links:
-                data_name = resolve_data_name_for_outgoing(link)
-                target_name = resolve_activity_name(link.target_id)
-                data_obj = Data.query.get(link.target_id)
-                perf_obj = None
-                if data_obj and data_obj.performance:
-                    perf_obj = {
-                        'id': data_obj.performance.id,
-                        'name': data_obj.performance.name,
-                        'description': data_obj.performance.description
-                    }
+                data_obj = Data.query.get(link.target_id) if link.target_id else None
+                perf_obj = {
+                    'id': data_obj.performance.id,
+                    'name': data_obj.performance.name,
+                    'description': data_obj.performance.description
+                } if data_obj and data_obj.performance else None
+
                 outgoing_list.append({
                     'type': link.type,
-                    'data_name': data_name,
-                    'target_name': target_name,
+                    'data_name': resolve_data_name_for_outgoing(link),
+                    'target_name': resolve_activity_name(link.target_activity_id),
                     'data_id': data_obj.id if data_obj else None,
-                    'performance': perf_obj
+                    'performance': perf_obj,
+                    # On utilise maintenant le vrai link.id
+                    'link_id': link.id
                 })
 
-            tasks = sorted(activity.tasks, key=lambda x: x.order if x.order is not None else 0)
-            tasks_list = []
-            for t in tasks:
-                tasks_list.append({
-                    'id': t.id,
-                    'name': t.name,
-                    'description': t.description,
-                    'order': t.order,
-                    'tools': [
-                        {'id': tool.id, 'name': tool.name, 'description': tool.description}
-                        for tool in t.tools
-                    ]
-                })
+            tasks_sorted = sorted(activity.tasks, key=lambda x: x.order if x.order is not None else 0)
+            tasks_list = [{
+                'id': t.id,
+                'name': t.name,
+                'description': t.description,
+                'order': t.order,
+                'tools': [{'id': tool.id, 'name': tool.name, 'description': tool.description} for tool in t.tools]
+            } for t in tasks_sorted]
 
             garant = get_garant_role(activity.id)
 
-            constraints_list = []
-            for c in activity.constraints:
-                constraints_list.append({
-                    "id": c.id,
-                    "description": c.description
-                })
+            constraints_list = [{"id": c.id, "description": c.description} for c in activity.constraints]
 
             activity_data.append({
                 'activity': activity,
