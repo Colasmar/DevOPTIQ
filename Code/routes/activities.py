@@ -222,10 +222,10 @@ def get_activity_details(activity_id):
     for link in outgoing_links:
         data_obj = Data.query.get(link.target_id) if link.target_id else None
         perf_obj = {
-            'id': data_obj.performance.id,
-            'name': data_obj.performance.name,
-            'description': data_obj.performance.description
-        } if data_obj and data_obj.performance else None
+            'id': link.performance.id,
+            'name': link.performance.name,
+            'description': link.performance.description
+        } if link.performance else None
 
         outgoing_list.append({
             'type': link.type,
@@ -233,7 +233,6 @@ def get_activity_details(activity_id):
             'target_name': resolve_activity_name(link.target_activity_id),
             'data_id': data_obj.id if data_obj else None,
             'performance': perf_obj,
-            # On met maintenant le vrai identifiant du lien
             'link_id': link.id
         })
 
@@ -268,6 +267,19 @@ def update_cartography():
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
+
+# ---------------------------
+# NOUVELLE FONCTION : parse_order
+# pour éviter ValueError si la valeur est vide ou non numérique
+# ---------------------------
+def parse_order(value):
+    if not value:
+        return 0
+    try:
+        return int(value)
+    except ValueError:
+        return 0
+
 @activities_bp.route('/view', methods=['GET'])
 def view_activities():
     try:
@@ -291,10 +303,10 @@ def view_activities():
             for link in outgoing_links:
                 data_obj = Data.query.get(link.target_id) if link.target_id else None
                 perf_obj = {
-                    'id': data_obj.performance.id,
-                    'name': data_obj.performance.name,
-                    'description': data_obj.performance.description
-                } if data_obj and data_obj.performance else None
+                    'id': link.performance.id,
+                    'name': link.performance.name,
+                    'description': link.performance.description
+                } if link.performance else None
 
                 outgoing_list.append({
                     'type': link.type,
@@ -302,11 +314,15 @@ def view_activities():
                     'target_name': resolve_activity_name(link.target_activity_id),
                     'data_id': data_obj.id if data_obj else None,
                     'performance': perf_obj,
-                    # On utilise maintenant le vrai link.id
                     'link_id': link.id
                 })
 
-            tasks_sorted = sorted(activity.tasks, key=lambda x: x.order if x.order is not None else 0)
+            # On utilise parse_order(x.order) au lieu de int(x.order)
+            tasks_sorted = sorted(
+                activity.tasks,
+                key=lambda x: parse_order(x.order)
+            )
+
             tasks_list = [{
                 'id': t.id,
                 'name': t.name,

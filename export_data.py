@@ -1,32 +1,41 @@
 import os
 import csv
+from flask import Flask
 from Code.extensions import db
 from Code.models.models import (
     Activities, Role, Task, Data, Tool, Competency, Softskill,
     Link, Performance, Constraint, Savoir, SavoirFaire, Aptitude
 )
-from flask import Flask
 
+# ➤ Création de l'application Flask
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instance/optiq.db'
+
+# ➤ Chemin absolu vers optiq.db pour éviter toute confusion
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+DB_PATH = os.path.join(BASE_DIR, 'Code', 'instance', 'optiq.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{DB_PATH}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# ➤ Initialisation de SQLAlchemy
 db.init_app(app)
 
-backup_folder = 'backup'
+# ➤ Création du dossier de sauvegarde
+backup_folder = os.path.join(BASE_DIR, 'backup')
 os.makedirs(backup_folder, exist_ok=True)
 
-with app.app_context():
-    def export_to_csv(model, filename):
-        filepath = os.path.join(backup_folder, filename)
-        with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
-            writer = csv.writer(csvfile)
-            columns = [column.name for column in model.__table__.columns]
-            writer.writerow(columns)
-            for obj in model.query.all():
-                writer.writerow([getattr(obj, col) for col in columns])
-        print(f"✅ Exported {filename}")
+# ➤ Fonction d'export CSV
+def export_to_csv(model, filename):
+    filepath = os.path.join(backup_folder, filename)
+    with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
+        writer = csv.writer(csvfile)
+        columns = [column.name for column in model.__table__.columns]
+        writer.writerow(columns)
+        for obj in model.query.all():
+            writer.writerow([getattr(obj, col) for col in columns])
+    print(f"✅ Exported {filename}")
 
+# ➤ Contexte Flask requis pour accéder à la base
+with app.app_context():
     export_to_csv(Role, 'roles.csv')
     export_to_csv(Activities, 'activities.csv')
     export_to_csv(Task, 'tasks.csv')
