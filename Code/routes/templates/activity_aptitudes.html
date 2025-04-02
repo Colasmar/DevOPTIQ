@@ -1,0 +1,43 @@
+<!-- Code/routes/templates/activity_aptitudes.html -->
+
+<div class="aptitudes-section">
+    <h3>Aptitudes</h3>
+  
+    <div id="aptitudes-container-{{ activity.id }}">
+      {% if activity.aptitudes and activity.aptitudes|length > 0 %}
+        <ul>
+          {% for ap in activity.aptitudes %}
+            <li id="aptitude-{{ ap.id }}">
+              <span class="aptitude-text">{{ ap.description }}</span>
+              <button
+                class="edit-aptitude-btn"
+                data-aptitude='{{ {"id": ap.id, "description": ap.description}|tojson|safe }}'
+                onclick="showEditAptitudeForm(this)"
+              >
+                <i class="fa-solid fa-pencil"></i>
+              </button>
+              <button onclick="deleteAptitude('{{ activity.id }}','{{ ap.id }}')">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+  
+              <!-- Formulaire d'édition caché -->
+              <div id="edit-aptitude-form-{{ ap.id }}" style="display:none; margin-top:5px;">
+                <input type="text" id="edit-aptitude-input-{{ ap.id }}" />
+                <button onclick="submitEditAptitude('{{ activity.id }}','{{ ap.id }}')">Enregistrer</button>
+                <button onclick="hideEditAptitudeForm('{{ ap.id }}')">Annuler</button>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p>Aucune Aptitude enregistrée.</p>
+      {% endif %}
+    </div>
+  
+    <button onclick="showAddAptitudeForm('{{ activity.id }}')">+ Ajouter une Aptitude</button>
+    <div id="add-aptitude-form-{{ activity.id }}" style="display:none; margin-top:5px;">
+      <input type="text" id="add-aptitude-input-{{ activity.id }}" />
+      <button onclick="submitAddAptitude('{{ activity.id }}')">Enregistrer</button>
+      <button onclick="hideAddAptitudeForm('{{ activity.id }}')">Annuler</button>
+    </div>
+</div>

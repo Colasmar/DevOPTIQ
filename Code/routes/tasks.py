@@ -39,26 +39,10 @@ def add_task():
     }), 201
 
 
-@tasks_bp.route('/<int:activity_id>/tasks/reorder', methods=['POST'])
-def reorder_tasks(activity_id):
-    """
-    Réordonne les tâches d'une activité selon la liste [task_id1, task_id2, ...].
-    JSON attendu : { "order": [12, 13, 15] }
-    """
-    data = request.get_json()
-    new_order = data.get('order')
-    if not new_order:
-        return jsonify({"error": "order list is required"}), 400
-    try:
-        for idx, t_id in enumerate(new_order):
-            task = Task.query.filter_by(id=t_id, activity_id=activity_id).first()
-            if task:
-                task.order = idx
-        db.session.commit()
-        return jsonify({"message": "Order updated"}), 200
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+#
+# -------------------------------------------------------
+# Ici, on n’a plus la route de reorder => c’est dans activities.py
+# -------------------------------------------------------
 
 
 #
@@ -66,7 +50,6 @@ def reorder_tasks(activity_id):
 # NOUVELLES ROUTES POUR ASSOCIER DES RÔLES À LA TÂCHE
 # -------------------------------------------------------
 #
-
 @tasks_bp.route('/<int:task_id>/roles/add', methods=['POST'])
 def add_roles_to_task(task_id):
     """
@@ -102,7 +85,6 @@ def add_roles_to_task(task_id):
                     {"tid": task_id, "rid": rid}
                 ).fetchone()
                 if not res:
-                    # Insérer
                     db.session.execute(
                         text("""INSERT INTO task_roles (task_id, role_id, status)
                                 VALUES (:tid, :rid, :st)"""),
@@ -196,7 +178,6 @@ def delete_role_from_task(task_id, role_id):
 # ROUTE POUR LISTER LES RÔLES D'UNE TÂCHE
 # -----------------------------------------------
 #
-
 @tasks_bp.route('/<int:task_id>/roles', methods=['GET'])
 def get_roles_for_task(task_id):
     """
@@ -233,14 +214,13 @@ def get_roles_for_task(task_id):
 
 
 # -----------------------------------------------
-# NOUVELLE ROUTE : Rendu partiel des tâches
+# Rendu partiel des tâches => tasks_partial.html
 # -----------------------------------------------
 @tasks_bp.route('/<int:activity_id>/render', methods=['GET'])
 def render_tasks(activity_id):
     """
     Retourne le bloc HTML (partial) des tâches de l'activité <activity_id>.
-    Ici, on trie la liste de tâches côté Python, 
-    pour éviter le filtre |sort dans le template.
+    Trié par le champ "order".
     """
     activity = Activities.query.get(activity_id)
     if not activity:
@@ -249,8 +229,6 @@ def render_tasks(activity_id):
     # On trie en Python (par "order")
     sorted_tasks = sorted(activity.tasks, key=lambda t: t.order if t.order is not None else 0)
 
-    # On passe 'sorted_tasks' au template, 
-    # et on garde 'activity' pour avoir activity.id, etc.
     return render_template('tasks_partial.html',
                            activity=activity,
                            tasks=sorted_tasks)

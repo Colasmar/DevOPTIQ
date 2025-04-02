@@ -1,0 +1,43 @@
+<!-- Code/routes/templates/activity_savoir_faires.html -->
+
+<div class="savoir-faires-section">
+    <h3>Savoir-Faire</h3>
+  
+    <div id="savoir-faires-container-{{ activity.id }}">
+      {% if activity.savoir_faires and activity.savoir_faires|length > 0 %}
+        <ul>
+          {% for sf in activity.savoir_faires %}
+            <li id="sf-{{ sf.id }}">
+              <span class="sf-text">{{ sf.description }}</span>
+              <button
+                class="edit-sf-btn"
+                data-sf='{{ {"id": sf.id, "description": sf.description}|tojson|safe }}'
+                onclick="showEditSavoirFaireForm(this)"
+              >
+                <i class="fa-solid fa-pencil"></i>
+              </button>
+              <button onclick="deleteSavoirFaire('{{ activity.id }}','{{ sf.id }}')">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+  
+              <!-- Formulaire d'édition caché -->
+              <div id="edit-sf-form-{{ sf.id }}" style="display:none; margin-top:5px;">
+                <input type="text" id="edit-sf-input-{{ sf.id }}" />
+                <button onclick="submitEditSavoirFaire('{{ activity.id }}','{{ sf.id }}')">Enregistrer</button>
+                <button onclick="hideEditSavoirFaireForm('{{ sf.id }}')">Annuler</button>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p>Aucun Savoir-Faire enregistré.</p>
+      {% endif %}
+    </div>
+  
+    <button onclick="showAddSavoirFaireForm('{{ activity.id }}')">+ Ajouter un Savoir-Faire</button>
+    <div id="add-sf-form-{{ activity.id }}" style="display:none; margin-top:5px;">
+      <input type="text" id="add-sf-input-{{ activity.id }}" />
+      <button onclick="submitAddSavoirFaire('{{ activity.id }}')">Enregistrer</button>
+      <button onclick="hideAddSavoirFaireForm('{{ activity.id }}')">Annuler</button>
+    </div>
+</div>

@@ -1,10 +1,8 @@
 <!-- activity_softskills.html -->
-
-<h3>Habiletés socio-cognitives</h3>
+<h3>Habiletés socio-cognitives (HSC)</h3>
 
 <div id="softskills-list-{{ item.activity.id }}">
   {% for ss in item.activity.softskills %}
-    <!-- Affichage de chaque HSC -->
     <div class="softskill-item" style="margin-bottom:5px;"
          data-ss-id="{{ ss.id }}"
          data-habilete-lower="{{ ss.habilete|lower }}">
@@ -16,19 +14,16 @@
           {{ ss.justification }}
         </div>
       {% endif %}
-      <!-- Boutons d'édition/suppression -->
+      <!-- Icônes Edit/Suppr -->
       <i class="fas fa-pencil-alt edit-softskill" title="Modifier"></i>
       <i class="fas fa-trash delete-softskill" title="Supprimer"></i>
 
-      <!-- Formulaire d'édition caché -->
+      <!-- Formulaire d'édition (caché) -->
       <div class="edit-softskill-form" id="edit-softskill-form-{{ ss.id }}" style="display:none;">
         <label>Habileté :</label>
         <input type="text" id="edit-softskill-name-{{ ss.id }}" value="{{ ss.habilete }}" />
-        
         <label>Niveau (1..4) :</label>
-        <!-- On utilise type="text" pour éviter les erreurs de parsing -->
         <input type="text" id="edit-softskill-level-{{ ss.id }}" value="{{ ss.niveau }}" />
-        
         <button onclick="submitEditSoftskillFromDOM('{{ ss.id }}')">Enregistrer</button>
         <button onclick="hideEditSoftskillForm('{{ ss.id }}')">Annuler</button>
       </div>
@@ -36,18 +31,10 @@
   {% endfor %}
 </div>
 
-<!-- Bouton "Proposer HSC" -->
+<!-- Boutons pour proposer/traduire -->
 <button onclick="fetchActivityDetailsForPropose({{ item.activity.id }})">
   Proposer HSC
 </button>
-
-<!-- Bouton "Traduire Softskills" -->
 <button onclick="openTranslateSoftskillsModal({{ item.activity.id }})">
   Traduire Softskills
 </button>
-
-<!-- Inclusions des scripts ci-dessous (si besoin) 
-     => Dans ce projet, on inclut habituellement tout
-     => dans display_list.html, donc c'est possible
-     => que ces <script> soient déjà ailleurs.
--->

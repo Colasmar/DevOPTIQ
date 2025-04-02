@@ -5,8 +5,7 @@ import traceback
 from flask import Blueprint, jsonify, request, render_template
 from sqlalchemy import text
 from Code.extensions import db
-from Code.models.models import Activities, Data, Link, Task, Tool, Competency, Softskill, Constraint
-# Importez la fonction print_summary et process_visio_file depuis extract_visio.py
+from Code.models.models import Activities, Data, Link, Task, Tool, Competency, Softskill, Constraint, Savoir, SavoirFaire, Aptitude
 from Code.scripts.extract_visio import process_visio_file, print_summary
 
 activities_bp = Blueprint('activities', __name__, url_prefix='/activities', template_folder='templates')
@@ -68,9 +67,9 @@ def get_garant_role(activity_id):
 @activities_bp.route('/', methods=['GET'])
 def get_activities():
     try:
-        activities = Activities.query.all()
+        all_acts = Activities.query.all()
         data = []
-        for a in activities:
+        for a in all_acts:
             data.append({
                 "id": a.id,
                 "name": a.name,
@@ -182,6 +181,10 @@ def delete_tool_from_task(task_id, tool_id):
 
 @activities_bp.route('/<int:activity_id>/tasks/reorder', methods=['POST'])
 def reorder_tasks(activity_id):
+    """
+    Réordonne les tâches via Drag&Drop.
+    JSON: { "order": [12, 13, 15] }
+    """
     data = request.get_json()
     new_order = data.get('order')
     if not new_order:
@@ -197,58 +200,6 @@ def reorder_tasks(activity_id):
         db.session.rollback()
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
-
-@activities_bp.route('/<int:activity_id>/details', methods=['GET'])
-def get_activity_details(activity_id):
-    activity = Activities.query.get(activity_id)
-    if not activity:
-        return jsonify({"error": "Activité non trouvée"}), 404
-
-    tasks_list = []
-    tools_list = []
-    for t in activity.tasks:
-        tasks_list.append(t.name or "")
-        for tool in t.tools:
-            if tool.name not in tools_list:
-                tools_list.append(tool.name)
-
-    input_data_value = getattr(activity, "input_data", "Aucune donnée d'entrée")
-    output_data_value = getattr(activity, "output_data", "Aucune donnée de sortie")
-    competencies = [{"id": comp.id, "description": comp.description} for comp in activity.competencies]
-    softskills = [{"id": ss.id, "habilete": ss.habilete, "niveau": ss.niveau} for ss in activity.softskills]
-
-    outgoing_links = Link.query.filter_by(source_activity_id=activity.id, type='output').all()
-    outgoing_list = []
-    for link in outgoing_links:
-        data_obj = Data.query.get(link.target_id) if link.target_id else None
-        perf_obj = {
-            'id': link.performance.id,
-            'name': link.performance.name,
-            'description': link.performance.description
-        } if link.performance else None
-
-        outgoing_list.append({
-            'type': link.type,
-            'data_name': resolve_data_name_for_outgoing(link),
-            'target_name': resolve_activity_name(link.target_activity_id),
-            'data_id': data_obj.id if data_obj else None,
-            'performance': perf_obj,
-            'link_id': link.id
-        })
-
-    activity_data = {
-        "id": activity.id,
-        "name": activity.name,
-        "description": activity.description or "",
-        "input_data": input_data_value,
-        "output_data": output_data_value,
-        "tasks": tasks_list,
-        "tools": tools_list,
-        "competencies": competencies,
-        "softskills": softskills,
-        "outgoing": outgoing_list
-    }
-    return jsonify(activity_data), 200
 
 @activities_bp.route('/update-cartography', methods=['GET'])
 def update_cartography():
@@ -266,19 +217,6 @@ def update_cartography():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
-
-
-# ---------------------------
-# NOUVELLE FONCTION : parse_order
-# pour éviter ValueError si la valeur est vide ou non numérique
-# ---------------------------
-def parse_order(value):
-    if not value:
-        return 0
-    try:
-        return int(value)
-    except ValueError:
-        return 0
 
 @activities_bp.route('/view', methods=['GET'])
 def view_activities():
@@ -317,23 +255,28 @@ def view_activities():
                     'link_id': link.id
                 })
 
-            # On utilise parse_order(x.order) au lieu de int(x.order)
             tasks_sorted = sorted(
                 activity.tasks,
-                key=lambda x: parse_order(x.order)
+                key=lambda x: int(x.order) if (x.order is not None and str(x.order).strip() != "") else 0
             )
-
             tasks_list = [{
                 'id': t.id,
                 'name': t.name,
                 'description': t.description,
                 'order': t.order,
-                'tools': [{'id': tool.id, 'name': tool.name, 'description': tool.description} for tool in t.tools]
+                'tools': [
+                    {'id': tool.id, 'name': tool.name, 'description': tool.description}
+                    for tool in t.tools
+                ]
             } for t in tasks_sorted]
 
             garant = get_garant_role(activity.id)
-
             constraints_list = [{"id": c.id, "description": c.description} for c in activity.constraints]
+
+            # On récupère la liste des savoirs, savoir-faires, aptitudes
+            savoirs_list = [{"id": sv.id, "description": sv.description} for sv in activity.savoirs]
+            sf_list = [{"id": sf.id, "description": sf.description} for sf in activity.savoir_faires]
+            apt_list = [{"id": ap.id, "description": ap.description} for ap in activity.aptitudes]
 
             activity_data.append({
                 'activity': activity,
@@ -341,10 +284,69 @@ def view_activities():
                 'outgoing': outgoing_list,
                 'tasks': tasks_list,
                 'garant': garant,
-                'constraints': constraints_list
+                'constraints': constraints_list,
+                'savoirs': savoirs_list,
+                'savoir_faires': sf_list,
+                'aptitudes': apt_list
             })
 
         return render_template('display_list.html', activity_data=activity_data)
     except Exception as e:
         traceback.print_exc()
         return f"Erreur lors de l'affichage des activités: {e}", 500
+
+@activities_bp.route('/<int:activity_id>/details', methods=['GET'])
+def get_activity_details(activity_id):
+    """
+    Retourne un JSON avec toutes les infos (tasks, constraints, etc.)
+    pour l'IA "Proposer Compétences" ou "Proposer Softskills".
+    """
+    activity = Activities.query.get(activity_id)
+    if not activity:
+        return jsonify({"error": "Activité non trouvée"}), 404
+
+    # Tâches => simple liste de noms
+    tasks_list = [t.name or "" for t in activity.tasks]
+
+    # Outils => cumulés
+    tools_list = []
+    for t in activity.tasks:
+        for tool in t.tools:
+            if tool.name not in tools_list:
+                tools_list.append(tool.name)
+
+    # Contraintes
+    constraints_list = [{"description": c.description} for c in activity.constraints]
+
+    # Compétences existantes
+    competencies_list = [{"description": comp.description} for comp in activity.competencies]
+
+    # Performances "outgoing"
+    outgoing_data = []
+    all_links = Link.query.filter_by(source_activity_id=activity.id).all()
+    for link in all_links:
+        perf = None
+        if link.performance:
+            perf = {
+                "name": link.performance.name,
+                "description": link.performance.description
+            }
+        outgoing_data.append({"performance": perf})
+
+    # On peut rajouter "input_data"/"output_data" si besoin
+    input_data_value = "Aucune donnée d'entrée"
+    output_data_value = "Aucune donnée de sortie"
+
+    # Regrouper
+    activity_data = {
+        "id": activity.id,
+        "name": activity.name,
+        "input_data": input_data_value,
+        "output_data": output_data_value,
+        "tasks": tasks_list,
+        "tools": tools_list,
+        "constraints": constraints_list,
+        "competencies": competencies_list,
+        "outgoing": outgoing_data
+    }
+    return jsonify(activity_data), 200

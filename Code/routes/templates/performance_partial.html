@@ -1,4 +1,4 @@
-{# performance_partial.html corrigé #}
+{# performance_partial.html #}
 <div id="perf-cell-{{ link_id }}" class="perf-container" data-linkid="{{ link_id }}">
 
   {% if performance %}
@@ -9,7 +9,7 @@
           - {{ performance.description }}
         {% endif %}
       </span>
-      <button onclick="showEditPerfForm('{{ performance.id }}','{{ performance.name }}')">
+      <button onclick="showEditPerfForm('{{ performance.id }}','{{ performance.name|escapejs }}')">
         <i class="fa-solid fa-pencil"></i>
       </button>
       <button onclick="deletePerformance('{{ performance.id }}')">
@@ -21,7 +21,6 @@
       <button onclick="submitEditPerf('{{ performance.id }}')">Enregistrer</button>
       <button onclick="hideEditPerfForm('{{ performance.id }}')">Annuler</button>
     </div>
-
   {% else %}
     <button onclick="showAddPerfForm('{{ link_id }}')">Performance</button>
     <div id="perf-add-form-{{ link_id }}" style="display:none; margin-top:5px;">

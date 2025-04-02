@@ -14,6 +14,7 @@ if parent_dir not in sys.path:
 from flask import Flask
 from flask_migrate import Migrate
 from Code.extensions import db
+import re  # pour le filtre extract_numeric_level
 
 def create_app():
     static_folder = os.path.join(parent_dir, 'static')
@@ -33,7 +34,30 @@ def create_app():
     db.init_app(app)
     migrate = Migrate(app, db)
 
+    # ----------------------------------------------------------------------
+    # 1) Filtre Jinja pour n'afficher que la partie numérique (1..4)
+    # ----------------------------------------------------------------------
+    def extract_numeric_level(value):
+        match = re.search(r"\d", value or "")
+        return match.group(0) if match else "1"
+    app.jinja_env.filters['extract_numeric_level'] = extract_numeric_level
+
+    # ----------------------------------------------------------------------
+    # 2) Filtre Jinja 'escapejs' pour échapper apostrophes & backslashes en JS
+    # ----------------------------------------------------------------------
+    def escapejs_filter(value):
+        if not value:
+            return ""
+        out = value.replace("\\", "\\\\")
+        out = out.replace("'", "\\'")
+        out = out.replace('"', '\\"')
+        return out
+
+    app.jinja_env.filters['escapejs'] = escapejs_filter
+
+    # ----------------------------------------------------------------------
     # Blueprints existants
+    # ----------------------------------------------------------------------
     from Code.routes.activities import activities_bp
     app.register_blueprint(activities_bp)
 
@@ -61,16 +85,25 @@ def create_app():
     from Code.routes.constraints import constraints_bp
     app.register_blueprint(constraints_bp)
 
-    # Nouveaux blueprints IA
+    # IA: propose, translate
     from Code.routes.propose_softskills import propose_softskills_bp
     app.register_blueprint(propose_softskills_bp)
 
     from Code.routes.translate_softskills import translate_softskills_bp
     app.register_blueprint(translate_softskills_bp)
 
-    # CRUD pour /softskills
     from Code.routes.softskills import softskills_crud_bp
     app.register_blueprint(softskills_crud_bp)
+
+    # === Importants pour Savoirs, Savoir-Faire, Aptitudes ===
+    from Code.routes.savoirs import savoirs_bp
+    app.register_blueprint(savoirs_bp)
+
+    from Code.routes.savoir_faires import savoir_faires_bp
+    app.register_blueprint(savoir_faires_bp)
+
+    from Code.routes.aptitudes import aptitudes_bp
+    app.register_blueprint(aptitudes_bp)
 
     @app.route('/')
     def home():
@@ -81,6 +114,7 @@ def create_app():
         return app.send_static_file('test_skills.html')
 
     return app
+
 
 app = create_app()
 
