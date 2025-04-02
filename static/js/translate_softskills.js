@@ -13,30 +13,35 @@ function closeTranslateSoftskillsModal() {
 function submitSoftskillsTranslation() {
   const activityId = window.translateSoftskillsActivityId;
   if (!activityId) {
-    alert("Activité introuvable pour la traduction.");
+    alert("Erreur : activityId introuvable.");
     return;
   }
+  // Récupère le texte saisi par l'utilisateur
   const userInputElem = document.getElementById('translateSoftskillsInput');
-  const userInput = (userInputElem.value || "").trim();
+  const userInput = (userInputElem?.value || "").trim();
   if (!userInput) {
-    alert("Veuillez saisir du texte (soft skills).");
+    alert("Veuillez saisir quelque chose dans le champ des soft skills.");
     return;
   }
 
-  // On récupère le contexte de l'activité (pour le prompt) => /activities/<id>/details
   showSpinner();
+
+  // (1) Récupère le contexte de l'activité
   fetch(`/activities/${activityId}/details`)
-    .then(r => {
-      if (!r.ok) {
-        hideSpinner();
-        throw new Error("Erreur /activities details");
+    .then(resp => {
+      if (!resp.ok) {
+        throw new Error("Erreur lors de la récupération du contexte (details).");
       }
-      return r.json();
+      return resp.json();
     })
     .then(activityData => {
-      // On envoie user_input + activityData => /translate_softskills/translate
+      if (activityData.error) {
+        throw new Error(activityData.error);
+      }
+
+      // (2) Prépare les données pour la traduction (l'IA)
       const payload = {
-        user_input,
+        user_input: userInput,        // <--- on envoie la variable userInput en JSON
         activity_data: {
           name: activityData.name,
           tasks: activityData.tasks || [],
@@ -44,64 +49,64 @@ function submitSoftskillsTranslation() {
           outgoing: activityData.outgoing || []
         }
       };
+
       return fetch('/translate_softskills/translate', {
         method: 'POST',
-        headers: { "Content-Type": "application/json" },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
     })
-    .then(resp => resp.json())
+    .then(resp => {
+      if (!resp.ok) {
+        throw new Error("Réponse non OK de /translate_softskills/translate");
+      }
+      return resp.json();
+    })
     .then(data => {
       if (data.error) {
-        hideSpinner();
-        alert("Erreur traduction HSC : " + data.error);
-      } else if (!data.proposals || !Array.isArray(data.proposals)) {
-        hideSpinner();
-        alert("Réponse inattendue : pas de 'proposals' !");
-      } else {
-        // data.proposals => un tableau d'objets HSC
-        // On appelle /softskills/add pour chacune
-        const proposals = data.proposals;
-        if (proposals.length === 0) {
-          hideSpinner();
-          alert("Aucune HSC renvoyée par l'IA.");
-          return;
-        }
-        // Fermeture de la modale
-        document.getElementById('translateSoftskillsModal').style.display = 'none';
-        let addPromises = [];
-        proposals.forEach(item => {
-          let p = fetch('/softskills/add', {
-            method: 'POST',
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              activity_id: activityId,
-              habilete: item.habilete || "HSC ?",
-              niveau: item.niveau || "2 (Acquisition)",
-              justification: item.justification || ""
-            })
-          })
-          .then(r => r.json())
-          .then(res => {
-            if (res.error) {
-              console.error("Erreur /softskills/add:", res.error);
-            }
-          })
-          .catch(err => console.error("Erreur fetch /softskills/add:", err));
-          addPromises.push(p);
-        });
-        return Promise.all(addPromises);
+        throw new Error(data.error);
       }
+      const proposals = data.proposals;
+      if (!proposals || !Array.isArray(proposals) || proposals.length === 0) {
+        throw new Error("L'IA n'a renvoyé aucune HSC.");
+      }
+
+      // Ferme la modale d'input
+      closeTranslateSoftskillsModal();
+
+      // (3) Insère les HSC en base, via /softskills/add
+      const addPromises = proposals.map(p => {
+        return fetch('/softskills/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            activity_id: activityId,
+            habilete: p.habilete || "Habilete ?",
+            niveau: p.niveau || "2 (Acquisition)",
+            justification: p.justification || ""
+          })
+        })
+        .then(r => r.json())
+        .then(res => {
+          if (res.error) {
+            console.error("Erreur insertion softskill:", res.error);
+          }
+        })
+        .catch(err => {
+          console.error("Erreur /softskills/add:", err);
+        });
+      });
+
+      return Promise.all(addPromises);
     })
     .then(() => {
-      // On fait le partial reload
+      // (4) On rafraîchit partiellement la liste HSC
       hideSpinner();
       updateSoftskillsList(activityId);
     })
     .catch(err => {
       hideSpinner();
       console.error("Erreur finale traduction HSC:", err);
-      alert("Erreur finale traduction HSC. Voir console.");
+      alert("Erreur finale traduction HSC : " + err.message);
     });
 }
-

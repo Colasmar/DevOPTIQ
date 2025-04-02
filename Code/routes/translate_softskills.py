@@ -1,9 +1,7 @@
 import os
 import json
-import re
 import openai
 from flask import Blueprint, request, jsonify
-from Code.extensions import db
 
 translate_softskills_bp = Blueprint('translate_softskills_bp', __name__, url_prefix='/translate_softskills')
 
@@ -11,52 +9,74 @@ translate_softskills_bp = Blueprint('translate_softskills_bp', __name__, url_pre
 def translate_softskills():
     """
     Reçoit { user_input: "...", activity_data: { ... } },
-    et renvoie { proposals: [...] } : un tableau de 3..5 HSC JSON
-    en tenant compte du contexte (tâches, constraints, etc.).
+    et renvoie { "proposals": [...] } : un tableau de 3..5 HSC JSON
+    extraites EXCLUSIVEMENT de la liste X50-766.
     """
     data = request.get_json() or {}
     user_input = data.get("user_input", "").strip()
     activity_data = data.get("activity_data", {})
 
     if not user_input:
-        return jsonify({"error": "Texte insuffisant pour la traduction."}), 400
+        return jsonify({"error": "Aucun texte saisi pour la traduction."}), 400
 
-    # On récupère divers champs du activity_data
+    # Extraire divers champs depuis activity_data
     activity_name = activity_data.get("name", "Activité sans nom")
-    tasks = activity_data.get("tasks", [])
-    constraints = activity_data.get("constraints", [])
-    outgoing = activity_data.get("outgoing", [])
-    
-    # Mettons les tasks sous forme T1, T2...
-    tasks_list = []
-    for i, t in enumerate(tasks, start=1):
-        tasks_list.append(f"T{i}: {t}")
+    tasks_list = activity_data.get("tasks", [])
+    constraints_list = activity_data.get("constraints", [])
+    outgoing_list = activity_data.get("outgoing", [])
 
-    # Idem constraints
-    constraints_list = []
-    for i, c in enumerate(constraints, start=1):
-        desc = c.get("description", "")
-        constraints_list.append(f"C{i}: {desc}")
+    # Construire T1, T2..., etc.
+    def make_enumeration(prefix, items):
+        lines = []
+        for i, it in enumerate(items, start=1):
+            if isinstance(it, dict):
+                desc = it.get("description", "")
+                lines.append(f"{prefix}{i}: {desc}")
+            else:
+                lines.append(f"{prefix}{i}: {it}")
+        return "\n".join(lines) if lines else f"(Aucune {prefix.strip()})"
 
-    # Performances / outgoing
-    perf_list = []
-    for i, o in enumerate(outgoing, start=1):
-        p = o.get("performance")
-        if p:
-            name = p.get("name", "")
-            desc = p.get("description", "")
-            perf_list.append(f"P{i}: {name} - {desc}")
+    tasks_text = make_enumeration("T", tasks_list)
+    constraints_text = make_enumeration("C", constraints_list)
+    # Pour les performances
+    perf_lines = []
+    perf_idx = 1
+    for o in outgoing_list:
+        perf = o.get("performance")
+        if perf:
+            name = perf.get("name", "")
+            desc = perf.get("description", "")
+            perf_lines.append(f"P{perf_idx}: {name} - {desc}")
+            perf_idx += 1
+    perf_text = "\n".join(perf_lines) if perf_lines else "(Aucune performance)"
 
-    tasks_text = "\n".join(tasks_list) if tasks_list else "(Aucune tâche)"
-    constraints_text = "\n".join(constraints_list) if constraints_list else "(Aucune contrainte)"
-    perf_text = "\n".join(perf_list) if perf_list else "(Aucune performance)"
+    # Liste X50-766
+    x50_766_hsc = """
+Liste officielle X50-766 :
+- Auto-évaluation
+- Auto-régulation
+- Auto-organisation
+- Auto-mobilisation
+- Sensibilité sociale
+- Adaptation relationnelle
+- Coopération
+- Raisonnement logique
+- Planification
+- Arbitrage
+- Traitement de l’information
+- Synthèse
+- Conceptualisation
+- Flexibilité mentale
+- Projection
+- Approche globale
+"""
 
-    # Prompt
+    # Prompt IA, en insistant pour n'utiliser QUE la liste X50-766
     prompt = f"""
-Tu es un expert en habiletés socio-cognitives (HSC).
-L'utilisateur propose : "{user_input}".
+Tu es un expert en habiletés socio-cognitives, norme X50-766.
+L'utilisateur a saisi : "{user_input}".
 
-Activité concernée : {activity_name}
+Activité : {activity_name}
 
 Tâches :
 {tasks_text}
@@ -67,17 +87,18 @@ Contraintes :
 Performances :
 {perf_text}
 
-Objectif :
-- Générer 3 à 5 habiletés socio-cognitives (au format JSON) 
-  chacune sous forme : {{
-    "habilete": "...",
-    "niveau": "2 (Acquisition)",
-    "justification": "..."
-  }}
-- Dans "justification", il faut faire explicitement référence 
-  au user_input ("{user_input}") et éventuellement T(i), C(i), P(i).
+Voici la liste COMPLETE des habiletés X50-766 (n'utilise QUE ces termes) :
+{x50_766_hsc}
 
-Réponds UNIQUEMENT par le tableau JSON, sans texte avant/après.
+Exigences :
+1) Génère 3..5 habiletés, sous forme d'un tableau JSON brut (pas de texte hors JSON).
+2) Chaque entrée = {{
+    "habilete": <str parmi la liste ci-dessus>,
+    "niveau": "X (Label)",  (ex: "2 (Acquisition)")
+    "justification": "..."
+}}
+3) "justification" doit mentionner explicitement "{user_input}" et faire référence aux T(i), C(i) ou P(i) si pertinent.
+4) N'UTILISE PAS d'autres habiletés que celles de la liste X50-766.
 """
 
     openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -88,18 +109,20 @@ Réponds UNIQUEMENT par le tableau JSON, sans texte avant/après.
         response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "Tu es un assistant spécialisé en habiletés socio-cognitives."},
+                {"role": "system", "content": "Tu es un assistant spécialisé en habiletés socio-cognitives X50-766."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.4,
             max_tokens=1200
         )
-        ai_response = response.choices[0].message['content'].strip()
-        # On parse le JSON
-        proposals = json.loads(ai_response)
-        if not isinstance(proposals, list):
-            return jsonify({"error": "Le JSON retourné n'est pas un tableau."}), 400
+        ai_text = response.choices[0].message['content'].strip()
 
+        # On parse le JSON renvoyé
+        proposals = json.loads(ai_text)
+        if not isinstance(proposals, list):
+            return jsonify({"error": "Le JSON renvoyé n'est pas un tableau d'objets."}), 400
+
+        # On renvoie le tout
         return jsonify({"proposals": proposals}), 200
 
     except Exception as e:

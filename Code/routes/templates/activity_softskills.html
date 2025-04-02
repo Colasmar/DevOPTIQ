@@ -2,20 +2,26 @@
 
 <h3>Habiletés socio-cognitives (HSC)</h3>
 
+<!-- Conteneur principal qu'on réactualise partiellement -->
 <div id="softskills-list-{{ item.activity.id }}">
   {% include "softskills_partial.html" %}
 </div>
 
-<!-- Boutons "Proposer" et "Traduire" -->
-<button onclick="fetchActivityDetailsForPropose({{ item.activity.id }})">Proposer HSC</button>
-<button onclick="openTranslateSoftskillsModal({{ item.activity.id }})">Traduire Softskills</button>
+<!-- Boutons d'IA -->
+<button onclick="fetchActivityDetailsForPropose({{ item.activity.id }})">
+  Proposer HSC
+</button>
+<button onclick="openTranslateSoftskillsModal({{ item.activity.id }})">
+  Traduire Softskills
+</button>
 
-<!-- Bouton + Formulaire d'ajout manuel -->
+<!-- Bouton + Formulaire d'ajout manuel de HSC -->
 <button onclick="showAddSoftskillForm({{ item.activity.id }})">
   + Ajouter HSC
 </button>
+<div id="add-softskill-form-{{ item.activity.id }}"
+     style="display:none; margin-top:10px; border:1px solid #ccc; padding:10px;">
 
-<div id="add-softskill-form-{{ item.activity.id }}" style="display:none; margin-top:10px; border:1px solid #ccc; padding:10px;">
   <label>Habileté :</label>
   <input type="text" id="new-softskill-name-{{ item.activity.id }}" style="width:220px;" />
 

@@ -11,7 +11,8 @@
         <button onclick="toggleSoftskillJustification('{{ ss.id }}')" style="margin-left:10px;">
           Justification
         </button>
-        <div id="softskill-justif-{{ ss.id }}" style="display:none; margin-top:5px; border:1px solid #ddd; padding:5px;">
+        <div id="softskill-justif-{{ ss.id }}"
+             style="display:none; margin-top:5px; border:1px solid #ddd; padding:5px;">
           {{ ss.justification }}
         </div>
       {% endif %}
@@ -21,7 +22,7 @@
       <i class="fas fa-trash" title="Supprimer" style="margin-left:6px; cursor:pointer;"
          onclick="deleteSoftskill('{{ ss.id }}')"></i>
 
-      <!-- Formulaire d'édition -->
+      <!-- Formulaire d'édition caché -->
       <div class="edit-softskill-form" id="edit-softskill-form-{{ ss.id }}"
            style="display:none; margin-top:8px; border:1px solid #ccc; padding:8px;">
         <label>Habileté :</label>
@@ -50,20 +51,15 @@
 
         <div style="margin-top:6px;">
           <label>Justification :</label><br/>
-          <textarea id="edit-softskill-justif-{{ ss.id }}" rows="2" style="width:95%;">
-            {{ ss.justification }}
-          </textarea>
+          <textarea id="edit-softskill-justif-{{ ss.id }}" rows="2" style="width:95%;">{{ ss.justification }}</textarea>
         </div>
-        <button onclick="submitEditSoftskillFromDOM('{{ ss.id }}')"
-                style="margin-top:8px;">
+        <button onclick="submitEditSoftskillFromDOM('{{ ss.id }}')" style="margin-top:8px;">
           Enregistrer
         </button>
-        <button onclick="hideEditSoftskillForm('{{ ss.id }}')"
-                style="margin-top:8px;">
+        <button onclick="hideEditSoftskillForm('{{ ss.id }}')" style="margin-top:8px;">
           Annuler
         </button>
       </div>
-
     </div>
   {% endfor %}
 {% else %}
