@@ -2,29 +2,30 @@
 
 <h3>Habiletés socio-cognitives (HSC)</h3>
 
-<!-- Conteneur pour la liste, qu'on va (ré-)afficher via softskills_partial.html -->
 <div id="softskills-list-{{ item.activity.id }}">
   {% include "softskills_partial.html" %}
 </div>
 
-<!-- Boutons "Proposer" et "Traduire" existants -->
-<button onclick="fetchActivityDetailsForPropose({{ item.activity.id }})">
-  Proposer HSC
-</button>
-<button onclick="openTranslateSoftskillsModal({{ item.activity.id }})">
-  Traduire Softskills
-</button>
+<!-- Boutons "Proposer" et "Traduire" -->
+<button onclick="fetchActivityDetailsForPropose({{ item.activity.id }})">Proposer HSC</button>
+<button onclick="openTranslateSoftskillsModal({{ item.activity.id }})">Traduire Softskills</button>
 
 <!-- Bouton + Formulaire d'ajout manuel -->
 <button onclick="showAddSoftskillForm({{ item.activity.id }})">
   + Ajouter HSC
 </button>
+
 <div id="add-softskill-form-{{ item.activity.id }}" style="display:none; margin-top:10px; border:1px solid #ccc; padding:10px;">
   <label>Habileté :</label>
   <input type="text" id="new-softskill-name-{{ item.activity.id }}" style="width:220px;" />
 
   <label style="margin-left:10px;">Niveau :</label>
-  <input type="text" id="new-softskill-level-{{ item.activity.id }}" style="width:120px;" placeholder="ex: 2 (acquisition)" />
+  <select id="new-softskill-level-{{ item.activity.id }}">
+    <option value="1 (Aptitude)">1 (Aptitude)</option>
+    <option value="2 (Acquisition)">2 (Acquisition)</option>
+    <option value="3 (Maîtrise)">3 (Maîtrise)</option>
+    <option value="4 (Excellence)">4 (Excellence)</option>
+  </select>
 
   <div style="margin-top:6px;">
     <label>Justification (optionnel) :</label><br/>

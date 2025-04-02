@@ -25,14 +25,11 @@
 
   {% for item in activity_data %}
     <div class="activity-container">
-      <!-- En-tête cliquable -->
       <div class="activity-header" onclick="toggleDetails('details-{{ item.activity.id }}', this)">
         <span class="toggle-icon" id="icon-{{ item.activity.id }}">▶</span>
         <h2>{{ item.activity.name }}</h2>
       </div>
-
-      <!-- Zone de détails -->
-      <div class="activity-details" id="details-{{ item.activity.id }}" style="display: none;">
+      <div class="activity-details" id="details-{{ item.activity.id }}" style="display:none;">
         <p>{{ item.activity.description or "" }}</p>
 
         <!-- Garant -->
@@ -111,17 +108,13 @@
                                 - {{ conn.performance.description }}
                               {% endif %}
                             </span>
-                            <!-- échappement apostrophes -->
-                            <button
-                              onclick="showEditPerfForm('{{ conn.performance.id }}','{{ conn.performance.name|escapejs }}')"
-                            >
+                            <button onclick="showEditPerfForm('{{ conn.performance.id }}','{{ conn.performance.name|escapejs }}')">
                               <i class="fa-solid fa-pencil"></i>
                             </button>
                             <button onclick="deletePerformance('{{ conn.performance.id }}')">
                               <i class="fa-solid fa-trash"></i>
                             </button>
                           </div>
-                          <!-- Formulaire d'édition -->
                           <div id="perf-edit-form-{{ conn.performance.id }}" style="display:none; margin-top:5px;">
                             <input type="text" id="perf-edit-input-{{ conn.performance.id }}" style="width:350px;" />
                             <button onclick="submitEditPerf('{{ conn.performance.id }}')">Enregistrer</button>
@@ -146,12 +139,8 @@
             {% endif %}
           </div>
         </div>
-        <!-- Fin connexions -->
 
-        <!-- Contraintes & Exigences -->
         {% include "activity_constraints.html" %}
-
-        <!-- Tâches -->
         <div id="tasks-section-{{ item.activity.id }}">
           {% set activity = item.activity %}
           {% set tasks = item.tasks %}
@@ -159,32 +148,28 @@
         </div>
 
         <!-- Compétences (NF X50-124) -->
-        <div style="margin-top: 20px;">
+        <div style="margin-top:20px;">
           {% include "activity_competencies.html" %}
         </div>
 
         <!-- 4 colonnes => Savoirs, Savoir-Faire, Aptitudes, Softskills -->
-        <div style="display: flex; gap: 30px; align-items:flex-start; margin-top:20px;">
-          <!-- Colonne 1 : Savoirs -->
-          <div style="flex: 1;">
+        <div style="display:flex; gap:30px; margin-top:20px;">
+          <div style="flex:1;">
             {% include "activity_savoirs.html" %}
           </div>
-          <!-- Colonne 2 : Savoir-Faire -->
-          <div style="flex: 1;">
+          <div style="flex:1;">
             {% include "activity_savoir_faires.html" %}
           </div>
-          <!-- Colonne 3 : Aptitudes -->
-          <div style="flex: 1;">
+          <div style="flex:1;">
             {% include "activity_aptitudes.html" %}
           </div>
-          <!-- Colonne 4 : Softskills (HSC) -->
-          <div style="flex: 1;">
+          <div style="flex:1;">
             {% include "activity_softskills.html" %}
           </div>
         </div>
 
-      </div> <!-- /activity-details -->
-    </div> <!-- /activity-container -->
+      </div>
+    </div>
   {% endfor %}
 
   <!-- Spinner Overlay -->
@@ -196,7 +181,7 @@
     </div>
   </div>
 
-  <!-- Modals : compétences, garant, softskills translation -->
+  <!-- Modals : compétences, roles, softskills translation -->
   {% include "competency_modal.html" %}
   {% include "roles_modal.html" %}
   {% include "translate_softskills_modal.html" %}
@@ -208,8 +193,6 @@
 
   <!-- 3) Scripts du projet -->
   <script src="/static/js/spinner.js"></script>
-
-  <!-- Tâches, Outils, etc. -->
   <script src="/static/js/tasks.js"></script>
   <script src="/static/js/tools.js"></script>
   <script src="/static/js/main.js"></script>
@@ -218,15 +201,15 @@
   <script src="/static/js/constraints.js"></script>
   <script src="/static/js/performance.js"></script>
 
-  <!-- Compétences NF X50-124 -->
+  <!-- Compétences -->
   <script src="/static/js/competencies.js"></script>
 
-  <!-- Savoirs, SF, Aptitudes -->
+  <!-- Savoirs, Savoir-Faire, Aptitudes -->
   <script src="/static/js/savoirs.js"></script>
   <script src="/static/js/savoir_faires.js"></script>
   <script src="/static/js/aptitudes.js"></script>
 
-  <!-- HSC (Proposer, Traduire, CRUD) -->
+  <!-- Softskills (Proposer, Traduire, CRUD) -->
   <script src="/static/js/propose_softskills.js"></script>
   <script src="/static/js/softskills.js"></script>
   <script src="/static/js/translate_softskills.js"></script>

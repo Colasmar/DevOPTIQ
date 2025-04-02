@@ -1,45 +1,67 @@
 <!-- Code/routes/templates/softskills_partial.html -->
-<!--
-  Ce template est utilisé dans activity_softskills.html
-  et renvoyé par la route /softskills/<activity_id>/render
--->
 
 {% if activity.softskills and activity.softskills|length > 0 %}
   {% for ss in activity.softskills %}
     <div class="softskill-item" style="margin-bottom:5px;" data-ss-id="{{ ss.id }}">
       <span class="softskill-text">
-        {{ ss.habilete }} (Niveau: {{ ss.niveau }})
+        {{ ss.habilete }} ({{ ss.niveau }})
       </span>
 
       {% if ss.justification %}
-        <!-- Bouton replier/déplier -->
         <button onclick="toggleSoftskillJustification('{{ ss.id }}')" style="margin-left:10px;">
           Justification
         </button>
-        <div id="softskill-justif-{{ ss.id }}" class="softskill-justification"
-             style="display:none; margin-top:5px; border:1px solid #ddd; padding:5px;">
+        <div id="softskill-justif-{{ ss.id }}" style="display:none; margin-top:5px; border:1px solid #ddd; padding:5px;">
           {{ ss.justification }}
         </div>
       {% endif %}
 
-      <!-- Icônes Edit/Suppr -->
-      <i class="fas fa-pencil-alt edit-softskill" title="Modifier" onclick="editSoftskill('{{ ss.id }}')"
-         style="margin-left:10px; cursor:pointer;"></i>
-      <i class="fas fa-trash delete-softskill" title="Supprimer" onclick="deleteSoftskill('{{ ss.id }}')"
-         style="margin-left:6px; cursor:pointer;"></i>
+      <i class="fas fa-pencil-alt" title="Modifier" style="margin-left:10px; cursor:pointer;"
+         onclick="editSoftskill('{{ ss.id }}')"></i>
+      <i class="fas fa-trash" title="Supprimer" style="margin-left:6px; cursor:pointer;"
+         onclick="deleteSoftskill('{{ ss.id }}')"></i>
 
-      <!-- Form d'édition -->
-      <div class="edit-softskill-form" id="edit-softskill-form-{{ ss.id }}" style="display:none; margin-top:8px; border:1px solid #ccc; padding:8px;">
+      <!-- Formulaire d'édition -->
+      <div class="edit-softskill-form" id="edit-softskill-form-{{ ss.id }}"
+           style="display:none; margin-top:8px; border:1px solid #ccc; padding:8px;">
         <label>Habileté :</label>
-        <input type="text" id="edit-softskill-name-{{ ss.id }}" value="{{ ss.habilete }}" style="width:220px;" />
+        <input type="text" id="edit-softskill-name-{{ ss.id }}"
+               value="{{ ss.habilete }}" style="width:220px;" />
+
         <label style="margin-left:10px;">Niveau :</label>
-        <input type="text" id="edit-softskill-level-{{ ss.id }}" value="{{ ss.niveau }}" style="width:120px;" />
+        <select id="edit-softskill-level-{{ ss.id }}">
+          <option value="1 (Aptitude)"
+            {% if ss.niveau|lower|slice(0,1) == '1' %}selected{% endif %}>
+            1 (Aptitude)
+          </option>
+          <option value="2 (Acquisition)"
+            {% if ss.niveau|lower|slice(0,1) == '2' %}selected{% endif %}>
+            2 (Acquisition)
+          </option>
+          <option value="3 (Maîtrise)"
+            {% if ss.niveau|lower|slice(0,1) == '3' %}selected{% endif %}>
+            3 (Maîtrise)
+          </option>
+          <option value="4 (Excellence)"
+            {% if ss.niveau|lower|slice(0,1) == '4' %}selected{% endif %}>
+            4 (Excellence)
+          </option>
+        </select>
+
         <div style="margin-top:6px;">
           <label>Justification :</label><br/>
-          <textarea id="edit-softskill-justif-{{ ss.id }}" rows="2" style="width:95%;">{{ ss.justification }}</textarea>
+          <textarea id="edit-softskill-justif-{{ ss.id }}" rows="2" style="width:95%;">
+            {{ ss.justification }}
+          </textarea>
         </div>
-        <button onclick="submitEditSoftskillFromDOM('{{ ss.id }}')" style="margin-top:8px;">Enregistrer</button>
-        <button onclick="hideEditSoftskillForm('{{ ss.id }}')" style="margin-top:8px;">Annuler</button>
+        <button onclick="submitEditSoftskillFromDOM('{{ ss.id }}')"
+                style="margin-top:8px;">
+          Enregistrer
+        </button>
+        <button onclick="hideEditSoftskillForm('{{ ss.id }}')"
+                style="margin-top:8px;">
+          Annuler
+        </button>
       </div>
 
     </div>
