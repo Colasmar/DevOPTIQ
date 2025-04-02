@@ -1,3 +1,5 @@
+<!-- Code/routes/templates/activity_competencies.html -->
+
 <h3>Compétences</h3>
 
 <ul id="competencies-list-{{ item.activity.id }}">
@@ -21,7 +23,7 @@
   {% endfor %}
 </ul>
 
-<!-- Bouton pour proposer des compétences (ouvre le modal via skills_section.html) -->
+<!-- Bouton pour proposer des compétences (ouvre le modal via competency_modal.html) -->
 <button onclick="fetchActivityDetailsForSkills({{ item.activity.id }})">
   Proposer Compétences
 </button>

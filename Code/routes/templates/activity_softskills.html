@@ -1,40 +1,36 @@
-<!-- activity_softskills.html -->
+<!-- Code/routes/templates/activity_softskills.html -->
+
 <h3>Habiletés socio-cognitives (HSC)</h3>
 
+<!-- Conteneur pour la liste, qu'on va (ré-)afficher via softskills_partial.html -->
 <div id="softskills-list-{{ item.activity.id }}">
-  {% for ss in item.activity.softskills %}
-    <div class="softskill-item" style="margin-bottom:5px;"
-         data-ss-id="{{ ss.id }}"
-         data-habilete-lower="{{ ss.habilete|lower }}">
-      <span class="softskill-text">
-        {{ ss.habilete }} (Niveau: <span class="softskill-level">{{ ss.niveau }}</span>)
-      </span>
-      {% if ss.justification %}
-        <div class="softskill-justification" style="font-size:0.9em; margin-top:3px; color:#444;">
-          {{ ss.justification }}
-        </div>
-      {% endif %}
-      <!-- Icônes Edit/Suppr -->
-      <i class="fas fa-pencil-alt edit-softskill" title="Modifier"></i>
-      <i class="fas fa-trash delete-softskill" title="Supprimer"></i>
-
-      <!-- Formulaire d'édition (caché) -->
-      <div class="edit-softskill-form" id="edit-softskill-form-{{ ss.id }}" style="display:none;">
-        <label>Habileté :</label>
-        <input type="text" id="edit-softskill-name-{{ ss.id }}" value="{{ ss.habilete }}" />
-        <label>Niveau (1..4) :</label>
-        <input type="text" id="edit-softskill-level-{{ ss.id }}" value="{{ ss.niveau }}" />
-        <button onclick="submitEditSoftskillFromDOM('{{ ss.id }}')">Enregistrer</button>
-        <button onclick="hideEditSoftskillForm('{{ ss.id }}')">Annuler</button>
-      </div>
-    </div>
-  {% endfor %}
+  {% include "softskills_partial.html" %}
 </div>
 
-<!-- Boutons pour proposer/traduire -->
+<!-- Boutons "Proposer" et "Traduire" existants -->
 <button onclick="fetchActivityDetailsForPropose({{ item.activity.id }})">
   Proposer HSC
 </button>
 <button onclick="openTranslateSoftskillsModal({{ item.activity.id }})">
   Traduire Softskills
 </button>
+
+<!-- Bouton + Formulaire d'ajout manuel -->
+<button onclick="showAddSoftskillForm({{ item.activity.id }})">
+  + Ajouter HSC
+</button>
+<div id="add-softskill-form-{{ item.activity.id }}" style="display:none; margin-top:10px; border:1px solid #ccc; padding:10px;">
+  <label>Habileté :</label>
+  <input type="text" id="new-softskill-name-{{ item.activity.id }}" style="width:220px;" />
+
+  <label style="margin-left:10px;">Niveau :</label>
+  <input type="text" id="new-softskill-level-{{ item.activity.id }}" style="width:120px;" placeholder="ex: 2 (acquisition)" />
+
+  <div style="margin-top:6px;">
+    <label>Justification (optionnel) :</label><br/>
+    <textarea id="new-softskill-justif-{{ item.activity.id }}" rows="2" style="width:95%;"></textarea>
+  </div>
+
+  <button onclick="submitAddSoftskill({{ item.activity.id }})" style="margin-top:8px;">Enregistrer</button>
+  <button onclick="hideAddSoftskillForm({{ item.activity.id }})" style="margin-top:8px;">Annuler</button>
+</div>

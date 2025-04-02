@@ -12,56 +12,25 @@ def translate_softskills():
     user_input = data.get("user_input", "").strip()
     activity_data = data.get("activity_data", {})
 
-    if not user_input or not activity_data:
+    if not user_input:
         return jsonify({"error": "Données insuffisantes pour la traduction."}), 400
 
-    activity_name = activity_data.get("name", "Activité sans nom")
-    tasks = activity_data.get("tasks", [])
-    constraints = activity_data.get("constraints", [])
-    performances = [o.get("performance") for o in activity_data.get("outgoing", []) if o.get("performance")]
-
-    tasks_text = "\n".join([f"T{i+1}: {task}" for i, task in enumerate(tasks)])
-    constraints_text = "\n".join([f"C{i+1}: {c.get('description')}" for i, c in enumerate(constraints)])
-    perf_text = "\n".join([f"P{i+1}: {perf.get('name', '')}" for i, perf in enumerate(performances)])
-
-    # ---- PROMPT renforcé ----
+    # On n'utilise pas forcément activity_data ici, selon besoin
     prompt = f"""
 Tu es expert en habiletés socio-cognitives (HSC).
 
 Qualités proposées par l'utilisateur : {user_input}
 
-Activité concernée : {activity_name}
+Retourne 3 à 5 HSC au format JSON (liste). 
+EXEMPLE d'objet :
+{{
+  "habilete": "Planification",
+  "niveau": "2 (Acquisition)",
+  "justification": "Explique comment ça couvre la qualité {user_input} ..."
+}}
 
-Tâches :
-{tasks_text if tasks else 'Aucune tâche spécifiée'}
-
-Contraintes :
-{constraints_text if constraints else 'Aucune contrainte spécifiée'}
-
-Performances :
-{perf_text if perf_text else 'Aucune performance précisée'}
-
-Liste officielle X50-766 des HSC :
-Relation à soi : Auto-évaluation, Auto-régulation, Auto-organisation, Auto-mobilisation
-Relation à l’autre : Sensibilité sociale, Adaptation relationnelle, Coopération
-Relation à l’action : Raisonnement logique, Planification, Arbitrage
-Relation au savoir : Traitement de l’information, Synthèse, Conceptualisation
-Relation à la complexité : Flexibilité mentale, Projection, Approche globale
-
-Pour chaque HSC proposée, indique clairement :
-- « habilete » : nom de l'HSC
-- « niveau » : chiffre (1..4) ET son label EXACT entre parenthèses :
-    1 (Aptitude), 2 (Acquisition), 3 (Maîtrise), 4 (Excellence)
-- « justification » : précise explicitement comment l'habileté couvre les qualités («{user_input} »)
-   en lien avec au moins une tâche (T(i)), contrainte (C(i)) ou performance (P(i)).
-
-IMPORTANT :
-- N'utilise JAMAIS les mots « compétence » ou « soft skill », uniquement « habileté » ou « qualité ».
-- Réponds UNIQUEMENT avec un tableau JSON (3 à 5 objets), sans aucun texte avant ni après.
-- Le champ "niveau" DOIT impérativement être au format "X (Label)" parmi :
-    "1 (Aptitude)", "2 (Acquisition)", "3 (Maîtrise)", "4 (Excellence)".
+Donne UNIQUEMENT le tableau JSON, pas de texte avant/après.
 """
-
     openai.api_key = os.getenv("OPENAI_API_KEY")
     if not openai.api_key:
         return jsonify({"error": "Clé OpenAI manquante."}), 500
@@ -74,27 +43,11 @@ IMPORTANT :
                 {"role": "user", "content": prompt}
             ],
             temperature=0.2,
-            max_tokens=1200
+            max_tokens=800
         )
         ai_response = response.choices[0].message['content'].strip()
-        proposals = json.loads(ai_response)  # tableau d'objets
-
-        # ---- Post-traitement : normalisation du champ "niveau" ----
-        level_map = {
-            "1": "1 (Aptitude)",
-            "2": "2 (Acquisition)",
-            "3": "3 (Maîtrise)",
-            "4": "4 (Excellence)"
-        }
-        for p in proposals:
-            niv = p.get("niveau", "")
-            # Chercher la première occurrence de chiffre 1..4
-            match = re.search(r"([1-4])", niv)
-            if match:
-                digit = match.group(1)
-                # Remplacer par le label officiel
-                p["niveau"] = level_map.get(digit, niv)
-
+        # On tente de parser en JSON
+        proposals = json.loads(ai_response)  # doit être un tableau
         return jsonify({"proposals": proposals}), 200
 
     except Exception as e:
