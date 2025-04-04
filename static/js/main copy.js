@@ -1,5 +1,6 @@
 // main.js – Fonctions globales et gestion modale proposition IA
 
+// Vérification préalable pour éviter redéclaration
 if (!window.OPTIQ_MAIN_LOADED) {
   window.OPTIQ_MAIN_LOADED = true;
 
@@ -19,10 +20,6 @@ if (!window.OPTIQ_MAIN_LOADED) {
       iconElem.textContent = "▶";
     }
   };
-
-  function getProposeUrl(type) {
-    return `/propose_${type}/propose`;
-  }
 
   window.getActivityData = function (activityId) {
     const detailsElem = document.getElementById(`details-${activityId}`);
@@ -59,41 +56,5 @@ if (!window.OPTIQ_MAIN_LOADED) {
 
   window.closeProposalModal = function () {
     $("#proposal-modal").hide();
-  };
-
-  window.proposeSavoirs = function (activityId) {
-    const text = window.getActivityData(activityId);
-    fetch(getProposeUrl("savoirs"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ activity_data: { name: "", description: text, tasks: "", tools: "" } })
-    })
-    .then(resp => resp.json())
-    .then(data => window.showProposalModal(activityId, data.proposals, "savoirs"))
-    .catch(err => console.error("Erreur proposition Savoirs :", err));
-  };
-
-  window.proposeSavoirFaires = function (activityId) {
-    const text = window.getActivityData(activityId);
-    fetch(getProposeUrl("savoir_faires"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ activity_data: { name: "", description: text, tasks: "", tools: "" } })
-    })
-    .then(resp => resp.json())
-    .then(data => window.showProposalModal(activityId, data.proposals, "savoir_faires"))
-    .catch(err => console.error("Erreur proposition Savoir-Faire :", err));
-  };
-
-  window.proposeAptitudes = function (activityId) {
-    const text = window.getActivityData(activityId);
-    fetch(getProposeUrl("aptitudes"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ activity_data: { name: "", description: text, tasks: "", tools: "" } })
-    })
-    .then(resp => resp.json())
-    .then(data => window.showProposalModal(activityId, data.proposals, "aptitudes"))
-    .catch(err => console.error("Erreur proposition Aptitudes :", err));
   };
 }

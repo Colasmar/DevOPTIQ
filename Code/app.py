@@ -1,3 +1,5 @@
+# Code/app.py
+
 import os
 import sys
 from dotenv import load_dotenv
@@ -56,7 +58,7 @@ def create_app():
     app.jinja_env.filters['escapejs'] = escapejs_filter
 
     # ----------------------------------------------------------------------
-    # Blueprints existants
+    # Blueprints
     # ----------------------------------------------------------------------
     from Code.routes.activities import activities_bp
     app.register_blueprint(activities_bp)
@@ -85,7 +87,15 @@ def create_app():
     from Code.routes.constraints import constraints_bp
     app.register_blueprint(constraints_bp)
 
-    # IA: propose, translate
+    from Code.routes.propose_savoirs import propose_savoirs_bp
+    app.register_blueprint(propose_savoirs_bp)
+
+    from Code.routes.propose_savoir_faires import propose_savoir_faires_bp
+    app.register_blueprint(propose_savoir_faires_bp)
+
+    from Code.routes.propose_aptitudes import propose_aptitudes_bp
+    app.register_blueprint(propose_aptitudes_bp)
+
     from Code.routes.propose_softskills import propose_softskills_bp
     app.register_blueprint(propose_softskills_bp)
 
@@ -95,7 +105,6 @@ def create_app():
     from Code.routes.softskills import softskills_crud_bp
     app.register_blueprint(softskills_crud_bp)
 
-    # === Importants pour Savoirs, Savoir-Faire, Aptitudes ===
     from Code.routes.savoirs import savoirs_bp
     app.register_blueprint(savoirs_bp)
 
