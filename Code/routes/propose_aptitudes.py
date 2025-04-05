@@ -1,11 +1,18 @@
-import os, json, openai
+import os
+import json
+import openai
 from flask import Blueprint, request, jsonify
 
-propose_aptitudes_bp = Blueprint('propose_aptitudes_bp', __name__, url_prefix='/propose_aptitudes')
+propose_aptitudes_bp = Blueprint('propose_aptitudes_bp', __name__)
 
-@propose_aptitudes_bp.route('/propose', methods=['POST'])
+@propose_aptitudes_bp.route('/propose_aptitudes', methods=['POST'])
 def propose_aptitudes():
-    data = request.get_json()
+    """
+    Reçoit { "activity_data": {...} } en JSON
+    Renvoie { "proposals": [ ... ] } => liste d'Aptitudes
+    Endpoint : POST /propose_aptitudes
+    """
+    data = request.get_json() or {}
     activity_data = data.get("activity_data", {})
 
     prompt = f"""
@@ -15,9 +22,30 @@ def propose_aptitudes():
     Tâches : {activity_data.get('tasks')}
     Outils : {activity_data.get('tools')}
 
-    Liste entre 5 et 10 propositions pertinentes d'"Aptitudes" nécessaires pour réaliser cette activité, en tableau JSON brut :
+    Liste entre 5 et 10 "Aptitudes" sous forme de tableau JSON :
     ["Aptitude 1", "Aptitude 2", "..."]
     """
 
-    openai.api_key = os.getenv("OPENAI_API_KEY")
-    response
+    try:
+        openai.api_key = os.getenv("OPENAI_API_KEY")
+        if not openai.api_key:
+            return jsonify({"error": "Clé OpenAI manquante (OPENAI_API_KEY)."}), 500
+
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.5,
+            max_tokens=800
+        )
+        raw_text = response.choices[0].message['content'].strip()
+
+        proposals = json.loads(raw_text)
+        if not isinstance(proposals, list):
+            return jsonify({"error": "L'IA n'a pas renvoyé un tableau JSON.", "raw_text": raw_text}), 500
+
+        return jsonify({"proposals": proposals}), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Erreur propose_aptitudes: {str(e)}"}), 500

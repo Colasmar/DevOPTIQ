@@ -87,15 +87,6 @@ def create_app():
     from Code.routes.constraints import constraints_bp
     app.register_blueprint(constraints_bp)
 
-    from Code.routes.propose_savoirs import propose_savoirs_bp
-    app.register_blueprint(propose_savoirs_bp)
-
-    from Code.routes.propose_savoir_faires import propose_savoir_faires_bp
-    app.register_blueprint(propose_savoir_faires_bp)
-
-    from Code.routes.propose_aptitudes import propose_aptitudes_bp
-    app.register_blueprint(propose_aptitudes_bp)
-
     from Code.routes.propose_softskills import propose_softskills_bp
     app.register_blueprint(propose_softskills_bp)
 
@@ -114,6 +105,19 @@ def create_app():
     from Code.routes.aptitudes import aptitudes_bp
     app.register_blueprint(aptitudes_bp)
 
+    # ---------------------
+    #  Nouveaux blueprint 
+    #  (celui que tu avais pour propose_savoirs/savoir_faires/aptitudes)
+    # ---------------------
+    from Code.routes.propose_savoirs import propose_savoirs_bp
+    app.register_blueprint(propose_savoirs_bp)
+
+    from Code.routes.propose_savoir_faires import propose_savoir_faires_bp
+    app.register_blueprint(propose_savoir_faires_bp)
+
+    from Code.routes.propose_aptitudes import propose_aptitudes_bp
+    app.register_blueprint(propose_aptitudes_bp)
+
     @app.route('/')
     def home():
         return "Bienvenue sur mon application Flask !"
@@ -123,7 +127,6 @@ def create_app():
         return app.send_static_file('test_skills.html')
 
     return app
-
 
 app = create_app()
 

@@ -1,33 +1,19 @@
-import os, json, openai
 from flask import Blueprint, request, jsonify
+from Code.models.models import Activities, db
 
-propose_savoirs_bp = Blueprint('propose_savoirs_bp', __name__, url_prefix='/propose_savoirs')
+propose_savoirs_bp = Blueprint('propose_savoirs', __name__)
 
-@propose_savoirs_bp.route('/propose', methods=['POST'])
+@propose_savoirs_bp.route('/propose_savoirs', methods=['POST'])
 def propose_savoirs():
     data = request.get_json()
-    activity_data = data.get("activity_data", {})
 
-    prompt = f"""
-    Analyse l'activité suivante :
-    Nom : {activity_data.get('name')}
-    Description : {activity_data.get('description')}
-    Tâches : {activity_data.get('tasks')}
-    Outils : {activity_data.get('tools')}
+    activity_id = data.get('activity_id')
+    if not activity_id:
+        return jsonify({"error": "activity_id manquant dans la requête"}), 400
 
-    Liste de manière précise et pertinente entre 5 et 10 "Savoirs" nécessaires pour réaliser cette activité, sous forme de tableau JSON brut :
-    ["Savoir 1", "Savoir 2", "..."]
-    """
+    activity = Activities.query.get(activity_id)
+    if not activity:
+        return jsonify({"error": "Activité non trouvée"}), 404
 
-    openai.api_key = os.getenv("OPENAI_API_KEY")
-    response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.5,
-        max_tokens=800
-    )
-
-    proposals = json.loads(response.choices[0].message['content'].strip())
-    return jsonify({"proposals": proposals}), 200
+    message = f"Activité concernée : \nNom : {activity.name}\nDescription : {activity.description or 'Aucune description'}"
+    return jsonify({"message": message}), 200
