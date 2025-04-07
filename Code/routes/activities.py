@@ -13,3 +13,4 @@ from .activities_constraints import *
 from .activities_performance import *
 from .activities_render import *
 from .activities_data import *
+from .activities_cartography import *

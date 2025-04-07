@@ -134,3 +134,30 @@ function fetchActivityDetailsForProposeSavoirs(activityId) {
     alert("Une erreur est survenue lors de la génération des savoirs.");
   });
 }
+document.addEventListener("DOMContentLoaded", function () {
+  const cartoButton = document.getElementById("update-cartography-button");
+
+  if (cartoButton) {
+    cartoButton.addEventListener("click", function () {
+      showSpinner();
+
+      fetch("/activities/update-cartography")
+        .then((response) => response.json())
+        .then((data) => {
+          hideSpinner();
+          if (data.error) {
+            alert("Erreur : " + data.error);
+          } else {
+            alert(data.message + "\n\nRésumé :\n" + data.summary);
+            // Ajoute cette ligne pour recharger la page automatiquement après la mise à jour
+            location.reload(); 
+          }
+        })
+        .catch((err) => {
+          hideSpinner();
+          console.error("Erreur update-cartography:", err);
+          alert("Erreur de mise à jour de la cartographie.");
+        });
+    });
+  }
+});

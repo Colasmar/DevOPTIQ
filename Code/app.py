@@ -105,6 +105,7 @@ def create_app():
     from Code.routes.aptitudes import aptitudes_bp
     app.register_blueprint(aptitudes_bp)
 
+ 
     # ---------------------
     #  Nouveaux blueprint 
     #  (celui que tu avais pour propose_savoirs/savoir_faires/aptitudes)
