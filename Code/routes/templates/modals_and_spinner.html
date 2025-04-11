@@ -1,15 +1,19 @@
-<!-- modals_and_spinner.html -->
+<!-- Code/routes/templates/modals_and_spinner.html -->
 
 <!-- Spinner Overlay -->
-<div id="spinnerOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.3); z-index:9999;">
-    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);">
-      <div class="loader"></div>
-    </div>
+<div id="spinnerOverlay" style="display:none; position:fixed;
+     top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.3);
+     z-index:9999;">
+  <div style="position:absolute; top:50%; left:50%;
+              transform:translate(-50%,-50%);">
+    <div class="loader"></div>
   </div>
-  
-  <!-- Modals : compétences, rôles, traduction softskills -->
-  {% include "competency_modal.html" %}
-  {% include "roles_modal.html" %}
-  {% include "translate_softskills_modal.html" %}
+</div>
 
-  
+<!-- Modals : compétences, rôles, traduction softskills, etc. -->
+{% include "competency_modal.html" %}
+{% include "roles_modal.html" %}
+{% include "translate_softskills_modal.html" %}
+
+<!-- Modale "Propositions" pour Savoirs -->
+{% include "proposal_modal.html" %}

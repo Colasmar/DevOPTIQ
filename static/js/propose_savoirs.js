@@ -1,28 +1,66 @@
-document.addEventListener("DOMContentLoaded", function () {
-  const bouton = document.querySelector("#boutonProposerSavoirs");
+// Code/static/js/propose_savoirs.js
+// Gère la proposition IA pour les Savoirs (côté client)
 
-  if (!bouton) {
-      console.error("Le bouton #boutonProposerSavoirs est introuvable dans le HTML.");
+window.proposeSavoirs = function(activityId) {
+  // Montre le spinner
+  showSpinner();
+
+  // On mémorise l'ID
+  window.currentActivityIdSavoirs = activityId;
+
+  // Récupération du "texte" (description, etc.)
+  const text = window.getActivityData(activityId);
+
+  fetch("/propose_savoirs/propose", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      activity_data: {
+        name: "", // ou item.activity.name si besoin
+        description: text,
+        tasks: [],
+        tools: []
+      }
+    })
+  })
+  .then(resp => resp.json())
+  .then(data => {
+    hideSpinner();
+
+    if (data.error) {
+      alert("Erreur proposition Savoirs : " + data.error);
       return;
-  }
+    }
 
-  bouton.addEventListener("click", function () {
-      const activityId = bouton.getAttribute("data-activity-id");
+    const proposals = data.proposals || [];
+    const ul = document.getElementById("proposalsList");
+    if (!ul) {
+      alert("Erreur : <ul id='proposalsList'> introuvable !");
+      return;
+    }
+    ul.innerHTML = "";
 
-      fetch("/propose_savoirs", {
-          method: "POST",
-          headers: {
-              "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ activity_id: activityId })
-      })
-      .then(response => response.json())
-      .then(data => {
-          alert(data.message || data.error);
-      })
-      .catch(error => {
-          console.error("Erreur de requête : ", error);
-          alert("Erreur technique : " + error);
-      });
+    proposals.forEach(prop => {
+      const li = document.createElement("li");
+      li.innerHTML = `
+        <label style="cursor:pointer;">
+          <input type="checkbox" data-proposal="${prop}" />
+          ${prop}
+        </label>`;
+      ul.appendChild(li);
+    });
+
+    // On affiche la modale
+    const modal = document.getElementById("proposal-modal");
+    if (!modal) {
+      alert("Erreur : #proposal-modal introuvable !");
+      return;
+    }
+    modal.style.display = "block";
+  })
+  .catch(err => {
+    hideSpinner();
+    console.error("Erreur proposition Savoirs :", err);
+    alert("Erreur proposition Savoirs : " + err.message);
   });
-});
+};

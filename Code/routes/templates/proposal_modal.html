@@ -1,9 +1,65 @@
-<div id="proposal-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10000;">
-    <div style="background:#fff; padding:20px; margin:10% auto; width:400px; border-radius:5px;">
-      <h4 id="proposal-title">Propositions</h4>
-      <ul id="proposal-list" style="list-style-type:none; padding:0;"></ul>
-      <button onclick="validateProposal()">Valider</button>
-      <button onclick="closeProposalModal()">Annuler</button>
-    </div>
+<!-- proposal_modal.html -->
+<div id="proposal-modal"
+     style="display:none; position:fixed; top:20%; left:30%; width:40%;
+            background:#fff; border:1px solid #aaa; padding:20px; z-index:9999;">
+
+  <h4>Propositions de Savoirs</h4>
+
+  <!-- Liste où on insère les <li> -->
+  <ul id="proposalsList" style="list-style:none; padding-left:0;"></ul>
+
+  <div style="margin-top:10px;">
+    <button onclick="validateProposal()">Valider</button>
+    <button onclick="closeProposalModal()">Annuler</button>
   </div>
-  
+</div>
+
+<script>
+function validateProposal() {
+  const proposalsUl = document.getElementById('proposalsList');
+  const checked = proposalsUl.querySelectorAll('input[type="checkbox"]:checked');
+  if (!checked.length) {
+    alert("Sélectionnez au moins un savoir.");
+    return;
+  }
+
+  let selectedValues = [];
+  checked.forEach(cb => {
+    const val = cb.getAttribute('data-proposal') || "";
+    selectedValues.push(val);
+  });
+
+  const actId = window.currentActivityIdSavoirs;
+  if (!actId) {
+    alert("Aucun ID d’activité mémorisé !");
+    return;
+  }
+
+  // POST => /savoirs/<id>/add_batch
+  fetch(`/savoirs/${actId}/add_batch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ proposals: selectedValues })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.error) {
+      alert("Erreur d’enregistrement : " + data.error);
+    } else {
+      alert(data.message || "Savoirs enregistrés avec succès !");
+      closeProposalModal();
+      location.reload(); 
+    }
+  })
+  .catch(e => {
+    alert("Erreur technique add_batch: " + e.message);
+  });
+}
+
+function closeProposalModal() {
+  const modal = document.getElementById('proposal-modal');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+}
+</script>

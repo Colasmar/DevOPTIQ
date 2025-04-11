@@ -6,7 +6,6 @@ from Code.models.models import Activities, Savoir
 
 savoirs_bp = Blueprint('savoirs_bp', __name__, url_prefix='/savoirs')
 
-
 @savoirs_bp.route('/<int:activity_id>/add', methods=['POST'])
 def add_savoir(activity_id):
     """
@@ -90,3 +89,33 @@ def render_savoirs(activity_id):
     if not activity:
         return jsonify({"error": "Activité non trouvée"}), 404
     return render_template('activity_savoirs.html', activity=activity)
+
+
+# NOUVEL ENDPOINT pour insérer plusieurs Savoirs "en lot"
+@savoirs_bp.route('/<int:activity_id>/add_batch', methods=['POST'])
+def add_batch_savoirs(activity_id):
+    """
+    Reçoit { "proposals": ["Savoir 1 : ...", "Savoir 2 : ...", ...] }
+    et insère chaque Savoir dans la table 'savoirs'.
+    """
+    activity = Activities.query.get(activity_id)
+    if not activity:
+        return jsonify({"error": "Activité non trouvée"}), 404
+
+    data = request.get_json() or {}
+    proposals = data.get("proposals", [])
+    if not isinstance(proposals, list):
+        return jsonify({"error": "Le champ 'proposals' doit être un tableau."}), 400
+
+    nb_inserted = 0
+    for p in proposals:
+        desc = p.strip()
+        if not desc:
+            continue
+        # Crée un nouvel objet Savoir
+        new_savoir = Savoir(description=desc, activity_id=activity_id)
+        db.session.add(new_savoir)
+        nb_inserted += 1
+
+    db.session.commit()
+    return jsonify({"message": f"{nb_inserted} savoir(s) ajouté(s) !"}), 200

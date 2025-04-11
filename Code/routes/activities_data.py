@@ -1,23 +1,49 @@
+# Code/routes/activities_data.py
+# ----------------------------------------------------------------------
+# Fichier qui gère la route /activities/<activity_id>/details,
+# renvoyant toutes les infos nécessaires (name, description, tasks, tools, etc.)
+# On force un nom et une description par défaut si l'activité en DB est incomplète.
+# ----------------------------------------------------------------------
+
 from flask import jsonify, request
 from .activities_bp import activities_bp
 from Code.extensions import db
 from Code.models.models import Activities, Task, Role, Performance, Link, Data, Constraint, Competency, Softskill
-from sqlalchemy import text
 
 @activities_bp.route('/<int:activity_id>/details', methods=['GET'])
 def get_activity_details(activity_id):
     """
-    Route utilisée par "Proposer compétence", "Proposer HSC", "Traduire softskills", etc.
-    Renvoie un JSON décrivant tasks, tools, constraints, outgoing performances...
+    Retourne un JSON décrivant l’activité <activity_id> :
+    {
+      "id": ...,
+      "name": ...,
+      "description": ...,
+      "tasks": [...],
+      "tools": [...],
+      "constraints": [...],
+      "competencies": [...],
+      "outgoing": [...]
+      ...
+    }
     """
     activity = Activities.query.get(activity_id)
     if not activity:
         return jsonify({"error": "Activité non trouvée"}), 404
 
+    # On sécurise le nom et la description :
+    # si c'est vide ou None, on met des valeurs par défaut.
+    safe_name = activity.name.strip() if activity.name else ""
+    if not safe_name:
+        safe_name = f"Activité-{activity.id} (Nom indisponible)"
+
+    safe_description = (activity.description or "").strip()
+    if not safe_description:
+        safe_description = "Aucune description disponible."
+
     # Tâches => simple liste de noms
     tasks_list = [t.name for t in activity.tasks]
 
-    # Outils => cumulés
+    # Outils => cumulés depuis toutes les tasks
     tools_list = []
     for t in activity.tasks:
         for tl in t.tools:
@@ -46,8 +72,8 @@ def get_activity_details(activity_id):
     # On renvoie un dict global
     activity_data = {
         "id": activity.id,
-        "name": activity.name,
-        "description": activity.description or "",
+        "name": safe_name,                 # Non vide
+        "description": safe_description,   # Non vide
         "tasks": tasks_list,
         "tools": tools_list,
         "constraints": constraints_list,
@@ -56,4 +82,5 @@ def get_activity_details(activity_id):
         "input_data": "Aucune donnée d'entrée (placeholder)",
         "output_data": "Aucune donnée de sortie (placeholder)"
     }
+
     return jsonify(activity_data), 200

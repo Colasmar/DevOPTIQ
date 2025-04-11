@@ -6,3 +6,4 @@ vsdx
 python-docx
 pydotplus
 graphviz
+python-dotenv
