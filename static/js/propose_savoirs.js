@@ -2,13 +2,11 @@
 // Gère la proposition IA pour les Savoirs (côté client)
 
 window.proposeSavoirs = function(activityId) {
-  // Montre le spinner
+  // Affiche le spinner
   showSpinner();
 
-  // On mémorise l'ID
   window.currentActivityIdSavoirs = activityId;
 
-  // Récupération du "texte" (description, etc.)
   const text = window.getActivityData(activityId);
 
   fetch("/propose_savoirs/propose", {
@@ -16,7 +14,7 @@ window.proposeSavoirs = function(activityId) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       activity_data: {
-        name: "", // ou item.activity.name si besoin
+        name: "",
         description: text,
         tasks: [],
         tools: []

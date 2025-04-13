@@ -5,7 +5,6 @@
 
   <h4>Propositions de Savoirs</h4>
 
-  <!-- Liste où on insère les <li> -->
   <ul id="proposalsList" style="list-style:none; padding-left:0;"></ul>
 
   <div style="margin-top:10px;">
@@ -19,7 +18,7 @@ function validateProposal() {
   const proposalsUl = document.getElementById('proposalsList');
   const checked = proposalsUl.querySelectorAll('input[type="checkbox"]:checked');
   if (!checked.length) {
-    alert("Sélectionnez au moins un savoir.");
+    alert("Sélectionnez au moins un Savoir.");
     return;
   }
 
@@ -48,7 +47,7 @@ function validateProposal() {
     } else {
       alert(data.message || "Savoirs enregistrés avec succès !");
       closeProposalModal();
-      location.reload(); 
+      location.reload();
     }
   })
   .catch(e => {
