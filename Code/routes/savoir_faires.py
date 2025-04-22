@@ -4,14 +4,21 @@ from flask import Blueprint, request, jsonify, render_template
 from Code.extensions import db
 from Code.models.models import Activities, SavoirFaire
 
+# Blueprint pour les savoir-faires
 savoir_faires_bp = Blueprint('savoir_faires_bp', __name__, url_prefix='/savoir_faires')
 
-@savoir_faires_bp.route('/<int:activity_id>/add', methods=['POST'])
-def add_savoir_faire(activity_id):
+
+@savoir_faires_bp.route('/add', methods=['POST'])
+def add_savoir_faires():
+    """
+    Ajoute un "SavoirFaire" à l'activité <activity_id>.
+    JSON attendu : { "description": "<str>", "activity_id": <int> }
+    """
     data = request.get_json() or {}
     desc = data.get("description", "").strip()
-    if not desc:
-        return jsonify({"error": "description is required"}), 400
+    activity_id = data.get("activity_id")
+    if not desc or not activity_id:
+        return jsonify({"error": "description and activity_id are required"}), 400
 
     activity = Activities.query.get(activity_id)
     if not activity:
@@ -29,16 +36,21 @@ def add_savoir_faire(activity_id):
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
-@savoir_faires_bp.route('/<int:activity_id>/<int:sf_id>', methods=['PUT'])
-def update_savoir_faire(activity_id, sf_id):
+
+@savoir_faires_bp.route('/<int:activity_id>/<int:savoir_faires_id>', methods=['PUT'])
+def update_savoir_faires(activity_id, savoir_faires_id):
+    """
+    Met à jour un "SavoirFaire" existant sur l'activité <activity_id>.
+    JSON attendu : { "description": "<str>" }
+    """
     data = request.get_json() or {}
     new_desc = data.get("description", "").strip()
     if not new_desc:
         return jsonify({"error": "description is required"}), 400
 
-    sf_obj = SavoirFaire.query.filter_by(id=sf_id, activity_id=activity_id).first()
+    sf_obj = SavoirFaire.query.filter_by(id=savoir_faires_id, activity_id=activity_id).first()
     if not sf_obj:
-        return jsonify({"error": "SavoirFaire not found"}), 404
+        return jsonify({"error": "SavoirFaire not found for this activity"}), 404
 
     try:
         sf_obj.description = new_desc
@@ -51,9 +63,13 @@ def update_savoir_faire(activity_id, sf_id):
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
-@savoir_faires_bp.route('/<int:activity_id>/<int:sf_id>', methods=['DELETE'])
-def delete_savoir_faire(activity_id, sf_id):
-    sf_obj = SavoirFaire.query.filter_by(id=sf_id, activity_id=activity_id).first()
+
+@savoir_faires_bp.route('/<int:activity_id>/<int:savoir_faires_id>', methods=['DELETE'])
+def delete_savoir_faires(activity_id, savoir_faires_id):
+    """
+    Supprime un "SavoirFaire" existant de l'activité <activity_id>.
+    """
+    sf_obj = SavoirFaire.query.filter_by(id=savoir_faires_id, activity_id=activity_id).first()
     if not sf_obj:
         return jsonify({"error": "SavoirFaire not found"}), 404
 
@@ -65,8 +81,13 @@ def delete_savoir_faire(activity_id, sf_id):
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
+
 @savoir_faires_bp.route('/<int:activity_id>/render', methods=['GET'])
 def render_savoir_faires(activity_id):
+    """
+    Retourne le fragment HTML affichant la liste des "SavoirFaire" d'une activité
+    pour être inclus dynamiquement (type partial).
+    """
     activity = Activities.query.get(activity_id)
     if not activity:
         return jsonify({"error": "Activité non trouvée"}), 404

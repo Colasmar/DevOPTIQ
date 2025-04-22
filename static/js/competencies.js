@@ -38,8 +38,9 @@ function proposeSkills(activityData) {
   })
   .then(response => {
     if (!response.ok) {
-      hideSpinner();
-      throw new Error("Réponse invalide de /skills/propose");
+      return response.text().then(text => {
+         throw new Error(`Réponse invalide de /skills/propose: ${text}`);
+      });
     }
     return response.json();
   })

@@ -65,6 +65,10 @@ function proposeSoftskills(activityData) {
 }
 
 
+
+
+
+
 // On crée un modal similaire à translateResultsModal
 function showProposedSoftskills(hscProposals, activityId) {
   // Création d'un modal dynamique
@@ -93,7 +97,7 @@ function showProposedSoftskills(hscProposals, activityId) {
 
   const listEl = modal.querySelector('#proposedHscList');
   listEl.innerHTML = "";
-  hscProposals.forEach((p, idx) => {
+  hscProposals.forEach((p) => {
     const li = document.createElement('li');
     li.style.marginBottom = "5px";
     const justifSafe = (p.justification || "").replace(/'/g, "\\'");

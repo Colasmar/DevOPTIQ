@@ -94,3 +94,8 @@ def delete_role(role_id):
     db.session.delete(role)
     db.session.commit()
     return jsonify({"message": "Role deleted"}), 200
+
+@roles_bp.route("/onboarding/<int:role_id>")
+def get_onboarding(role_id):
+    onboarding_html = generate_onboarding_html(role_id)
+    return onboarding_html

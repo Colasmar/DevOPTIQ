@@ -27,6 +27,19 @@ function closeGarantModal() {
     document.getElementById('garantModal').style.display = 'none';
 }
 
+function toggleDetails(detailsId) {
+    var details = document.getElementById(detailsId);
+    var icon = document.getElementById('icon-' + detailsId);
+
+    if (details.style.display === "none" || details.style.display === "") {
+        details.style.display = "block";
+        
+    } else {
+        details.style.display = "none";
+        
+    }
+}
+
 function submitGarantRole() {
     let activityId = document.getElementById('garant-activity-id').value;
     let selectElem = document.getElementById('garant-role-select');

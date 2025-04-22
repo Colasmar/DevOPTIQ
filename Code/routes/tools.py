@@ -1,5 +1,3 @@
-# Code/routes/tools.py
-
 from flask import Blueprint, request, jsonify
 from Code.extensions import db
 from Code.models.models import Task, Tool
@@ -26,7 +24,6 @@ def add_tools_to_task():
                 if tool and tool not in task.tools:
                     task.tools.append(tool)
                     added_tools.append({"id": tool.id, "name": tool.name})
-
         # (2) Créer ou associer de nouveaux outils par leur nom
         if 'new_tools' in data and isinstance(data['new_tools'], list):
             for tool_name in data['new_tools']:
@@ -40,9 +37,7 @@ def add_tools_to_task():
                     if tool not in task.tools:
                         task.tools.append(tool)
                         added_tools.append({"id": tool.id, "name": tool.name})
-
         db.session.commit()
-
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
@@ -51,8 +46,33 @@ def add_tools_to_task():
 
 @tools_bp.route('/all', methods=['GET'])
 def get_all_tools():
-    """
-    Renvoie la liste de tous les outils en ordre alphabétique.
-    """
     tools = Tool.query.order_by(Tool.name).all()
     return jsonify([{'id': tool.id, 'name': tool.name} for tool in tools])
+
+@tools_bp.route('/delete', methods=['POST'])
+def delete_tool_from_task():
+    data = request.get_json()
+    if not data or 'task_id' not in data or 'tool_id' not in data:
+        return jsonify({"error": "task_id and tool_id are required"}), 400
+
+    task_id = data['task_id']
+    tool_id = data['tool_id']
+
+    task = Task.query.get(task_id)
+    if not task:
+        return jsonify({"error": "Task not found"}), 404
+
+    tool = Tool.query.get(tool_id)
+    if not tool:
+        return jsonify({"error": "Tool not found"}), 404
+
+    if tool not in task.tools:
+        return jsonify({"error": "Tool is not associated with this task"}), 404
+
+    try:
+        task.tools.remove(tool)
+        db.session.commit()
+        return jsonify({"message": "Tool removed from task"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500

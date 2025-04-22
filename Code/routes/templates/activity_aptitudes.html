@@ -1,9 +1,8 @@
 <!-- Code/routes/templates/activity_aptitudes.html -->
 
 <div class="aptitudes-section">
-    <h3>Aptitudes</h3>
-  
     <div id="aptitudes-container-{{ activity.id }}">
+      <h3>Aptitudes</h3>
       {% if activity.aptitudes and activity.aptitudes|length > 0 %}
         <ul>
           {% for ap in activity.aptitudes %}
@@ -28,16 +27,21 @@
               </div>
             </li>
           {% endfor %}
+
         </ul>
       {% else %}
         <p>Aucune Aptitude enregistrée.</p>
       {% endif %}
-    </div>
-  
-    <button onclick="showAddAptitudeForm('{{ activity.id }}')">+ Ajouter une Aptitude</button>
-    <div id="add-aptitude-form-{{ activity.id }}" style="display:none; margin-top:5px;">
-      <input type="text" id="add-aptitude-input-{{ activity.id }}" />
-      <button onclick="submitAddAptitude('{{ activity.id }}')">Enregistrer</button>
-      <button onclick="hideAddAptitudeForm('{{ activity.id }}')">Annuler</button>
-    </div>
+      <button onclick="showAddAptitudeForm('{{ activity.id }}')">+ Ajouter une Aptitude</button>
+      <div id="add-aptitude-form-{{ activity.id }}" style="display:none; margin-top:5px;">
+        <input type="text" id="add-aptitude-input-{{ activity.id }}" />
+        <button onclick="submitAddAptitude('{{ activity.id }}')">Enregistrer</button>
+        <button onclick="hideAddAptitudeForm('{{ activity.id }}')">Annuler</button>
+      </div>
+      <button onclick="fetchActivityDetailsForAptitudes('{{ activity.id }}')">Proposer Aptitudes</button>
+      </div>
+      <script src="{{ url_for('static', filename='js/propose_aptitudes.js') }}"></script>
 </div>
+
+
+{% include 'aptitudes_modal.html' %}

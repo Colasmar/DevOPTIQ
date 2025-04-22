@@ -13,10 +13,10 @@ if current_dir not in sys.path:
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from flask import Flask
+from flask import Flask, redirect, url_for
 from flask_migrate import Migrate
 from Code.extensions import db
-import re  # pour le filtre extract_numeric_level
+from Code.routes.connexion_routes import auth_bp
 
 def create_app():
     static_folder = os.path.join(parent_dir, 'static')
@@ -39,9 +39,11 @@ def create_app():
     # ----------------------------------------------------------------------
     # 1) Filtre Jinja pour n'afficher que la partie numérique (1..4)
     # ----------------------------------------------------------------------
+    import re  # pour le filtre extract_numeric_level
     def extract_numeric_level(value):
         match = re.search(r"\d", value or "")
         return match.group(0) if match else "1"
+
     app.jinja_env.filters['extract_numeric_level'] = extract_numeric_level
 
     # ----------------------------------------------------------------------
@@ -105,10 +107,11 @@ def create_app():
     from Code.routes.aptitudes import aptitudes_bp
     app.register_blueprint(aptitudes_bp)
 
- 
+    from Code.routes.connexion_routes import auth_bp
+    app.register_blueprint(auth_bp)  # Gardez cette ligne
+
     # ---------------------
-    #  Nouveaux blueprint 
-    #  (celui que tu avais pour propose_savoirs/savoir_faires/aptitudes)
+    #  Nouveaux blueprints
     # ---------------------
     from Code.routes.propose_savoirs import propose_savoirs_bp
     app.register_blueprint(propose_savoirs_bp)
@@ -119,9 +122,11 @@ def create_app():
     from Code.routes.propose_aptitudes import propose_aptitudes_bp
     app.register_blueprint(propose_aptitudes_bp)
 
+    app.secret_key = 'votre_clé_secrète_unique'
+
     @app.route('/')
     def home():
-        return "Bienvenue sur mon application Flask !"
+        return redirect(url_for('auth.login'))
 
     @app.route('/test_skills')
     def test_skills():

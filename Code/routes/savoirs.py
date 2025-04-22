@@ -4,19 +4,21 @@ from flask import Blueprint, request, jsonify, render_template
 from Code.extensions import db
 from Code.models.models import Activities, Savoir
 
+# Utiliser un préfixe différent pour le blueprint, si nécessaire, mais ici on garde '/savoirs'
 savoirs_bp = Blueprint('savoirs_bp', __name__, url_prefix='/savoirs')
 
 
-@savoirs_bp.route('/<int:activity_id>/add', methods=['POST'])
-def add_savoir(activity_id):
+@savoirs_bp.route('/add', methods=['POST'])
+def add_savoir():
     """
     Ajoute un "Savoir" à l'activité <activity_id>.
-    JSON attendu : { "description": "<str>" }
+    JSON attendu : { "description": "<str>", "activity_id": <int> }
     """
     data = request.get_json() or {}
     desc = data.get("description", "").strip()
-    if not desc:
-        return jsonify({"error": "description is required"}), 400
+    activity_id = data.get("activity_id")
+    if not desc or not activity_id:
+        return jsonify({"error": "description and activity_id are required"}), 400
 
     activity = Activities.query.get(activity_id)
     if not activity:

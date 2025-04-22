@@ -1,6 +1,5 @@
 from flask import Blueprint, render_template
 from sqlalchemy import text, func
-import re
 from Code.extensions import db
 from Code.models.models import Role
 
@@ -49,12 +48,12 @@ def view_roles():
                 "status": row.role_status
             })
 
-        # Bloc 3 : Compétences associées aux activités Garant
+        # Bloc 3 : Compétences associées aux activités Garant (savoirs)
         competencies = db.session.execute(
             text("""
                 SELECT c.id, c.description
                 FROM activity_roles ar
-                JOIN competencies c ON ar.activity_id = c.activity_id
+                JOIN savoirs c ON ar.activity_id = c.activity_id
                 WHERE ar.role_id = :rid
                   AND ar.status = 'Garant'
             """),
@@ -62,37 +61,86 @@ def view_roles():
         ).fetchall()
         block3 = [{"id": comp[0], "description": comp[1]} for comp in competencies]
 
-        # Bloc 4 : Habiletés socio-cognitives associées aux activités Garant
-        # On agrège en conservant la chaîne complète de niveau associée à la plus haute valeur numérique
-        softskills_raw = db.session.execute(
+        # Bloc 4 : Transformation pour éviter les doublons
+        savoirs = {}
+        savoir_faires = {}
+        aptitudes = {}
+        softskills = {}
+
+        # Récupération des savoirs
+        savoirs_query = db.session.execute(
             text("""
-                SELECT s.id, s.habilete, s.niveau
-                FROM activity_roles ar
-                JOIN softskills s ON ar.activity_id = s.activity_id
+                SELECT s.id, s.description
+                FROM savoirs s
+                JOIN activity_roles ar ON s.activity_id = ar.activity_id
                 WHERE ar.role_id = :rid
-                  AND ar.status = 'Garant'
             """),
             {"rid": role.id}
         ).fetchall()
-        hsc_dict = {}
-        for row in softskills_raw:
-            hsc_name = row[1]
-            full_niveau = row[2]
-            # Extraire le premier chiffre (1 à 4) de la chaîne (ex: "2 (acquisition)")
-            match = re.search(r"([1-4])", full_niveau)
-            numeric_level = int(match.group(1)) if match else 0
-            if hsc_name in hsc_dict:
-                # Conserver l'entrée si le niveau numérique est supérieur
-                if numeric_level > hsc_dict[hsc_name]["numeric"]:
-                    hsc_dict[hsc_name] = {"id": row[0], "habilete": hsc_name, "niveau": full_niveau, "numeric": numeric_level}
-            else:
-                hsc_dict[hsc_name] = {"id": row[0], "habilete": hsc_name, "niveau": full_niveau, "numeric": numeric_level}
+        
+        for row in savoirs_query:
+            savoirs[row[0]] = row[1]
+
+        # Récupération des savoir-faire
+        savoir_faires_query = db.session.execute(
+            text("""
+                SELECT sf.id, sf.description
+                FROM savoir_faires sf
+                JOIN activity_roles ar ON sf.activity_id = ar.activity_id
+                WHERE ar.role_id = :rid
+            """),
+            {"rid": role.id}
+        ).fetchall()
+        
+        for row in savoir_faires_query:
+            savoir_faires[row[0]] = row[1]
+
+        # Récupération des aptitudes
+        aptitudes_query = db.session.execute(
+            text("""
+                SELECT a.id, a.description
+                FROM aptitudes a
+                JOIN activity_roles ar ON a.activity_id = ar.activity_id
+                WHERE ar.role_id = :rid
+            """),
+            {"rid": role.id}
+        ).fetchall()
+        
+        for row in aptitudes_query:
+            aptitudes[row[0]] = row[1]
+
+        # Récupération des softskills avec niveau et justification
+        softskills_query = db.session.execute(
+            text("""
+                SELECT ss.id, ss.habilete, ss.niveau, ss.justification
+                FROM softskills ss
+                JOIN activity_roles ar ON ss.activity_id = ar.activity_id
+                WHERE ar.role_id = :rid
+            """),
+            {"rid": role.id}
+        ).fetchall()
+        
+        for row in softskills_query:
+            softskills[row[0]] = {
+                "habilete": row[1],
+                "niveau": row[2],
+                "justification": row[3]
+            }
+
+        # Combiner les résultats
         block4 = []
-        for key in hsc_dict:
+        for id, description in savoirs.items():
+            block4.append({"type": "savoir", "value": description})
+        for id, description in savoir_faires.items():
+            block4.append({"type": "savoir-faire", "value": description})
+        for id, description in aptitudes.items():
+            block4.append({"type": "aptitude", "value": description})
+        for id, skill_details in softskills.items():
             block4.append({
-                "id": hsc_dict[key]["id"],
-                "habilete": hsc_dict[key]["habilete"],
-                "niveau": hsc_dict[key]["niveau"]
+                "type": "softskill", 
+                "value": skill_details["habilete"], 
+                "niveau": skill_details["niveau"], 
+                "justification": skill_details["justification"]
             })
 
         roles_data.append({

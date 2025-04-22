@@ -4,14 +4,21 @@ from flask import Blueprint, request, jsonify, render_template
 from Code.extensions import db
 from Code.models.models import Activities, Aptitude
 
+
 aptitudes_bp = Blueprint('aptitudes_bp', __name__, url_prefix='/aptitudes')
 
-@aptitudes_bp.route('/<int:activity_id>/add', methods=['POST'])
-def add_aptitude(activity_id):
+
+@aptitudes_bp.route('/add', methods=['POST'])
+def add_aptitude():
+    """
+    Ajoute une "Aptitude" à l'activité <activity_id>.
+    JSON attendu : { "description": "<str>", "activity_id": <int> }
+    """
     data = request.get_json() or {}
     desc = data.get("description", "").strip()
-    if not desc:
-        return jsonify({"error": "description is required"}), 400
+    activity_id = data.get("activity_id")
+    if not desc or not activity_id:
+        return jsonify({"error": "description and activity_id are required"}), 400
 
     activity = Activities.query.get(activity_id)
     if not activity:
@@ -29,14 +36,18 @@ def add_aptitude(activity_id):
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
-@aptitudes_bp.route('/<int:activity_id>/<int:ap_id>', methods=['PUT'])
-def update_aptitude(activity_id, ap_id):
+@aptitudes_bp.route('/<int:activity_id>/<int:aptitudes_id>', methods=['PUT'])
+def update_aptitude(activity_id, aptitudes_id):
+    """
+    Met à jour une "Aptitude" existante sur l'activité <activity_id>.
+    JSON attendu : { "description": "<str>" }
+    """
     data = request.get_json() or {}
     new_desc = data.get("description", "").strip()
     if not new_desc:
         return jsonify({"error": "description is required"}), 400
 
-    ap_obj = Aptitude.query.filter_by(id=ap_id, activity_id=activity_id).first()
+    ap_obj = Aptitude.query.filter_by(id=aptitudes_id, activity_id=activity_id).first()
     if not ap_obj:
         return jsonify({"error": "Aptitude not found"}), 404
 
@@ -51,14 +62,17 @@ def update_aptitude(activity_id, ap_id):
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
-@aptitudes_bp.route('/<int:activity_id>/<int:ap_id>', methods=['DELETE'])
-def delete_aptitude(activity_id, ap_id):
-    ap_obj = Aptitude.query.filter_by(id=ap_id, activity_id=activity_id).first()
-    if not ap_obj:
+@aptitudes_bp.route('/<int:activity_id>/<int:aptitudes_id>', methods=['DELETE'])
+def delete_aptitude(activity_id, aptitudes_id):
+    """
+    Supprime une "Aptitude" existant de l'activité <activity_id>.
+    """
+    aptitudes_obj = Aptitude.query.filter_by(id=aptitudes_id, activity_id=activity_id).first()
+    if not aptitudes_obj:
         return jsonify({"error": "Aptitude not found"}), 404
 
     try:
-        db.session.delete(ap_obj)
+        db.session.delete(aptitudes_obj)
         db.session.commit()
         return jsonify({"message": "Aptitude deleted"}), 200
     except Exception as e:
@@ -67,6 +81,10 @@ def delete_aptitude(activity_id, ap_id):
 
 @aptitudes_bp.route('/<int:activity_id>/render', methods=['GET'])
 def render_aptitudes(activity_id):
+    """
+    Retourne le fragment HTML affichant la liste des "Aptitudes" d'une activité
+    pour être inclus dynamiquement (type partial).
+    """
     activity = Activities.query.get(activity_id)
     if not activity:
         return jsonify({"error": "Activité non trouvée"}), 404

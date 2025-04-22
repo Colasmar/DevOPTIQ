@@ -130,19 +130,16 @@
         {% include "activity_competencies.html" %}
       </div>
   
-      <!-- 4 colonnes : Savoirs / Savoir-Faire / Aptitudes / HSC -->
+      <!-- 4 colonnes : Savoirs / Savoir-Faires / Aptitudes / HSC -->
       <div style="display:flex; gap:30px; margin-top:20px;">
         <div style="flex:1;">
           {% include "activity_savoirs.html" %}
-          <button onclick="proposeSavoirs({{ item.activity.id }})">Proposer Savoirs</button>
         </div>
         <div style="flex:1;">
           {% include "activity_savoir_faires.html" %}
-          <button onclick="proposeSavoirFaires({{ item.activity.id }})">Proposer Savoir-Faire</button>
         </div>
         <div style="flex:1;">
           {% include "activity_aptitudes.html" %}
-          <button onclick="proposeAptitudes({{ item.activity.id }})">Proposer Aptitudes</button>
         </div>
         <div style="flex:1;">
           {% include "activity_softskills.html" %}

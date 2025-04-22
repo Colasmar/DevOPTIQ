@@ -97,43 +97,7 @@ if (!window.OPTIQ_MAIN_LOADED) {
     .catch(err => console.error("Erreur proposition Aptitudes :", err));
   };
 }
-function fetchActivityDetailsForProposeSavoirs(activityId) {
-  const activityBlock = document.getElementById(`activity-block-${activityId}`) || document;
-  const nameElem = activityBlock.querySelector(`.activity-name`);
-  const descElem = activityBlock.querySelector(`.activity-desc`);
-  const taskElems = activityBlock.querySelectorAll(`.task-name`);
-  const toolElems = activityBlock.querySelectorAll(`.tool-name`);
 
-  const tasks = Array.from(taskElems).map(el => el.textContent.trim());
-  const tools = Array.from(toolElems).map(el => el.textContent.trim());
-
-  const payload = {
-    activity_data: {
-      name: nameElem ? nameElem.textContent.trim() : '',
-      description: descElem ? descElem.textContent.trim() : '',
-      tasks: tasks,
-      tools: tools
-    }
-  };
-
-  fetch('/propose_savoirs/propose', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.error) {
-      alert("Erreur: " + data.error);
-    } else {
-      alert("Propositions de savoirs :\n" + data.proposals.join("\n"));
-    }
-  })
-  .catch(err => {
-    console.error("Erreur:", err);
-    alert("Une erreur est survenue lors de la génération des savoirs.");
-  });
-}
 document.addEventListener("DOMContentLoaded", function () {
   const cartoButton = document.getElementById("update-cartography-button");
 

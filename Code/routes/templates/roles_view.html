@@ -187,24 +187,57 @@
             {% endif %}
           </div>
         </div>
-        <!-- Bloc 4 : Habiletés socio-cognitives -->
+
+
+
+
+        <!-- Bloc 4 : Savoirs, Savoir-faire, Aptitudes et HSC -->
         <div class="role-block block-4">
           <div class="block-header" onclick="toggleBlock('block4-{{ item.role.id }}', event)">
-            <span class="toggle-icon" id="block4-icon-{{ item.role.id }}">▶</span>
-            Bloc 4 : Habiletés socio-cognitives
+              <span class="toggle-icon" id="block4-icon-{{ item.role.id }}">▶</span>
+              Bloc 4 : Savoirs, Savoir-faire, Aptitudes et HSC
           </div>
           <div id="block4-{{ item.role.id }}" class="block-content">
-            {% if item.block4 %}
+              <h3>Savoirs</h3>
               <ul>
-                {% for hsc in item.block4 %}
-                  <li>{{ hsc.habilete }} - Niveau: {{ hsc.niveau }}</li>
-                {% endfor %}
+                  {% for entry in item.block4 if entry.type == 'savoir' %}
+                      <li>{{ entry.value }}</li>
+                  {% endfor %}
               </ul>
-            {% else %}
-              <p>Aucune habileté trouvée.</p>
-            {% endif %}
+
+              <h3>Savoir-faire</h3>
+              <ul>
+                  {% for entry in item.block4 if entry.type == 'savoir-faire' %}
+                      <li>{{ entry.value }}</li>
+                  {% endfor %}
+              </ul>
+              
+              <h3>Aptitudes</h3>
+              <ul>
+                  {% for entry in item.block4 if entry.type == 'aptitude' %}
+                      <li>{{ entry.value }}</li>
+                  {% endfor %}
+              </ul>
+
+              <h3>HSC</h3>
+              <ul>
+                  {% for entry in item.block4 if entry.type == 'HSC' %}
+                      <li>{{ entry.value }}</li>
+                  {% endfor %}
+              </ul>
+
+              {% if item.block4 | length == 0 %}
+                  <p>Aucun savoir, savoir-faire, aptitude ou HSC trouvé.</p>
+              {% endif %}
           </div>
         </div>
+
+
+
+
+
+
+
 
         <!-- Section On-boarding -->
         <div class="role-onboarding" style="margin-top:10px;">
@@ -380,4 +413,5 @@
     }
   </script>
 </body>
+<script src="/static/js/roles.js"></script>
 </html>

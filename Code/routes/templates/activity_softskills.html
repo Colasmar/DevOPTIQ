@@ -8,15 +8,15 @@
 </div>
 
 <!-- Boutons d'IA -->
-<button onclick="fetchActivityDetailsForPropose({{ item.activity.id }})">
+<button onclick="fetchActivityDetailsForPropose('{{ item.activity.id }}')">
   Proposer HSC
 </button>
-<button onclick="openTranslateSoftskillsModal({{ item.activity.id }})">
+<button onclick="openTranslateSoftskillsModal('{{ item.activity.id }}')">
   Traduire Softskills
 </button>
 
 <!-- Bouton + Formulaire d'ajout manuel de HSC -->
-<button onclick="showAddSoftskillForm({{ item.activity.id }})">
+<button onclick="showAddSoftskillForm('{{ item.activity.id }}')">
   + Ajouter HSC
 </button>
 <div id="add-softskill-form-{{ item.activity.id }}"
@@ -38,6 +38,6 @@
     <textarea id="new-softskill-justif-{{ item.activity.id }}" rows="2" style="width:95%;"></textarea>
   </div>
 
-  <button onclick="submitAddSoftskill({{ item.activity.id }})" style="margin-top:8px;">Enregistrer</button>
-  <button onclick="hideAddSoftskillForm({{ item.activity.id }})" style="margin-top:8px;">Annuler</button>
+  <button onclick="submitAddSoftskill('{{ item.activity.id }}')" style="margin-top:8px;">Enregistrer</button>
+  <button onclick="hideAddSoftskillForm('{{ item.activity.id }}')" style="margin-top:8px;">Annuler</button>
 </div>
