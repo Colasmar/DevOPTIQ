@@ -1,5 +1,5 @@
-{% if ss.softskills and ss.softskills|length > 0 %}
-  {% for softskill in ss.softskills %}
+{% if activity.softskills and activity.softskills|length > 0 %}
+  {% for softskill in activity.softskills %}
     <div class="softskill-item" style="margin-bottom:5px;" data-ss-id="{{ softskill.id }}">
       <span class="softskill-text">
         {{ softskill.habilete }} ({{ softskill.niveau }})

@@ -4,27 +4,35 @@ body {
     background-color: #f4f4f4;
     margin: 0;
     padding: 0;
+    /* Augmenter la taille de police globale du corps */
+    font-size: 1.1em; /* 1.1 fois la taille par défaut */
 }
 
 h1 {
     text-align: center;
     color: #333;
-    margin-bottom: 20px;
+    /* Augmenter la marge inférieure */
+    margin-bottom: 30px;
+    /* Augmenter la taille de police du titre */
+    font-size: 2em; /* 2 fois la taille par défaut */
 }
 
 form {
     background: #fff;
-    margin: 20px auto;
-    padding: 20px;
-    max-width: 400px;
-    border-radius: 5px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    margin: 30px auto; /* Augmenter la marge autour du formulaire */
+    padding: 30px; /* Augmenter le rembourrage intérieur du formulaire */
+    max-width: 450px; /* Augmenter légèrement la largeur maximale du formulaire */
+    border-radius: 8px; /* Arrondir davantage les coins */
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15); /* Ombre plus prononcée */
 }
 
 label {
     display: block;
-    margin: 10px 0 5px;
+    /* Augmenter la marge autour des labels */
+    margin: 15px 0 8px;
     color: #555;
+    /* Augmenter la taille de police des labels */
+    font-size: 1.1em;
 }
 
 input[type="text"],
@@ -33,10 +41,14 @@ input[type="password"],
 input[type="number"],
 select {
     width: 100%;
-    padding: 10px;
+    /* Augmenter le rembourrage intérieur des champs de saisie */
+    padding: 12px;
     border: 1px solid #ccc;
-    border-radius: 4px;
-    margin-bottom: 15px;
+    border-radius: 5px; /* Arrondir davantage les coins des champs */
+    /* Augmenter la marge inférieure des champs */
+    margin-bottom: 20px;
+    /* Augmenter la taille de police dans les champs */
+    font-size: 1.1em;
 }
 
 input[type="submit"],
@@ -44,10 +56,15 @@ button {
     background-color: #5cb85c;
     color: white;
     border: none;
-    padding: 10px 15px;
-    border-radius: 4px;
+    /* Augmenter le rembourrage intérieur des boutons */
+    padding: 12px 20px;
+    border-radius: 5px; /* Arrondir davantage les coins des boutons */
     cursor: pointer;
     width: 100%;
+    /* Augmenter la taille de police des boutons */
+    font-size: 1.2em;
+    /* Ajouter un peu de marge supérieure pour les boutons */
+    margin-top: 10px;
 }
 
 input[type="submit"]:hover,
@@ -60,22 +77,36 @@ button:hover {
     color: red;
     font-weight: bold;
     text-align: center;
+    /* Augmenter la taille de police des messages d'erreur */
+    font-size: 1.1em;
+    /* Ajouter un peu de marge */
+    margin-bottom: 15px;
 }
 
 .success {
     color: green;
     font-weight: bold;
     text-align: center;
+    /* Augmenter la taille de police des messages de succès */
+    font-size: 1.1em;
+    /* Ajouter un peu de marge */
+    margin-bottom: 15px;
 }
 
 /* Links */
 p {
     text-align: center;
+    /* Augmenter la marge autour des paragraphes */
+    margin-top: 20px;
+    /* Augmenter la taille de police des paragraphes */
+    font-size: 1.1em;
 }
 
 a {
     color: #5cb85c;
     text-decoration: none;
+    /* Augmenter la taille de police des liens */
+    font-size: 1em; /* Conserver une taille similaire au paragraphe */
 }
 
 a:hover {
