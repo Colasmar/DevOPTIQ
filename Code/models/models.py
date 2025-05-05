@@ -206,7 +206,7 @@ class UserRole(db.Model):
 
 
 class CompetencyEvaluation(db.Model):
-    __tablename__ = 'competency_evaluation' # Optionnel mais bonne pratique d'être explicite
+    __tablename__ = 'competency_evaluation'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), nullable=False)
