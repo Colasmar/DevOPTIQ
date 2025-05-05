@@ -1,4 +1,6 @@
 from Code.extensions import db
+from datetime import datetime
+
 
 # ---------------------------------------------------------
 #  Table d'association entre Task et Tool
@@ -180,3 +182,40 @@ class Aptitude(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     description = db.Column(db.Text, nullable=False)
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
+
+class User(db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, primary_key=True)
+    first_name = db.Column(db.String(100), nullable=False)
+    last_name = db.Column(db.String(100), nullable=False)
+    age = db.Column(db.Integer, nullable=True)
+    email = db.Column(db.String(200), nullable=False, unique=True)
+    password = db.Column(db.String(200), nullable=False)
+    manager_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    subordinates = db.relationship('User', backref=db.backref('manager', remote_side=[id]))
+    evaluations = db.relationship('CompetencyEvaluation', back_populates='user', cascade='all, delete-orphan')
+
+
+class UserRole(db.Model):
+    __tablename__ = 'user_roles'
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)
+    role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), primary_key=True)
+    user = db.relationship('User', backref='user_roles')
+    role = db.relationship('Role', backref='user_roles')
+
+
+
+class CompetencyEvaluation(db.Model):
+    __tablename__ = 'competency_evaluation' # Optionnel mais bonne pratique d'être explicite
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), nullable=False)
+    item_id = db.Column(db.Integer, nullable=False)
+    item_type = db.Column(db.String(50), nullable=False)
+    eval_number = db.Column(db.Integer, nullable=False)
+    note = db.Column(db.String(10), nullable=False)
+    user = db.relationship('User', back_populates='evaluations')
+    __table_args__ = (db.UniqueConstraint('user_id', 'role_id', 'item_id', 'item_type', 'eval_number', name='_user_role_item_eval_uc'),)
+
+    def __repr__(self):
+        return f"<CompetencyEvaluation user_id={self.user_id} role_id={self.role_id} item_type={self.item_type} item_id={self.item_id} eval={self.eval_number} note={self.note}>"

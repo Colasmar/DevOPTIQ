@@ -1,10 +1,9 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
-from Code.models.models import Role
+from Code.models.models import User, Role, UserRole  # Ajout de UserRole
+from Code.extensions import db
+from werkzeug.security import generate_password_hash, check_password_hash
 
 auth_bp = Blueprint('auth', __name__)
-
-# Simuler une base de données pour les utilisateurs en mémoire
-user_storage = {}
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
@@ -12,21 +11,23 @@ def login():
         email = request.form.get('email')
         password = request.form.get('password')
 
-        # Vérifier si l'utilisateur existe
-        if email not in user_storage:
-            flash('Compte introuvable.', 'error')  # Message d'erreur
+        # Vérifier si l'utilisateur existe dans la base de données
+        user = User.query.filter_by(email=email).first()
+        if user is None:
+            flash('Compte introuvable.', 'error')
             return redirect(url_for('auth.login'))
 
         # Vérifier si le mot de passe correspond
-        if user_storage[email]['password'] != password:
-            flash('Mot de passe incorrect.', 'error')  # Message d'erreur
+        if not check_password_hash(user.password, password):
+            flash('Mot de passe incorrect.', 'error')
             return redirect(url_for('auth.login'))
 
         # Stocker l'email dans la session si la connexion est réussie
         session['user_email'] = email  
-        return redirect(url_for('activities.view_activities'))  # Utilisez le bon nom d'endpoint
+        return redirect(url_for('activities.view_activities'))  # Endpoint à adapter si nécessaire
 
-    return render_template('connexion.html')  # Changement ici
+    return render_template('connexion.html')
+
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
@@ -36,31 +37,48 @@ def register():
         last_name = request.form.get('last_name')
         age = request.form.get('age')
         email = request.form.get('email')
-        password = request.form.get('password')  # Ajout du mot de passe
-        role_id = request.form.get('role')
+        password = request.form.get('password')  # Mot de passe en clair
+        role_name = request.form.get('role')  # Récupérer le nom du rôle sélectionné
 
-        # Simuler la création d'un utilisateur
-        user_storage[email] = {
-            'first_name': first_name,
-            'last_name': last_name,
-            'age': age,
-            'role_id': role_id,
-            'password': password  # Stocker le mot de passe
-        }
-        # Redirection vers la page de connexion après l'inscription
+        # Hachage du mot de passe
+        hashed_password = generate_password_hash(password)
+
+        # Créer un nouvel utilisateur
+        new_user = User(
+            first_name=first_name,
+            last_name=last_name,
+            age=age,
+            email=email,
+            password=hashed_password
+        )
+
+        db.session.add(new_user)
+        db.session.flush()  # Ne pas commit encore
+
+        # Récupérer le rôle correspondant via le nom
+        role = Role.query.filter_by(name=role_name).first()
+        if role:
+            # Ajouter l'entrée dans la table de liaison user_roles
+            user_role = UserRole(user_id=new_user.id, role_id=role.id)
+            db.session.add(user_role)
+        else:
+            # Si le rôle n'existe pas, vous pouvez gérer cette erreur
+            flash('Rôle invalide.', 'error')
+            db.session.rollback()
+            return redirect(url_for('auth.register'))
+
+        db.session.commit()
+        print(f"Utilisateur enregistré : {new_user.first_name} {new_user.last_name} avec rôle {role_name}")
+
         flash('Inscription réussie, vous pouvez vous connecter.', 'success')
         return redirect(url_for('auth.login'))
 
-    roles = Role.query.all()  # Remplir la liste des rôles depuis la base de données
-    return render_template('enregistrer.html', roles=roles)  # Changement ici
+    # Obtenir la liste des rôles pour le formulaire
+    roles = Role.query.all()
+    return render_template('enregistrer.html', roles=roles)
 
-@auth_bp.route('/login', methods=['POST'])
-def do_login():
-    email = request.form['email']
-    password = request.form['password']  # Simplification, pas de vérification de mot de passe
-
-    if email in user_storage:  # Vérifier si l'utilisateur existe
-        session['user_email'] = email  # Stocker l'email dans la session
-        return redirect(url_for('activities.activities'))  # Redirection vers les activités après connexion
-
-    return redirect(url_for('auth.login'))  # Retour à la page de connexion si échec
+@auth_bp.route('/logout')
+def logout():
+    session.pop('user_email', None)
+    flash('Déconnexion réussie.', 'success')
+    return redirect(url_for('auth.login'))

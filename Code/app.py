@@ -17,6 +17,7 @@ from flask import Flask, redirect, url_for
 from flask_migrate import Migrate
 from Code.extensions import db
 from Code.routes.connexion_routes import auth_bp
+from Code.routes.competences import competences_bp
 
 def create_app():
     static_folder = os.path.join(parent_dir, 'static')
@@ -108,7 +109,10 @@ def create_app():
     app.register_blueprint(aptitudes_bp)
 
     from Code.routes.connexion_routes import auth_bp
-    app.register_blueprint(auth_bp)  # Gardez cette ligne
+    app.register_blueprint(auth_bp)
+
+    from Code.routes.competences import competences_bp
+    app.register_blueprint(competences_bp)
 
     # ---------------------
     #  Nouveaux blueprints

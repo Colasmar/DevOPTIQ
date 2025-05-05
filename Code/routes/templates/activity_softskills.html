@@ -4,6 +4,7 @@
 
 <!-- Conteneur principal qu'on réactualise partiellement -->
 <div id="softskills-list-{{ item.activity.id }}">
+  {% set ss = activity %}
   {% include "softskills_partial.html" %}
 </div>
 

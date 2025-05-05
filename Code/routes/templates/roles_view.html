@@ -100,6 +100,30 @@
       border-radius: 4px;
       cursor: pointer;
     }
+    .role-container {
+    padding: 10px;
+    border: 1px solid #ccc;
+    margin-top: 10px;
+}
+
+.role-title {
+    font-weight: bold;
+    cursor: pointer;
+    color: #007bff;
+}
+
+.role-details {
+    display: none; /* Masqué par défaut */
+    padding: 10px;
+    background-color: #f8f9fa;
+}
+
+.softskill-details {
+    padding: 5px;
+    border: 1px dotted #6c757d;
+    margin: 5px 0;
+    background-color: #e9ecef;
+}
   </style>
 </head>
 <body>
@@ -191,44 +215,49 @@
 
 
 
-        <!-- Bloc 4 : Savoirs, Savoir-faire, Aptitudes et HSC -->
+        <!-- Bloc 4 : affichage sans doublons -->
         <div class="role-block block-4">
           <div class="block-header" onclick="toggleBlock('block4-{{ item.role.id }}', event)">
-              <span class="toggle-icon" id="block4-icon-{{ item.role.id }}">▶</span>
-              Bloc 4 : Savoirs, Savoir-faire, Aptitudes et HSC
+            <span class="toggle-icon" id="block4-icon-{{ item.role.id }}">▶</span>
+            Bloc 4 : Savoirs, Savoir-faire, Aptitudes et HSC
           </div>
+
           <div id="block4-{{ item.role.id }}" class="block-content">
-              <h3>Savoirs</h3>
-              <ul>
-                  {% for entry in item.block4 if entry.type == 'savoir' %}
-                      <li>{{ entry.value }}</li>
-                  {% endfor %}
-              </ul>
+            <h3>Savoirs</h3>
+            <ul>
+              {% for entry in item.block4 if entry.type == 'savoir' %}
+                <li>{{ entry.value }}</li>
+              {% endfor %}
+            </ul>
 
-              <h3>Savoir-faire</h3>
-              <ul>
-                  {% for entry in item.block4 if entry.type == 'savoir-faire' %}
-                      <li>{{ entry.value }}</li>
-                  {% endfor %}
-              </ul>
-              
-              <h3>Aptitudes</h3>
-              <ul>
-                  {% for entry in item.block4 if entry.type == 'aptitude' %}
-                      <li>{{ entry.value }}</li>
-                  {% endfor %}
-              </ul>
+            <h3>Savoir-faire</h3>
+            <ul>
+              {% for entry in item.block4 if entry.type == 'savoir-faire' %}
+                <li>{{ entry.value }}</li>
+              {% endfor %}
+            </ul>
 
-              <h3>HSC</h3>
-              <ul>
-                  {% for entry in item.block4 if entry.type == 'HSC' %}
-                      <li>{{ entry.value }}</li>
-                  {% endfor %}
-              </ul>
+            <h3>Aptitudes</h3>
+            <ul>
+              {% for entry in item.block4 if entry.type == 'aptitude' %}
+                <li>{{ entry.value }}</li>
+              {% endfor %}
+            </ul>
 
-              {% if item.block4 | length == 0 %}
-                  <p>Aucun savoir, savoir-faire, aptitude ou HSC trouvé.</p>
-              {% endif %}
+            <h3>HSC (Habiletés Socio-Cognitives)</h3>
+            {% set hsc_entries = item.block4 | selectattr("type", "equalto", "softskill") | list %}
+            {% if hsc_entries %}
+              {% for ss in hsc_entries %}
+              {% include "softskills_partial.html" %}
+                <!-- Assure-toi de passer l'élément de données correct ici, par exemple ss ou item -->
+              {% endfor %}
+            {% else %}
+              <p>Aucune habileté socio-cognitive n'est enregistrée.</p>
+            {% endif %}
+
+            {% if item.block4 | length == 0 %}
+              <p>Aucun savoir, savoir-faire, aptitude ou HSC trouvé.</p>
+            {% endif %}
           </div>
         </div>
 
