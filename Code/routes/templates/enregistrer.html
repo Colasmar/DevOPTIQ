@@ -21,12 +21,12 @@
         <input type="email" name="email" required>
         <br>
         <label for="password">Mot de passe:</label>
-        <input type="password" name="password" required>  <!-- Ajout du mot de passe -->
+        <input type="password" name="password" required> 
         <br>
         <label for="role">Rôle:</label>
-        <select name="role">
+        <select name="role" id="role"> 
             {% for role in roles %}
-            <option value="{{ role.id }}">{{ role.name }}</option>
+            <option value="{{ role.name }}">{{ role.name }}</option>
             {% endfor %}
         </select>
         <br>
