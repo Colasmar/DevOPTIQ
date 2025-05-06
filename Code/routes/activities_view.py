@@ -2,7 +2,8 @@ from flask import render_template
 from sqlalchemy import or_, desc
 from .activities_bp import activities_bp
 from Code.extensions import db
-from Code.models.models import Activities, Task, Link, Data, Performance
+# Importez Role et activity_roles
+from Code.models.models import Activities, Task, Link, Data, Performance, Role, activity_roles
 
 @activities_bp.route('/view', methods=['GET'])
 def view_activities():
@@ -15,6 +16,7 @@ def view_activities():
       * Connexions sortantes (idem)
       * Performance associée à chaque lien (si existante)
       * Contraintes, etc. (si le template l'exploite)
+      * **Garant (le rôle avec le statut 'Garant')** <-- AJOUT
     - On renvoie le tout à display_list.html
     """
 
@@ -82,12 +84,32 @@ def view_activities():
                 'performance': perf_dict
             })
 
+        # NOUVEAU CODE : Récupérer le rôle "Garant" pour cette activité
+        # On joint Activities avec la table d'association activity_roles et le modèle Role
+        # On filtre sur l'activity_id et le statut 'Garant'
+        garant_role = db.session.query(Role).\
+                      join(activity_roles).\
+                      filter(activity_roles.c.activity_id == activity.id).\
+                      filter(activity_roles.c.role_id == Role.id).\
+                      filter(activity_roles.c.status == 'Garant').\
+                      first() # On prend le premier (et idéalement le seul) garant
+
+        # Préparer le dict pour le garant
+        garant_dict = None
+        if garant_role:
+            garant_dict = {
+                "id": garant_role.id,
+                "name": garant_role.name
+            }
+
+
         # Ajout dans la liste pour le template
         activity_data.append({
             'activity': activity,
             'tasks': tasks_sorted,
             'incoming': incoming_list,
             'outgoing': outgoing_list,
+            'garant': garant_dict, # <-- AJOUTEZ CETTE LIGNE
             # Les contraintes, softskills, etc. si le template l’exploite :
             'constraints': activity.constraints,
             'competencies': activity.competencies,
@@ -112,8 +134,8 @@ def resolve_data_name(link, incoming=True):
     # On regarde s'il s'agit d'un incoming (donc la data est sur link.source_data_id)
     # ou un outgoing (data sur link.source_data_id)
     data_id = link.source_data_id if incoming else link.source_data_id
-    # L'ancien code considérait aussi link.target_data_id suivant le cas, 
-    # mais la plus fréquente : 
+    # L'ancien code considérait aussi link.target_data_id suivant le cas,
+    # mais la plus fréquente :
     # - incoming => data sur source_data_id
     # - outgoing => data sur source_data_id
     # Cf. votre ancien code "resolve_data_name_for_incoming/outgoing"
@@ -165,7 +187,7 @@ def resolve_data_type(link, incoming=True):
     """
     # Ancien code : on regardait Data.type si on a un data_id
     data_id = link.source_data_id if incoming else link.source_data_id
-    # Ça peut sembler redondant, 
+    # Ça peut sembler redondant,
     # mais on reproduit le comportement de l'ancien code pour cohérence.
     if data_id:
         d_obj = Data.query.get(data_id)

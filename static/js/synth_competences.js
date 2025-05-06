@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const roleId = document.getElementById('user-roles').value;
         if (roleId) {
             loadRoleCompetencies(roleId); // Charge les compétences avec connexions
-            loadRoleKnowledge(roleId);    // Charge les savoirs, savoir-faire, aptitudes avec évaluations passées
+            loadRoleKnowledge(roleId);    // Charge les savoirs, savoir-faire, et HSC avec évaluations passées <-- MODIFIÉ
             loadCompetencySynthesis(roleId); // NOUVEAU: Charge les compétences pour la synthèse
         } else {
             document.getElementById('roles-competencies').innerHTML = '';
@@ -205,7 +205,7 @@ function loadRoleCompetencies(roleId) {
         });
 }
 
-// Charger les savoirs, savoir-faire, aptitudes (pour l'évolution)
+// Charger les savoirs, savoir-faire, et HSC (pour l'évolution)
 function loadRoleKnowledge(roleId) {
     const userId = selectedUserId; // Utiliser l'ID de l'utilisateur sélectionné
     if (!roleId || !userId) {
@@ -215,16 +215,16 @@ function loadRoleKnowledge(roleId) {
 
     const container = document.getElementById('knowledge-evolution');
     container.innerHTML = ''; // Vider le conteneur avant de charger
-    container.innerHTML = '<h3>Évolution des savoirs, savoir-faire et aptitudes</h3>'; // Ajouter le titre
+    container.innerHTML = '<h3>Évolution des savoirs, savoir-faire et HSC</h3>'; // Ajouter le titre <-- MODIFIÉ
 
-    // Charger la structure des connaissances (savoirs, savoir-faire, aptitudes)
+    // Charger la structure des connaissances (savoirs, savoir-faire, HSC)
     fetch(`/competences/get_role_knowledge/${roleId}`)
         .then(res => res.json())
         .then(data => {
             const sections = [
                 { title: 'Savoirs', key: 'savoirs' },
                 { title: 'Savoir-Faire', key: 'savoir_faires' },
-                { title: 'Aptitudes', key: 'aptitudes' }
+                { title: 'HSC', key: 'softskills' } // Changez 'Aptitudes' en 'HSC' et la clé en 'softskills'
             ];
 
             sections.forEach(section => {
@@ -255,6 +255,7 @@ function loadRoleKnowledge(roleId) {
                     });
                 } else {
                      const row = document.createElement('tr');
+                     // Mettez à jour le message en fonction du nouveau titre
                      row.innerHTML = `<td colspan="4">Aucun ${section.title.toLowerCase()} défini pour ce rôle/cette activité.</td>`;
                      table.appendChild(row);
                 }
@@ -273,7 +274,7 @@ function loadRoleKnowledge(roleId) {
         });
 }
 
-// Nouvelle fonction pour charger et appliquer les évaluations existantes pour Savoirs/Savoir-faire/Aptitudes
+// Nouvelle fonction pour charger et appliquer les évaluations existantes pour Savoirs/Savoir-faire/HSC
 function loadExistingKnowledgeEvaluations(userId, roleId) {
      fetch(`/competences/get_user_evaluations/${userId}/${roleId}`)
         .then(res => res.json())
@@ -281,6 +282,7 @@ function loadExistingKnowledgeEvaluations(userId, roleId) {
             const evaluationsMap = {};
             existingEvaluations.forEach(eval => {
                 // La clé doit identifier l'élément évalué ET le numéro d'évaluation.
+                // Le item_type peut être 'savoirs', 'savoir_faires', ou 'softskills' maintenant.
                  const key = `${eval.item_id}_${eval.item_type}_${eval.eval_number}`;
                  evaluationsMap[key] = eval.note;
             });
@@ -289,7 +291,7 @@ function loadExistingKnowledgeEvaluations(userId, roleId) {
             const evalCells = document.querySelectorAll('#knowledge-evolution .eval-cell');
             evalCells.forEach(cell => {
                  const itemId = cell.dataset.id;
-                 const itemType = cell.dataset.type;
+                 const itemType = cell.dataset.type; // 'savoirs', 'savoir_faires', ou 'softskills'
                  const evalNumber = cell.dataset.eval;
                  const key = `${itemId}_${itemType}_${evalNumber}`;
 
@@ -565,10 +567,11 @@ function saveAllEvaluations() {
         if (color) {
             // Pour les cellules de synthèse, data-eval sera 'collaborator', 'manager', ou 'rh'
             // Pour les cellules d'évolution, data-eval sera '1', '2', ou '3'
+            // Le item_type peut être 'savoirs', 'savoir_faires', 'softskills', ou 'competencies' <-- MODIFIÉ
             evaluationsToSend.push({
                 item_id: parseInt(cell.dataset.id),
-                item_type: cell.dataset.type, // 'savoirs', 'savoir_faires', 'aptitudes', ou 'competencies'
-                eval_number: cell.dataset.eval, // '1', '2', '3', 'collaborator', 'manager', ou 'rh'
+                item_type: cell.dataset.type,
+                eval_number: cell.dataset.eval,
                 note: color
             });
         }

@@ -215,51 +215,59 @@
 
 
 
-        <!-- Bloc 4 : affichage sans doublons -->
-        <div class="role-block block-4">
-          <div class="block-header" onclick="toggleBlock('block4-{{ item.role.id }}', event)">
-            <span class="toggle-icon" id="block4-icon-{{ item.role.id }}">▶</span>
-            Bloc 4 : Savoirs, Savoir-faire, Aptitudes et HSC
-          </div>
-
-          <div id="block4-{{ item.role.id }}" class="block-content">
-            <h3>Savoirs</h3>
-            <ul>
-              {% for entry in item.block4 if entry.type == 'savoir' %}
-                <li>{{ entry.value }}</li>
-              {% endfor %}
-            </ul>
-
-            <h3>Savoir-faire</h3>
-            <ul>
-              {% for entry in item.block4 if entry.type == 'savoir-faire' %}
-                <li>{{ entry.value }}</li>
-              {% endfor %}
-            </ul>
-
-            <h3>Aptitudes</h3>
-            <ul>
-              {% for entry in item.block4 if entry.type == 'aptitude' %}
-                <li>{{ entry.value }}</li>
-              {% endfor %}
-            </ul>
-
-            <h3>HSC (Habiletés Socio-Cognitives)</h3>
-            {% set hsc_entries = item.block4 | selectattr("type", "equalto", "softskill") | list %}
-            {% if hsc_entries %}
-              {% for activity in hsc_entries %}
-              {% include "softskills_partial.html" %}
-                <!-- Assure-toi de passer l'élément de données correct ici, par exemple ss ou item -->
-              {% endfor %}
-            {% else %}
-              <p>Aucune habileté socio-cognitive n'est enregistrée.</p>
-            {% endif %}
-
-            {% if item.block4 | length == 0 %}
-              <p>Aucun savoir, savoir-faire, aptitude ou HSC trouvé.</p>
-            {% endif %}
-          </div>
-        </div>
+                <!-- Bloc 4 : affichage sans doublons -->
+                <div class="role-block block-4">
+                  <div class="block-header" onclick="toggleBlock('block4-{{ item.role.id }}', event)">
+                    <span class="toggle-icon" id="block4-icon-{{ item.role.id }}">▶</span>
+                    Bloc 4 : Savoirs, Savoir-faire, Aptitudes et HSC
+                  </div>
+        
+                  <div id="block4-{{ item.role.id }}" class="block-content">
+                    <h3>Savoirs</h3>
+                    <ul>
+                      {% for entry in item.block4 if entry.type == 'savoir' %}
+                        <li>{{ entry.value }}</li>
+                      {% endfor %}
+                    </ul>
+        
+                    <h3>Savoir-faire</h3>
+                    <ul>
+                      {% for entry in item.block4 if entry.type == 'savoir-faire' %}
+                        <li>{{ entry.value }}</li>
+                      {% endfor %}
+                    </ul>
+        
+                    <h3>Aptitudes</h3>
+                    <ul>
+                      {% for entry in item.block4 if entry.type == 'aptitude' %}
+                        <li>{{ entry.value }}</li>
+                      {% endfor %}
+                    </ul>
+        
+                    <h3>HSC (Habiletés Socio-Cognitives)</h3>
+                    {% set hsc_entries = item.block4 | selectattr("type", "equalto", "softskill") | list %}
+                    {% if hsc_entries %}
+                      <ul> {# Ajoutez une liste pour les HSC #}
+                        {% for hsc in hsc_entries %}
+                          <li>
+                            <strong>{{ hsc.value }}</strong> (Niveau: {{ hsc.niveau }})
+                            {% if hsc.justification and hsc.justification != 'Pas de justification' %}
+                              - Justification: {{ hsc.justification }}
+                            {% endif %}
+                          </li>
+                        {% endfor %}
+                      </ul>
+                    {% else %}
+                      <p>Aucune habileté socio-cognitive n'est enregistrée pour les activités de ce rôle.</p> {# Texte plus précis #}
+                    {% endif %}
+        
+                    {% if item.block4 | length == 0 %}
+                      <p>Aucun savoir, savoir-faire, aptitude ou HSC trouvé pour les activités de ce rôle.</p> {# Texte plus précis #}
+                    {% endif %}
+                  </div>
+                </div>
+        
+                <!-- Le reste de votre template roles_view.html -->
 
 
 

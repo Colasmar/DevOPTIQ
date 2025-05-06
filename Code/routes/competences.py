@@ -5,7 +5,7 @@ from Code.extensions import db
 # Assurez-vous d'importer tous les modèles dont vous avez besoin
 from Code.models.models import (
     Competency, Role, Activities, User, UserRole, Link, activity_roles,
-    CompetencyEvaluation, Savoir, SavoirFaire, Aptitude # Importez les modèles nécessaires
+    CompetencyEvaluation, Savoir, SavoirFaire, Aptitude, Softskill # Importez Softskill
 )
 
 competences_bp = Blueprint('competences_bp', __name__, url_prefix='/competences')
@@ -198,18 +198,18 @@ def get_role_competencies(role_id):
 
     return jsonify({'competencies': competencies_list})
 
-# --- Route pour récupérer Savoirs, SavoirFaire, Aptitudes d’un rôle ---
+# --- Route pour récupérer Savoirs, SavoirFaire, et HSC d’un rôle ---
 @competences_bp.route('/get_role_knowledge/<int:role_id>', methods=['GET'])
 def get_role_knowledge(role_id):
-    # Assurez-vous que les modèles Savoir, SavoirFaire, Aptitude sont importés
-    from Code.models.models import activity_roles, Savoir, SavoirFaire, Aptitude
+    # Assurez-vous que les modèles Savoir, SavoirFaire, Softskill sont importés
+    from Code.models.models import activity_roles, Savoir, SavoirFaire, Softskill # Importez Softskill
 
     role = Role.query.get(role_id)
     if not role:
          return jsonify({
             'savoirs': [],
             'savoir_faires': [],
-            'aptitudes': []
+            'softskills': [] # Changez 'aptitudes' en 'softskills'
         })
 
     # Récupérer les activités liées via activity_roles
@@ -218,10 +218,11 @@ def get_role_knowledge(role_id):
     result = {
         'savoirs': [],
         'savoir_faires': [],
-        'aptitudes': []
+        'softskills': [] # Changez 'aptitudes' en 'softskills'
     }
 
-    seen_ids = { 'savoirs': set(), 'savoir_faires': set(), 'aptitudes': set() } # Pour éviter les doublons
+    # Changez les clés dans seen_ids
+    seen_ids = { 'savoirs': set(), 'savoir_faires': set(), 'softskills': set() } # Changez 'aptitudes' en 'softskills'
 
     for activity in activities:
         for savoir in activity.savoirs:
@@ -232,10 +233,12 @@ def get_role_knowledge(role_id):
              if savoir_faire.id not in seen_ids['savoir_faires']:
                 result['savoir_faires'].append({'id': savoir_faire.id, 'description': savoir_faire.description})
                 seen_ids['savoir_faires'].add(savoir_faire.id)
-        for aptitude in activity.aptitudes:
-             if aptitude.id not in seen_ids['aptitudes']:
-                result['aptitudes'].append({'id': aptitude.id, 'description': aptitude.description})
-                seen_ids['aptitudes'].add(aptitude.id)
+        # Modifiez pour récupérer les softskills au lieu des aptitudes
+        for softskill in activity.softskills: # Changez activity.aptitudes en activity.softskills
+             if softskill.id not in seen_ids['softskills']: # Changez 'aptitudes' en 'softskills'
+                # CORRECTION ICI: Remplacez softskill.description par softskill.name
+                result['softskills'].append({'id': softskill.id, 'description': softskill.habilete})
+                seen_ids['softskills'].add(softskill.id) # Changez 'aptitudes' en 'softskills'
 
 
     return jsonify(result)
