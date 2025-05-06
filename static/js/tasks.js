@@ -154,7 +154,7 @@ function submitEditTask(activityId, taskId) {
     return;
   }
 
-  fetch(`/activities/${activityId}/tasks/${taskId}`, {
+  fetch(`/tasks/${taskId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: newName, description: newDesc })
@@ -176,7 +176,7 @@ function submitEditTask(activityId, taskId) {
 function deleteTask(activityId, taskId) {
   if (!confirm("Confirmez-vous la suppression de cette tâche ?")) return;
 
-  fetch(`/activities/${activityId}/tasks/${taskId}`, {
+  fetch(`/tasks/${taskId}`, {
     method: 'DELETE'
   })
   .then(response => response.json())

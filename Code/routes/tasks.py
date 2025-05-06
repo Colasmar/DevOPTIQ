@@ -232,3 +232,57 @@ def render_tasks(activity_id):
     return render_template('tasks_partial.html',
                            activity=activity,
                            tasks=sorted_tasks)
+
+
+# -----------------------------------------------
+# NOUVELLES ROUTES POUR LA MODIFICATION ET SUPPRESSION DES TÂCHES
+# -----------------------------------------------
+@tasks_bp.route('/<int:task_id>', methods=['PUT'])
+def update_task(task_id):
+    """
+    Modifie une tâche existante.
+    Expects JSON with keys: name, description.
+    """
+    task = Task.query.get(task_id)
+    if not task:
+        return jsonify({"error": "Task not found"}), 404
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    if 'name' in data:
+        task.name = data['name']
+    if 'description' in data:
+        task.description = data['description']
+
+    try:
+        db.session.commit()
+        return jsonify({
+            'id': task.id,
+            'name': task.name,
+            'description': task.description,
+            'order': task.order,
+            'activity_id': task.activity_id
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+@tasks_bp.route('/<int:task_id>', methods=['DELETE'])
+def delete_task(task_id):
+    """
+    Supprime une tâche existante.
+    """
+    task = Task.query.get(task_id)
+    if not task:
+        return jsonify({"error": "Task not found"}), 404
+
+    try:
+        db.session.delete(task)
+        db.session.commit()
+        return jsonify({"message": f"Task {task_id} deleted successfully"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500

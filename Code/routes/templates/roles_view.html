@@ -247,7 +247,7 @@
             <h3>HSC (Habiletés Socio-Cognitives)</h3>
             {% set hsc_entries = item.block4 | selectattr("type", "equalto", "softskill") | list %}
             {% if hsc_entries %}
-              {% for ss in hsc_entries %}
+              {% for activity in hsc_entries %}
               {% include "softskills_partial.html" %}
                 <!-- Assure-toi de passer l'élément de données correct ici, par exemple ss ou item -->
               {% endfor %}
