@@ -1,0 +1,58 @@
+<h2>Nouvelle analyse de temps</h2>
+<form id="timeAnalysisForm" method="post" action="{{ url_for('time_view.time_new') }}">
+    <!-- Type d'analyse -->
+    <label>Type d'analyse :</label>
+    <select id="analysisType" name="analysis_type" required>
+        <option value="">--Sélectionner--</option>
+        <option value="activity">Activité</option>
+        <option value="task">Tâche</option>
+    </select>
+    <input type="hidden" name="analysis_type" id="analysis_type" value="">
+    <br><br>
+    
+    <!-- Sélection activité ou tâche -->
+    <div id="activitySelectContainer" class="hidden">
+        <label>Activité :</label>
+        <select name="activity_id">
+            {% for a in activities %}
+            <option value="{{ a.id }}">{{ a.name }}</option>
+            {% endfor %}
+        </select><br><br>
+    </div>
+    <div id="taskSelectContainer" class="hidden">
+        <label>Tâche :</label>
+        <select name="task_id">
+            {% for t in tasks %}
+            <option value="{{ t.id }}">{{ t.name }}</option>
+            {% endfor %}
+        </select><br><br>
+    </div>
+    
+    <!-- Données -->
+    <label>Durée (minutes):</label>
+    <input type="number" name="duration" required><br><br>
+    
+    <label>Récurrence :</label>
+    <select name="recurrence" required>
+        <option value="journalier">Journalier</option>
+        <option value="hebdo">Hebdomadaire</option>
+        <option value="mensuel">Mensuel</option>
+        <option value="annuel">Annuel</option>
+    </select><br><br>
+    
+    <label>Nombre de fois / récurrence :</label>
+    <input type="number" name="frequency" required><br><br>
+    
+    <!-- La notion de délai en minutes est supprimée; on indique que la période est définie par les dates -->
+    <p>Les dates de début et de fin définissent la période de cette analyse.</p>
+    
+    <!-- Calendrier date de début et fin -->
+    <label>Date de début :</label>
+    <input type="datetime-local" name="start_datetime" required><br><br>
+    
+    <label>Date de fin :</label>
+    <input type="datetime-local" name="end_datetime" required><br><br>
+    
+    <button type="submit" class="btn-success">Enregistrer</button>
+    <button type="button" id="cancelBtn" class="btn-secondary">Annuler</button>
+</form>

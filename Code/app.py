@@ -126,6 +126,10 @@ def create_app():
     from Code.routes.propose_aptitudes import propose_aptitudes_bp
     app.register_blueprint(propose_aptitudes_bp)
 
+    from Code.routes.time_view import time_bp
+    app.register_blueprint(time_bp)
+
+
     app.secret_key = 'votre_clé_secrète_unique'
 
     @app.route('/')

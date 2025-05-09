@@ -1,0 +1,104 @@
+{% include "header_buttons.html" %}
+<link rel="stylesheet" href="./../../../static/time.css">
+<script src="./../../../static/js/time.js"></script>
+<h1>Gestion des analyses de temps</h1>
+
+<!-- Bouton pour ouvrir le formulaire -->
+<button id="addAnalysisBtn" class="btn-primary">Ajouter une analyse de temps</button>
+
+<!-- Section du formulaire, masquée par défaut -->
+<div id="analysisFormContainer" class="hidden">
+    <h2>Nouvelle analyse de temps</h2>
+    <form id="timeAnalysisForm" method="post" action="{{ url_for('time_view.time_new') }}">
+        <!-- Choix entre activité et tâche -->
+        <label>Type d'analyse :</label>
+        <select id="analysisType" name="analysis_type" required>
+            <option value="">--Sélectionner--</option>
+            <option value="activity">Activité</option>
+            <option value="task">Tâche</option>
+        </select><br><br>
+        
+        <!-- Sélection activité ou tâche, affichée dynamiquement -->
+        <div id="activitySelectContainer" class="hidden">
+            <label>Activité :</label>
+            <select name="activity_id">
+                {% for a in activities %}
+                <option value="{{ a.id }}">{{ a.name }}</option>
+                {% endfor %}
+            </select><br><br>
+        </div>
+        <div id="taskSelectContainer" class="hidden">
+            <label>Tâche :</label>
+            <select name="task_id">
+                {% for activity_id, group in tasks_by_activity.items() %}
+                <optgroup label="{{ group.name }}">
+                    {% for task in group.tasks %}
+                    <option value="{{ task.id }}">{{ task.name }}</option>
+                    {% endfor %}
+                </optgroup>
+                {% endfor %}
+            </select>
+            <br><br>
+        </div>
+        
+        <!-- Données -->
+        <label>Durée (minutes):</label>
+        <input type="number" name="duration" required><br><br>
+        
+        <label>Récurrence :</label>
+        <select name="recurrence" required>
+            <option value="journalier">Journalier</option>
+            <option value="hebdo">Hebdomadaire</option>
+            <option value="mensuel">Mensuel</option>
+            <option value="annuel">Annuel</option>
+        </select><br><br>
+        
+        <label>Nombre de fois / récurrence :</label>
+        <input type="number" name="frequency" required><br><br>
+        
+        <!-- Calendrier date de début et fin -->
+        <label>Date de début :</label>
+        <input type="datetime-local" name="start_datetime" required><br><br>
+        
+        <label>Date de fin :</label>
+        <input type="datetime-local" name="end_datetime" required><br><br>
+        
+        <button type="submit" class="btn-success">Enregistrer</button>
+        <button type="button" id="cancelBtn" class="btn-secondary">Annuler</button>
+    </form>
+</div>
+
+<!-- Tableau listant toutes les analyses -->
+<h2>Liste des analyses</h2>
+<table class="styled-table">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Type</th>
+      <th>Durée</th>
+      <th>Récurrence</th>
+      <th>Fréquence</th>
+      <th>Délai</th>
+      <th>Début</th>
+      <th>Fin</th>
+      <th>Activité</th>
+      <th>Tâche</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for t in analyses %}
+    <tr>
+      <td>{{ t.id }}</td>
+      <td>{{ t.type }}</td>
+      <td>{{ t.duration }}</td>
+      <td>{{ t.recurrence }}</td>
+      <td>{{ t.frequency }}</td>
+      <td>{{ t.delay_str }}</td>
+      <td>{{ t.start_datetime }}</td>
+      <td>{{ t.end_datetime }}</td>
+      <td>{{ t.activity.name if t.activity else "" }}</td>
+      <td>{{ t.task.name if t.task else "" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>

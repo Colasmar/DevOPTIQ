@@ -219,3 +219,52 @@ class CompetencyEvaluation(db.Model):
 
     def __repr__(self):
         return f"<CompetencyEvaluation user_id={self.user_id} role_id={self.role_id} item_type={self.item_type} item_id={self.item_id} eval={self.eval_number} note={self.note}>"
+    
+
+
+
+class TimeAnalysis(db.Model):
+    __tablename__ = 'time_analysis'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    duration = db.Column(db.Integer, nullable=False)
+    recurrence = db.Column(db.String(20), nullable=False)
+    frequency = db.Column(db.Integer, nullable=False)
+    start_datetime = db.Column(db.DateTime, nullable=False)
+    end_datetime = db.Column(db.DateTime, nullable=False)
+    type = db.Column(db.String(20), nullable=False)  
+    
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=True)
+    task_id = db.Column(db.Integer, db.ForeignKey('tasks.id'), nullable=True)
+
+    activity = db.relationship('Activities', backref='time_analyses')
+    task = db.relationship('Task', backref='time_analyses')
+
+    @property
+    def weight(self):
+        recurrence_multiplier = {
+            "journalier": 5 * 45,
+            "hebdo": 45,
+            "mensuel": 12,
+            "annuel": 1
+        }
+        return self.duration * self.frequency * recurrence_multiplier.get(self.recurrence, 0)
+
+    @property
+    def delay_str(self):
+        if self.start_datetime and self.end_datetime:
+            delta = self.end_datetime - self.start_datetime
+            total_seconds = int(delta.total_seconds())
+            days = total_seconds // 86400
+            hours = (total_seconds % 86400) // 3600
+            minutes = (total_seconds % 3600) // 60
+
+            parts = []
+            if days > 0:
+                parts.append(f"{days} jour{'s' if days > 1 else ''}")
+            if hours > 0:
+                parts.append(f"{hours} h")
+            if minutes > 0:
+                parts.append(f"{minutes} min")
+            return ' '.join(parts) if parts else '0 min'
+        return "N/A"
