@@ -191,6 +191,7 @@ class User(db.Model):
     age = db.Column(db.Integer, nullable=True)
     email = db.Column(db.String(200), nullable=False, unique=True)
     password = db.Column(db.String(200), nullable=False)
+    status = db.Column(db.String(20), nullable=False, default='user')
     manager_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     subordinates = db.relationship('User', backref=db.backref('manager', remote_side=[id]))
     evaluations = db.relationship('CompetencyEvaluation', back_populates='user', cascade='all, delete-orphan')
@@ -220,9 +221,6 @@ class CompetencyEvaluation(db.Model):
     def __repr__(self):
         return f"<CompetencyEvaluation user_id={self.user_id} role_id={self.role_id} item_type={self.item_type} item_id={self.item_id} eval={self.eval_number} note={self.note}>"
     
-
-
-
 class TimeAnalysis(db.Model):
     __tablename__ = 'time_analysis'
     

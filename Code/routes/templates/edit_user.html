@@ -1,0 +1,35 @@
+{% include "header_buttons.html" %}
+<link rel="stylesheet" href="./../../../static/gestion_compte.css">
+
+<h1>Modifier l'utilisateur</h1>
+
+<form method="POST" class="create-form">
+  <label>Prénom :</label>
+  <input type="text" name="first_name" value="{{ user.first_name }}" required><br>
+
+  <label>Nom :</label>
+  <input type="text" name="last_name" value="{{ user.last_name }}" required><br>
+
+  <label>Âge :</label>
+  <input type="number" name="age" value="{{ user.age }}"><br>
+
+  <label>Email :</label>
+  <input type="email" name="email" value="{{ user.email }}" required><br>
+
+  <label>Rôle :</label>
+  <select name="role_id">
+    {% for role in roles %}
+      <option value="{{ role.id }}" {% if current_role and current_role.role_id == role.id %}selected{% endif %}>{{ role.name }}</option>
+    {% endfor %}
+  </select><br>
+
+  <label>Statut :</label>
+  <select name="status">
+    <option value="user" {% if user.status == 'user' %}selected{% endif %}>Utilisateur</option>
+    <option value="rh" {% if user.status == 'rh' %}selected{% endif %}>RH</option>
+    <option value="administrateur" {% if user.status == 'administrateur' %}selected{% endif %}>Administrateur</option>
+  </select><br>
+
+  <button type="submit">Enregistrer les modifications</button>
+  <a href="{{ url_for('gestion_compte.list_users') }}" class="btn-secondary">Annuler</a>
+</form>

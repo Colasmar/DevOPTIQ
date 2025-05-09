@@ -129,6 +129,10 @@ def create_app():
     from Code.routes.time_view import time_bp
     app.register_blueprint(time_bp)
 
+    from Code.routes.gestion_compte import gestion_compte_bp
+    app.register_blueprint(gestion_compte_bp)
+
+
 
     app.secret_key = 'votre_clé_secrète_unique'
 
