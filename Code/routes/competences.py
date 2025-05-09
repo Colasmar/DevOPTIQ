@@ -237,7 +237,7 @@ def get_role_knowledge(role_id):
         for softskill in activity.softskills: # Changez activity.aptitudes en activity.softskills
              if softskill.id not in seen_ids['softskills']: # Changez 'aptitudes' en 'softskills'
                 # CORRECTION ICI: Remplacez softskill.description par softskill.name
-                result['softskills'].append({'id': softskill.id, 'description': softskill.habilete})
+                result['softskills'].append({'id': softskill.id, 'description': softskill.habilete,'niveau': softskill.niveau})
                 seen_ids['softskills'].add(softskill.id) # Changez 'aptitudes' en 'softskills'
 
 

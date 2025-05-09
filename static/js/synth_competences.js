@@ -246,11 +246,14 @@ function loadRoleKnowledge(roleId) {
                     sectionData.forEach(item => {
                         const row = document.createElement('tr');
                         row.innerHTML = `
-                            <td>${item.description}</td>
+                            <td>
+                                ${item.description}
+                                ${section.key === 'softskills' && item.niveau ? ' - Niveau: ' + item.niveau : ''}
+                            </td>
                             <td class="eval-cell" data-id="${item.id}" data-type="${section.key}" data-eval="1"></td>
                             <td class="eval-cell" data-id="${item.id}" data-type="${section.key}" data-eval="2"></td>
                             <td class="eval-cell" data-id="${item.id}" data-type="${section.key}" data-eval="3"></td>
-                        `;
+                            `;
                         table.appendChild(row);
                     });
                 } else {
