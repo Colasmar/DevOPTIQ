@@ -66,100 +66,27 @@ function proposeSoftskills(activityData) {
 
 
 
-
-
-
-// On crée un modal similaire à translateResultsModal
 function showProposedSoftskills(hscProposals, activityId) {
-  // Création d'un modal dynamique
-  let modal = document.getElementById('proposeHscModal');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'proposeHscModal';
-    modal.style.position = 'fixed';
-    modal.style.left = '25%';
-    modal.style.top = '25%';
-    modal.style.width = '50%';
-    modal.style.background = '#fff';
-    modal.style.border = '1px solid #aaa';
-    modal.style.padding = '10px';
-    modal.style.zIndex = '9999';
-    document.body.appendChild(modal);
-  }
-  modal.innerHTML = `
-    <h4>Propositions d'HSC</h4>
-    <ul id="proposedHscList" style="list-style:none; padding-left:0;"></ul>
-    <div style="margin-top:10px;">
-      <button id="validateProposedHscBtn">Enregistrer</button>
-      <button id="cancelProposedHscBtn">Annuler</button>
-    </div>
-  `;
+  showSpinner();
 
-  const listEl = modal.querySelector('#proposedHscList');
-  listEl.innerHTML = "";
-  hscProposals.forEach((p) => {
-    const li = document.createElement('li');
-    li.style.marginBottom = "5px";
-    const justifSafe = (p.justification || "").replace(/'/g, "\\'");
-    li.innerHTML = `
-      <label style="cursor:pointer;">
-        <input type="checkbox" 
-               data-habilete="${p.habilete}" 
-               data-niveau="${p.niveau}" 
-               data-justif="${justifSafe}" />
-        <strong>${p.habilete}</strong> [${p.niveau}]<br/>
-        <em>${p.justification}</em>
-      </label>
-    `;
-    listEl.appendChild(li);
+  const addPromises = hscProposals.map(p => {
+    return fetch('/softskills/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        activity_id: activityId,
+        habilete: p.habilete,
+        niveau: p.niveau,
+        justification: p.justification || ""
+      })
+    }).then(r => r.json()).catch(err => {
+      console.error("Erreur lors de l'ajout de la softskill :", err);
+    });
   });
 
-  modal.style.display = 'block';
-
-  // Bouton "Annuler"
-  modal.querySelector('#cancelProposedHscBtn').onclick = () => {
-    modal.style.display = 'none';
-  };
-
-  // Bouton "Enregistrer"
-  modal.querySelector('#validateProposedHscBtn').onclick = () => {
-    const checkboxes = listEl.querySelectorAll('input[type="checkbox"]:checked');
-    if (!checkboxes.length) {
-      alert("Aucune HSC sélectionnée.");
-      return;
-    }
-    showSpinner();
-    let addPromises = [];
-    checkboxes.forEach(ch => {
-      const habilete = ch.getAttribute('data-habilete');
-      const niveau = ch.getAttribute('data-niveau');
-      const justification = ch.getAttribute('data-justif') || "";
-      let p = fetch('/softskills/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          activity_id: activityId,
-          habilete,
-          niveau,
-          justification
-        })
-      })
-      .then(r => r.json())
-      .then(d => {
-        if (d.error) {
-          console.error("Erreur ajout HSC:", d.error);
-        }
-      })
-      .catch(err => {
-        console.error("Erreur /softskills/add:", err);
-      });
-      addPromises.push(p);
-    });
-
-    Promise.all(addPromises).then(() => {
+  Promise.all(addPromises)
+    .then(() => {
       hideSpinner();
-      modal.style.display = 'none';
       updateSoftskillsList(activityId);
     });
-  };
 }
