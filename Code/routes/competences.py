@@ -2,10 +2,10 @@
 
 from flask import Blueprint, jsonify, session, render_template, request
 from Code.extensions import db
-# Assurez-vous d'importer tous les modèles dont vous avez besoin
+from datetime import datetime
 from Code.models.models import (
     Competency, Role, Activities, User, UserRole, Link, activity_roles,
-    CompetencyEvaluation, Savoir, SavoirFaire, Aptitude, Softskill # Importez Softskill
+    CompetencyEvaluation, Savoir, SavoirFaire, Aptitude, Softskill
 )
 
 competences_bp = Blueprint('competences_bp', __name__, url_prefix='/competences')
@@ -335,8 +335,9 @@ def save_user_evaluations():
                 role_id=role_id,
                 item_id=item_id,
                 item_type=item_type,
-                eval_number=eval_number, # Utilise la valeur potentiellement convertie
-                note=note
+                eval_number=eval_number,
+                note=note,
+                created_at=datetime.utcnow().isoformat() 
             )
             db.session.add(evaluation)
 
@@ -368,8 +369,9 @@ def get_user_evaluations(user_id, role_id):
             {
                 'item_id': e.item_id,
                 'item_type': e.item_type,
-                'eval_number': str(e.eval_number), # Convertir en string pour le JS pour gérer les deux types ('1' vs 'collaborator')
-                'note': e.note
+                'eval_number': str(e.eval_number),
+                'note': e.note,
+                'created_at': e.created_at
             } for e in evaluations
         ])
     except Exception as e:

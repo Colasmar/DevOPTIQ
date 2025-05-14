@@ -215,6 +215,9 @@ class CompetencyEvaluation(db.Model):
     item_type = db.Column(db.String(50), nullable=False)
     eval_number = db.Column(db.Integer, nullable=False)
     note = db.Column(db.String(10), nullable=False)
+    created_at = db.Column(db.String, nullable=True)  
+
+
     user = db.relationship('User', back_populates='evaluations')
     __table_args__ = (db.UniqueConstraint('user_id', 'role_id', 'item_id', 'item_type', 'eval_number', name='_user_role_item_eval_uc'),)
 

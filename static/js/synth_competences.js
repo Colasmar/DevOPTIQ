@@ -287,7 +287,10 @@ function loadExistingKnowledgeEvaluations(userId, roleId) {
                 // La clé doit identifier l'élément évalué ET le numéro d'évaluation.
                 // Le item_type peut être 'savoirs', 'savoir_faires', ou 'softskills' maintenant.
                  const key = `${eval.item_id}_${eval.item_type}_${eval.eval_number}`;
-                 evaluationsMap[key] = eval.note;
+                 evaluationsMap[key] = {
+                    note: eval.note,
+                    date: eval.created_at
+                };
             });
 
             // Appliquer les évaluations existantes aux cellules du tableau Knowledge (évolution)
@@ -300,7 +303,9 @@ function loadExistingKnowledgeEvaluations(userId, roleId) {
 
                  if (evaluationsMap[key]) {
                     cell.classList.remove('red', 'orange', 'green'); // Nettoyer les classes existantes
-                    cell.classList.add(evaluationsMap[key]); // Appliquer la classe enregistrée
+                    cell.classList.add(evaluationsMap[key].note);
+                    cell.dataset.date = evaluationsMap[key].date;
+                    // Appliquer la classe enregistrée
                  } else {
                      // Si pas d'évaluation existante, s'assurer qu'il n'y a pas de couleur
                      cell.classList.remove('red', 'orange', 'green');
@@ -384,7 +389,10 @@ function loadExistingSynthesisEvaluations(userId, roleId) {
             existingEvaluations.filter(eval => eval.item_type === 'competencies').forEach(eval => {
                 // La clé doit identifier l'élément évalué ET le type d'évaluateur (représenté par eval_number)
                  const key = `${eval.item_id}_${eval.eval_number}`; // item_type est implicite 'competencies'
-                 evaluationsMap[key] = eval.note;
+                 evaluationsMap[key] = {
+                    note: eval.note,
+                    date: eval.created_at
+                };
             });
 
             // Appliquer les évaluations existantes aux cellules du tableau Synthèse
@@ -396,7 +404,8 @@ function loadExistingSynthesisEvaluations(userId, roleId) {
 
                  if (evaluationsMap[key]) {
                     cell.classList.remove('red', 'orange', 'green'); // Nettoyer les classes existantes
-                    cell.classList.add(evaluationsMap[key]); // Appliquer la classe enregistrée
+                    cell.classList.add(evaluationsMap[key].note);
+                    cell.dataset.date = evaluationsMap[key].date; // Appliquer la classe enregistrée
                  } else {
                      // Si pas d'évaluation existante, s'assurer qu'il n'y a pas de couleur
                      cell.classList.remove('red', 'orange', 'green');
@@ -607,3 +616,55 @@ function saveAllEvaluations() {
         alert('Erreur de connexion au serveur lors de la sauvegarde.');
     });
 }
+
+
+let tooltipTimeout;
+let tooltipActive = false;
+
+// Survol de cellule : lancer le timer pour afficher la date
+document.addEventListener('mouseover', (e) => {
+    const target = e.target;
+    if (target.classList.contains('eval-cell') && target.dataset.date) {
+        tooltipTimeout = setTimeout(() => {
+            if (tooltipActive) return; // Empêche le double affichage
+            tooltipActive = true;
+
+            const tooltip = document.createElement('div');
+            tooltip.id = 'tooltip-popup';
+            tooltip.textContent = `Saisie le : ${new Date(target.dataset.date).toLocaleString('fr-FR')}`;
+            tooltip.style.position = 'absolute';
+            tooltip.style.background = '#f9f9f9';
+            tooltip.style.border = '1px solid #ccc';
+            tooltip.style.padding = '8px';
+            tooltip.style.borderRadius = '6px';
+            tooltip.style.fontSize = '13px';
+            tooltip.style.zIndex = 9999;
+            tooltip.style.maxWidth = '220px';        // Plus large
+            tooltip.style.whiteSpace = 'normal';     // Autorise les retours à la ligne
+            tooltip.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
+            tooltip.style.top = `${e.pageY + 12}px`;
+            tooltip.style.left = `${e.pageX + 12}px`;
+            document.body.appendChild(tooltip);
+        }, 1500); // S'affiche après 1,5s de survol sans clic
+    }
+});
+
+// Sortie de la cellule : supprimer le tooltip
+document.addEventListener('mouseout', (e) => {
+    if (e.target.classList.contains('eval-cell')) {
+        clearTimeout(tooltipTimeout);
+        const popup = document.getElementById('tooltip-popup');
+        if (popup) popup.remove();
+        tooltipActive = false;
+    }
+});
+
+// Si l'utilisateur clique sur la cellule : annuler le tooltip immédiatement
+document.addEventListener('mousedown', (e) => {
+    if (e.target.classList.contains('eval-cell')) {
+        clearTimeout(tooltipTimeout);
+        const popup = document.getElementById('tooltip-popup');
+        if (popup) popup.remove();
+        tooltipActive = false;
+    }
+});

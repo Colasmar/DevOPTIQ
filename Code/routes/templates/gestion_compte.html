@@ -4,6 +4,7 @@
 
 <h1>Gestion des comptes utilisateurs</h1>
 
+<!-- SECTION 1 & 2 : Création + Filtrage -->
 <div class="form-filter-container">
   <!-- Formulaire de création -->
   <div class="box half-box">
@@ -52,6 +53,7 @@
       </select>
       <button type="submit">Rechercher</button>
     </form>
+
     <!-- Liste filtrée brute -->
     <h2>Résultats du filtre</h2>
     <div class="scrollable-list">
@@ -73,37 +75,77 @@
         {% endfor %}
       </ul>
     </div>
-
-    
+  </div>
 </div>
 
-<script>
-function applyFilters() {
-  const search = document.getElementById('searchInput').value.toLowerCase();
-  const status = document.getElementById('statusFilter').value;
-  const role = document.getElementById('roleFilter').value;
+<!-- SECTION 3 : Managers et collaborateurs -->
+<div class="box full-width" style="margin-top: 50px;">
+  <h2>Managers et leurs collaborateurs</h2>
+  <div id="managerContainer">
+    {% for manager in managers %}
+      <div class="manager-section">
+        <h3 class="manager-toggle" data-target="#collab-{{ manager.id }}">
+          {{ manager.first_name }}
+        </h3>
+        <div id="collab-{{ manager.id }}" class="collab-list hidden">
+          {% if manager.subordinates %}
+            <ul>
+              {% for user in manager.subordinates %}
+              <li>
+                {{ user.first_name }} {{ user.last_name }}
+                <form method="POST" action="{{ url_for('gestion_compte.remove_collaborator', user_id=user.id) }}" style="display:inline;">
+                  <button type="submit" class="delete-btn">Supprimer</button>
+                </form>
+              </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p>Aucun collaborateur.</p>
+          {% endif %}
 
-  const items = document.querySelectorAll('.user-item');
-  items.forEach(li => {
-    const name = li.dataset.name.toLowerCase();
-    const liStatus = li.dataset.status;
-    const liRole = li.dataset.role;
+          <button class="add-collab-btn" data-manager-id="{{ manager.id }}">Ajouter un collaborateur</button>
 
-    const matchesSearch = name.includes(search);
-    const matchesStatus = !status || liStatus === status;
-    const matchesRole = !role || liRole === role;
+          <!-- Modal pour ajout collaborateur -->
+          <!-- Après -->
+          <div class="collab-modal" id="modal-{{ manager.id }}" style="display: none;">
+            <div class="modal-content">
+              <span class="close-modal">×</span>
+              <h3>Ajouter des collaborateurs à {{ manager.first_name }}</h3>
+              <!-- Zone de recherche -->
+              <div style="margin-bottom:10px; display:flex; align-items:center; gap:10px;">
+                <!-- Toggle switch pour selection multiple -->
+                <label class="switch">
+                  <input type="checkbox" class="toggle-multi-switch" data-target="select-{{ manager.id }}">
+                  <span class="slider round"></span>
+                </label>
+                <span style="margin-right:15px;">Sélection Multiple</span>
 
-    li.style.display = (matchesSearch && matchesStatus && matchesRole) ? 'block' : 'none';
-  });
-}
+                <!-- Zone de recherche -->
+                <input type="text" class="collab-search" placeholder="Rechercher un collaborateur..." data-target="collab-select-{{ manager.id }}">
+                <button type="button" class="search-btn" data-target="collab-select-{{ manager.id }}">🔍</button>
+                <input type="checkbox" class="toggle-multi-switch" data-target="collab-select-{{ manager.id }}">
 
-/*document.querySelectorAll('.toggle-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const targetId = btn.dataset.target;
-    const targetEl = document.querySelector(targetId);
-    if(targetEl) {
-      targetEl.style.display = (targetEl.style.display === 'none' || !targetEl.style.display) ? 'block' : 'none';
-    }
-  });
-});*/
-</script>
+              </div>
+
+
+              <!-- Bouton d'action -->
+              <form method="POST" action="/comptes/assign_manager">
+                <input type="hidden" name="manager_id" value="{{ manager.id }}">
+                <input type="hidden" id="multi_select_{{ manager.id }}" name="multi_select" value="1">
+                <select name="user_ids[]" id="collab-select-{{ manager.id }}" multiple>
+                  {% for user in users %}
+                    <option value="{{ user.id }}">{{ user.first_name }} {{ user.last_name }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit">Ajouter</button>
+              </form>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script src="./../../../static/js/gestion_compte.js"></script>
