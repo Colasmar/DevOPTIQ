@@ -16,6 +16,7 @@
  * Va chercher le HTML partiel sur /tasks/<activityId>/render
  * et remplace le bloc "tasks-section-<activityId>"
  * Ensuite, réinitialise le drag & drop via SortableJS.
+ * Et charge dynamiquement les rôles pour chaque tâche.
  */
 function updateTasks(activityId) {
   fetch(`/tasks/${activityId}/render`)
@@ -37,7 +38,7 @@ function updateTasks(activityId) {
             handle: '.fa-bars',  // Utilise l'icône "bars" comme poignée
             onEnd: function (evt) {
               var newOrder = [];
-              taskList.querySelectorAll('li').forEach(function(li) {
+              taskList.querySelectorAll('li[data-task-id]').forEach(function(li) {
                 newOrder.push(li.getAttribute('data-task-id'));
               });
               // Envoyer le nouvel ordre vers le serveur
@@ -54,6 +55,12 @@ function updateTasks(activityId) {
             }
           });
         }
+        // Charger dynamiquement les rôles pour chaque tâche
+        const taskItems = container.querySelectorAll('li[data-task-id]');
+        taskItems.forEach(li => {
+          const taskId = li.getAttribute('data-task-id');
+          loadTaskRolesForDisplay(taskId);
+        });
       } else {
         console.warn(`Aucun conteneur #tasks-section-${activityId} trouvé dans le DOM.`);
       }
@@ -403,7 +410,8 @@ function loadTaskRolesForDisplay(taskId) {
         li.textContent = `${role.name} (${role.status})`;
         // Bouton pour retirer ce rôle
         const btn = document.createElement('button');
-        btn.textContent = "X";
+        btn.innerHTML = "X";
+        btn.className = "icon-btn";
         btn.onclick = () => {
           deleteRoleFromTask(taskId, role.id);
         };

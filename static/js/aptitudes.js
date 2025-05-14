@@ -157,17 +157,17 @@ function updateAptitudesList(activityId) {
     }
   }
   
-  function hideEditAptitudeForm(apId) {
-    const formDiv = document.getElementById("edit-aptitude-form-" + apId);
+  function hideEditAptitudeForm(aptitudeId) {
+    const formDiv = document.getElementById("edit-aptitude-form-" + aptitudeId);
     if (formDiv) {
       formDiv.style.display = "none";
     }
   }
   
-  function deleteAptitude(activityId, apId) {
+  function deleteAptitude(activityId, aptitudeId) {
     if (!confirm("Supprimer cette aptitude ?")) return;
     
-    fetch(`/aptitudes/${activityId}/${apId}`, { method: "DELETE" })
+    fetch(`/aptitudes/${activityId}/${aptitudeId}`, { method: "DELETE" })
       .then(resp => resp.json())
       .then(data => {
         if (data.error) {

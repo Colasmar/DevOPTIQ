@@ -6,6 +6,7 @@
  * 
  */
 
+
 function fetchActivityDetailsForSavoirs(activityId) {
     showSpinner();
     fetch(`/activities/${activityId}/details`)

@@ -22,46 +22,48 @@ def propose_aptitudes():
     else:
         output_data_value = output_data
 
-
+    # Contenu du prompt remplacé par celui du deuxième fichier
     prompt = f"""
+Tu es un expert en organisation du travail et en accessibilité inclusive.
 
-une aptitude est d'abord inée en termes physique et intellectuel, certaines aptitudes peuvent se développer (avec des exercices), d'autres peuvent régrésser(ex: maladie, age important), lorsque certaines aptitudes sont dégradées par rapport au standard on les appellent des handicaps. 
-En te basant sur la taxonomie classique des handicaps visibles et invisibles, en analysant les tâches de l'activités et leurs contexte et en prenant en compte ta connaissance du monde du travail et des conditions de travail en général propose nous en commençant par le mot limite suivit de la contrainte en termes d'aptitude qui empêcherait de tenir l'activité et par recommander suivi des types de handicaps visibles ou invisibles qui pourraient renforcer la performance de l'activité.
+À partir de la description suivante d'une activité professionnelle :
 
-Rédigez entre 5 à 7  propositions d'aptitudes', 
-chacun sur une nouvelle ligne distincte, 
-sans puce ni numérotation, 
-en commençant par un verbe d'action.
+{activity_name}
 
-Activité : {activity_name}
-Entrées : {input_data_value}
-Sorties : {output_data_value}
-"""
-        
+Analyse les points suivants :
+1. **Handicaps particulièrement adaptés** : lesquels pourraient apporter une véritable valeur ajoutée à cette activité, et pourquoi ?
+2. **Sans aménagement majeur** : cette activité peut-elle être tenue par une personne en situation de handicap sans adaptation spécifique ? Dans quel(s) cas ?
+3. **Avec aménagements simples** : si des aménagements légers permettraient de la rendre accessible, lesquels recommandes-tu ?
+4. **Contraintes majeures à étudier** : quelles limitations rendent l’activité plus complexe ou bloquante selon certains handicaps ? Et quelles pistes pour lever ces obstacles ?
+
+Donne une réponse **structurée en 4 paragraphes**, en respectant les titres ci-dessus, sans jargon médical, et en te basant uniquement sur les éléments présents dans la description de l’activité.
+    """
+
     openai.api_key = os.getenv("OPENAI_API_KEY")
     if not openai.api_key:
-        return jsonify({"error": "Clé OpenAI manquante (OPENAI_API_KEY)."}), 500
+        return jsonify({"error": "Clé DeepAI manquante (OPENAI_API_KEY)."}), 500
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "Vous êtes un assistant spécialisé en aptitudes."},
+                {"role": "system", "content": "Tu es un assistant expert en accessibilité et organisation inclusive du travail."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.3,
-            max_tokens=600
+            temperature=0.7,
+            max_tokens=1000
         )
         raw_text = response['choices'][0]['message']['content'].strip()
         lines = [l.strip() for l in raw_text.split("\n") if l.strip()]
 
         # FALLBACK : si < 3 lignes => tenter un split sur '. '
         if len(lines) < 3:
+            import re
             splitted = re.split(r'\.\s+', raw_text)
             splitted = [s.strip() for s in splitted if s.strip()]
             if len(splitted) > len(lines):
                 lines = splitted
 
-        # On force lines à 3 maximum si l'IA en renvoie plus
+        # On force lines à 10 maximum si l'IA en renvoie plus
         if len(lines) > 10:
             lines = lines[:10]
 
@@ -69,8 +71,3 @@ Sorties : {output_data_value}
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    
-
-
-
-        

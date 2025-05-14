@@ -1,87 +1,74 @@
-# Code/routes/competences.py
+import openai
 
-from flask import Blueprint, jsonify, session, render_template, request
-from Code.extensions import db
-from Code.models.models import Competency, Role, Activities, User, UserRole  # Assure-toi que UserRole est bien importé
+def analyze_aptitude(activity_description):
+    prompt = f"""
+Tu es un expert en organisation du travail et en accessibilité inclusive.
 
-competences_bp = Blueprint('competences_bp', __name__, url_prefix='/competences')
+À partir de la description suivante d'une activité professionnelle :
 
-@competences_bp.route('/view', methods=['GET'])
-def competences_view():
-    return render_template('competences_view.html')
+{activity_description}
 
-@competences_bp.route('/managers', methods=['GET'])
-def get_managers():
+Analyse les points suivants :
+1. **Handicaps particulièrement adaptés** : lesquels pourraient apporter une véritable valeur ajoutée à cette activité, et pourquoi ?
+2. **Sans aménagement majeur** : cette activité peut-elle être tenue par une personne en situation de handicap sans adaptation spécifique ? Dans quel(s) cas ?
+3. **Avec aménagements simples** : si des aménagements légers permettraient de la rendre accessible, lesquels recommandes-tu ?
+4. **Contraintes majeures à étudier** : quelles limitations rendent l’activité plus complexe ou bloquante selon certains handicaps ? Et quelles pistes pour lever ces obstacles ?
+
+Donne une réponse **structurée en 4 paragraphes**, en respectant les titres ci-dessus, sans jargon médical, et en te basant uniquement sur les éléments présents dans la description de l’activité.
+    """
+
     try:
-        # Récupérer le rôle "Manager"
-        role_manager = Role.query.filter_by(name='manager').first()
-        if not role_manager:
-            return jsonify([])
-
-        # Récupérer tous les utilisateurs liés à ce rôle
-        managers = User.query.join(UserRole).filter(UserRole.role_id == role_manager.id).all()
-
-        manager_data = [{'id': manager.id, 'name': f"{manager.first_name} {manager.last_name}"} for manager in managers]
-        return jsonify(manager_data)
-    except Exception as e:
-        import traceback
-        traceback.print_exc()  # Pour voir l'erreur dans la console serveur
-        return jsonify({'error': str(e)}), 500
-
-@competences_bp.route('/collaborators', methods=['GET'])
-def get_collaborators():
-    try:
-        # Récupérer l'id du rôle "manager"
-        role_manager = Role.query.filter_by(name='manager').first()
-        if not role_manager:
-            return jsonify([])
-
-        # Récupérer tous les user_id qui ont le rôle "manager"
-        manager_user_ids = db.session.query(UserRole.user_id).filter_by(role_id=role_manager.id).all()
-        manager_user_ids = [uid for (uid,) in manager_user_ids]
-
-        # Récupérer tous les utilisateurs qui sont liés à ces managers (si vous avez une relation directe)
-        # Sinon, vous pouvez aussi faire une requête pour tous les utilisateurs liés à ces managers
-        # ici, on suppose que le lien entre managers et collaborateurs est dans user_roles
-        collaborators = (
-            User.query
-            .join(UserRole, User.id == UserRole.user_id)
-            .filter(UserRole.role_id != role_manager.id)  # Exclure les managers eux-mêmes si besoin
-            .filter(UserRole.user_id.in_(manager_user_ids))
-            .all()
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "Tu es un assistant expert en accessibilité et organisation inclusive du travail."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=1000
         )
 
-        collaborator_data = [{'id': c.id, 'first_name': c.first_name, 'last_name': c.last_name} for c in collaborators]
-        return jsonify(collaborator_data)
+        reply = response['choices'][0]['message']['content']
+        return reply.strip()
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return f"Erreur lors de l'appel à l'API : {e}"
 
-@competences_bp.route('/all_users', methods=['GET'])
-def get_all_users():
-    users = User.query.all()
-    user_data = [{'id': user.id, 'name': f"{user.first_name} {user.last_name}"} for user in users]
-    return jsonify(user_data)
+# Code pour générer une analyse approfondie par rapport à une catégorie d'activité
 
-@competences_bp.route('/add_collaborator', methods=['POST'])
-def add_collaborator():
-    data = request.json
-    manager_id = data.get('manager_id')
-    user_id = data.get('user_id')
-    role_id = data.get('role_id')
+def explore_aptitude_block(activity_description, selected_block):
+    prompt = f"""
+Tu es un expert en accessibilité au travail et en inclusion professionnelle.
 
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({'success': False, 'message': 'Utilisateur introuvable'}), 404
+Voici la description d'une activité professionnelle :
 
-    # Associer le collaborateur au manager
-    user.manager_id = manager_id
+{activity_description}
 
-    # Changer son rôle si besoin
-    user.role_id = role_id
+Et voici une observation liée à l'inclusion, qu'on souhaite approfondir :
 
-    db.session.commit()
+"{selected_block}"
 
-    return jsonify({'success': True})
+À partir de cela, donne des conseils pratiques sous 3 rubriques :
+1. ✔️ **Points à vérifier** avant de confier cette activité à une personne concernée
+2. 🛠 **Aménagements possibles ou nécessaires**
+3. 🤝 **Forme d’accompagnement ou de soutien recommandé**
+
+Structure ta réponse de façon claire, sans jargon médical, avec des recommandations concrètes.
+    """
+
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "Tu es un assistant expert en organisation du travail inclusif."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=800
+        )
+
+        reply = response['choices'][0]['message']['content']
+        return reply.strip()
+
+    except Exception as e:
+        return f"Erreur lors de l'appel à l'API : {e}"

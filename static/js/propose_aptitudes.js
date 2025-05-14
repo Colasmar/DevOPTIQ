@@ -132,7 +132,7 @@ function fetchActivityDetailsForAptitudes(activityId) {
         let addPromises = [];
         selected.forEach(ch => {
             const description = ch.getAttribute('data-description');
-            let p = fetch('/add', {
+            let p = fetch('/aptitudes/add', {
                 method: 'POST',
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ 

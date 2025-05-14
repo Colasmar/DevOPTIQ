@@ -28,57 +28,10 @@ def login():
 
     return render_template('connexion.html')
 
-
-@auth_bp.route('/register', methods=['GET', 'POST'])
-def register():
-    if request.method == 'POST':
-        # Récupérer les données du formulaire
-        first_name = request.form.get('first_name')
-        last_name = request.form.get('last_name')
-        age = request.form.get('age')
-        email = request.form.get('email')
-        password = request.form.get('password')  # Mot de passe en clair
-        role_name = request.form.get('role')  # Récupérer le nom du rôle sélectionné
-
-        # Hachage du mot de passe
-        hashed_password = generate_password_hash(password)
-
-        # Créer un nouvel utilisateur
-        new_user = User(
-            first_name=first_name,
-            last_name=last_name,
-            age=age,
-            email=email,
-            password=hashed_password
-        )
-
-        db.session.add(new_user)
-        db.session.flush()  # Ne pas commit encore
-
-        # Récupérer le rôle correspondant via le nom
-        role = Role.query.filter_by(name=role_name).first()
-        if role:
-            # Ajouter l'entrée dans la table de liaison user_roles
-            user_role = UserRole(user_id=new_user.id, role_id=role.id)
-            db.session.add(user_role)
-        else:
-            # Si le rôle n'existe pas, vous pouvez gérer cette erreur
-            flash('Rôle invalide.', 'error')
-            db.session.rollback()
-            return redirect(url_for('auth.register'))
-
-        db.session.commit()
-        print(f"Utilisateur enregistré : {new_user.first_name} {new_user.last_name} avec rôle {role_name}")
-
-        flash('Inscription réussie, vous pouvez vous connecter.', 'success')
-        return redirect(url_for('auth.login'))
-
-    # Obtenir la liste des rôles pour le formulaire
-    roles = Role.query.all()
-    return render_template('enregistrer.html', roles=roles)
-
 @auth_bp.route('/logout')
 def logout():
     session.pop('user_email', None)
     flash('Déconnexion réussie.', 'success')
     return redirect(url_for('auth.login'))
+
+
