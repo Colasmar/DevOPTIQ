@@ -24,32 +24,29 @@ def time_new():
         duration = int(request.form['duration'])
         recurrence = request.form['recurrence']
         frequency = int(request.form['frequency'])
-        activity_id = request.form.get('activity_id')
-        task_id = request.form.get('task_id')
-        start_str = request.form['start_datetime']
-        end_str = request.form['end_datetime']
-
-        start_dt = datetime.fromisoformat(start_str)
-        end_dt = datetime.fromisoformat(end_str)
+        activity_id = request.form.get('activity_id') or None
+        task_id = request.form.get('task_id') or None
         nb_people = int(request.form.get('nb_people', 1))
         delay_unit = request.form.get('delay_unit') or None
         delay_increase = request.form.get('delay_increase')
         delay_increase = float(delay_increase) if delay_increase else None
+        analysis_type = request.form['analysis_type']
 
-
+        # Création de l'objet sans date
         time_obj = TimeAnalysis(
             duration=duration,
             recurrence=recurrence,
             frequency=frequency,
-            start_datetime=start_dt,
-            end_datetime=end_dt,
-            type=request.form['analysis_type'],
-            activity_id=activity_id or None,
-            task_id=task_id or None,
+            type=analysis_type,
+            activity_id=activity_id,
+            task_id=task_id,
             nb_people=nb_people,
-            delay_unit=delay_unit,
-            delay_increase=delay_increase
+            delay_unit=delay_unit if analysis_type == 'défaillance' else None,
+            delay_increase=delay_increase if analysis_type == 'défaillance' else None,
+            start_datetime=None,
+            end_datetime=None
         )
+
         db.session.add(time_obj)
         db.session.commit()
         return redirect(url_for('time_view.time_list'))

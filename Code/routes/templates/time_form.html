@@ -5,9 +5,8 @@
         <option value="">--Sélectionner--</option>
         <option value="activity">Activité</option>
         <option value="task">Tâche</option>
-    </select>
-    <input type="hidden" name="analysis_type" id="analysis_type" value="">
-    <br><br>
+        <option value="défaillance">Défaillance</option>
+    </select><br><br>
 
     <div id="activitySelectContainer" class="hidden">
         <label>Activité :</label>
@@ -27,9 +26,6 @@
         </select><br><br>
     </div>
 
-    <label>Durée (minutes):</label>
-    <input type="number" name="duration" required><br><br>
-
     <label>Récurrence :</label>
     <select name="recurrence" required>
         <option value="journalier">Journalier</option>
@@ -41,30 +37,44 @@
     <label>Nombre de fois / récurrence :</label>
     <input type="number" name="frequency" required><br><br>
 
+    <label>Durée (minutes):</label>
+    <input type="number" name="duration" required><br><br>
+
     <label>Nombre de personnes impliquées :</label>
     <input type="number" name="nb_people" value="1" min="1" required><br><br>
 
-    <label>Unité du délai :</label>
-    <select name="delay_unit">
-        <option value="">-- Aucun --</option>
-        <option value="minutes">minutes</option>
-        <option value="heures">heures</option>
-        <option value="jours">jours</option>
-        <option value="semaines">semaines</option>
-        <option value="mois">mois</option>
-    </select><br><br>
+    <!-- CHAMP RETARD (masqué sauf pour défaillance) -->
+    <div id="delaySection" class="hidden">
+        <label>Unité du délai :</label>
+        <select name="delay_unit">
+            <option value="">-- Aucun --</option>
+            <option value="minutes">minutes</option>
+            <option value="heures">heures</option>
+            <option value="jours">jours</option>
+            <option value="semaines">semaines</option>
+            <option value="mois">mois</option>
+        </select><br><br>
 
-    <label>Retard (valeur supplémentaire) :</label>
-    <input type="number" step="0.01" name="delay_increase"><br><br>
-
-    <p>Les dates de début et de fin définissent la période de cette analyse.</p>
-
-    <label>Date de début :</label>
-    <input type="datetime-local" name="start_datetime" required><br><br>
-
-    <label>Date de fin :</label>
-    <input type="datetime-local" name="end_datetime" required><br><br>
+        <label>Retard (valeur supplémentaire) :</label>
+        <input type="number" step="0.01" name="delay_increase"><br><br>
+    </div>
 
     <button type="submit" class="btn-success">Enregistrer</button>
     <button type="button" id="cancelBtn" class="btn-secondary">Annuler</button>
 </form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const typeSelect = document.getElementById('analysisType');
+    const delaySection = document.getElementById('delaySection');
+    const activityContainer = document.getElementById('activitySelectContainer');
+    const taskContainer = document.getElementById('taskSelectContainer');
+
+    typeSelect.addEventListener('change', function () {
+        const type = this.value;
+        delaySection.classList.toggle('hidden', type !== 'défaillance');
+        activityContainer.classList.toggle('hidden', type !== 'activity' && type !== 'défaillance');
+        taskContainer.classList.toggle('hidden', type !== 'task');
+    });
+});
+</script>

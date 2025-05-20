@@ -24,8 +24,6 @@
       <th>Retard</th>
       <th>Écart</th>
       <th>Délai</th>
-      <th>Début</th>
-      <th>Fin</th>
       <th>Activité</th>
       <th>Tâche</th>
     </tr>
@@ -43,8 +41,6 @@
       <td>{{ t.delay_increase or '0' }} {{ t.delay_unit or '' }}</td>
       <td>{{ t.delay_gap }}</td>
       <td>{{ t.delay_str }}</td>
-      <td>{{ t.start_datetime }}</td>
-      <td>{{ t.end_datetime }}</td>
       <td>{{ t.activity.name if t.activity else "" }}</td>
       <td>{{ t.task.name if t.task else "" }}</td>
     </tr>
