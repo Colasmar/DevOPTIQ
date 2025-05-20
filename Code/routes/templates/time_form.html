@@ -40,12 +40,17 @@
     <label>Durée (minutes):</label>
     <input type="number" name="duration" required><br><br>
 
+    <label>Délai standard (minutes) :</label>
+    <input type="number" name="standard_delay" required><br><br>
+
     <label>Nombre de personnes impliquées :</label>
     <input type="number" name="nb_people" value="1" min="1" required><br><br>
 
-    <!-- CHAMP RETARD (masqué sauf pour défaillance) -->
     <div id="delaySection" class="hidden">
-        <label>Unité du délai :</label>
+        <label>Impact (retard) :</label>
+        <input type="number" step="0.01" name="delay_increase"><br><br>
+
+        <label>Unité de l'impact :</label>
         <select name="delay_unit">
             <option value="">-- Aucun --</option>
             <option value="minutes">minutes</option>
@@ -54,9 +59,6 @@
             <option value="semaines">semaines</option>
             <option value="mois">mois</option>
         </select><br><br>
-
-        <label>Retard (valeur supplémentaire) :</label>
-        <input type="number" step="0.01" name="delay_increase"><br><br>
     </div>
 
     <button type="submit" class="btn-success">Enregistrer</button>

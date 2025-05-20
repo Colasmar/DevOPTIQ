@@ -27,12 +27,12 @@ def time_new():
         activity_id = request.form.get('activity_id') or None
         task_id = request.form.get('task_id') or None
         nb_people = int(request.form.get('nb_people', 1))
+        standard_delay = int(request.form.get('standard_delay'))  # nouveau champ
         delay_unit = request.form.get('delay_unit') or None
         delay_increase = request.form.get('delay_increase')
         delay_increase = float(delay_increase) if delay_increase else None
         analysis_type = request.form['analysis_type']
 
-        # Création de l'objet sans date
         time_obj = TimeAnalysis(
             duration=duration,
             recurrence=recurrence,
@@ -43,8 +43,7 @@ def time_new():
             nb_people=nb_people,
             delay_unit=delay_unit if analysis_type == 'défaillance' else None,
             delay_increase=delay_increase if analysis_type == 'défaillance' else None,
-            start_datetime=None,
-            end_datetime=None
+            delay=standard_delay  # attribue le délai standard
         )
 
         db.session.add(time_obj)

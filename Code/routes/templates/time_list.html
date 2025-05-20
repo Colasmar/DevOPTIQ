@@ -16,15 +16,15 @@
     <tr>
       <th>ID</th>
       <th>Type</th>
+      <th>Activité</th>
       <th>Durée</th>
       <th>Récurrence</th>
       <th>Fréquence</th>
       <th>Personnes</th>
       <th>Temps annuel</th>
+      <th>Délai standard</th>
+      <th>Impact</th>
       <th>Retard</th>
-      <th>Écart</th>
-      <th>Délai</th>
-      <th>Activité</th>
       <th>Tâche</th>
     </tr>
   </thead>
@@ -33,15 +33,24 @@
     <tr>
       <td>{{ t.id }}</td>
       <td>{{ t.type }}</td>
+      <td>{{ t.activity.name if t.activity else "" }}</td>
       <td>{{ t.duration }}</td>
       <td>{{ t.recurrence }}</td>
       <td>{{ t.frequency }}</td>
       <td>{{ t.nb_people }}</td>
-      <td>{{ t.annual_time }}</td>
+      <td>{{ "%.1f" | format(t.annual_time / 60) }} h</td>
+      <td>{{ t.delay or '0' }} min</td>
       <td>{{ t.delay_increase or '0' }} {{ t.delay_unit or '' }}</td>
-      <td>{{ t.delay_gap }}</td>
-      <td>{{ t.delay_str }}</td>
-      <td>{{ t.activity.name if t.activity else "" }}</td>
+      <td>
+        {% if t.delay and t.delay_increase %}
+          {{ t.delay + t.delay_increase }}
+        {% elif t.delay %}
+          {{ t.delay }}
+        {% else %}
+          {{ t.delay_increase or 0 }}
+        {% endif %}
+        min
+      </td>
       <td>{{ t.task.name if t.task else "" }}</td>
     </tr>
     {% endfor %}
