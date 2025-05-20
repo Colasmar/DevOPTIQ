@@ -190,7 +190,7 @@ function saveAllEvaluations() {
     document.querySelectorAll('.eval-cell').forEach(cell => {
         const color = ['red', 'orange', 'green'].find(c => cell.classList.contains(c));
         const activityId = cell.dataset.activity;
-        if (!color || !activityId) return;  // <-- ignore les cellules sans activité
+        if (!color || !activityId) return;
 
         evaluationsToSend.push({
             user_id: parseInt(selectedUserId),
@@ -218,18 +218,26 @@ function saveAllEvaluations() {
     .then(res => res.json())
     .then(resp => {
         if (resp.success) {
-        alert('Évaluations enregistrées avec succès !');
-        loadGlobalSummary(selectedUserId);
-    } else {
-        alert('Erreur : ' + resp.message);
-    }
+            alert('Évaluations enregistrées avec succès !');
 
+            // Si la synthèse globale est visible, la recharger dynamiquement
+            const summarySection = document.getElementById('global-summary-section');
+            const isVisible = summarySection && !summarySection.classList.contains('hidden');
+
+            if (isVisible) {
+                loadGlobalSummary(selectedUserId);
+            }
+
+        } else {
+            alert('Erreur : ' + resp.message);
+        }
     })
     .catch(err => {
         console.error(err);
         alert('Erreur serveur.');
     });
 }
+
 
 
 function saveAllEvaluations() {
@@ -266,6 +274,7 @@ function saveAllEvaluations() {
     .then(resp => {
         if (resp.success) {
             alert('Évaluations enregistrées avec succès !');
+            refreshGlobalSummary(selectedUserId);
         } else {
             alert('Erreur : ' + resp.message);
         }
@@ -350,3 +359,10 @@ document.addEventListener('mousedown', (e) => {
         tooltipActive = false;
     }
 });
+
+function refreshGlobalSummary(userId) {
+    const summarySection = document.getElementById('global-summary-section');
+    if (summarySection && !summarySection.classList.contains('hidden')) {
+        loadGlobalSummary(userId); 
+    }
+}
