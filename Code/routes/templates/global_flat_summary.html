@@ -1,0 +1,23 @@
+<h3>Synthèse globale du collaborateur : {{ user.first_name }} {{ user.last_name }}</h3>
+
+<table class="eval-table" style="width: 100%; text-align: center; margin-top: 20px;">
+  <thead>
+    <tr>
+      {% for role in header_roles %}
+        <th colspan="{{ role.span }}" class="{{ role.status }}" style="background: #e0e0e0;">{{ role.name }}</th>
+      {% endfor %}
+    </tr>
+    <tr>
+      {% for activity in header_activities %}
+        <th style="background: #f2f2f2;">{{ activity }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      {% for note in row_manager %}
+        <td class="eval-cell {{ note }}"></td>
+      {% endfor %}
+    </tr>
+  </tbody>
+</table>

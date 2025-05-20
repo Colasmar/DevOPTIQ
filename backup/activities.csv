@@ -1,8 +1,8 @@
 id,shape_id,name,description,is_result
 1,669,Mise à jour du Web,,False
-2,672,RFQ,,False
+2,672,Traitement de la demande,,False
 3,674,Analyse de faisabilité,,False
-4,676,Réalisation des offres,,False
+4,676,Réalisation de l’offre,,False
 5,679,Préparation projet,,False
 6,684,Prise en compte de l’offre,,True
 7,686,Cotation,,False

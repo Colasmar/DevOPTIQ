@@ -31,6 +31,11 @@ def time_new():
 
         start_dt = datetime.fromisoformat(start_str)
         end_dt = datetime.fromisoformat(end_str)
+        nb_people = int(request.form.get('nb_people', 1))
+        delay_unit = request.form.get('delay_unit') or None
+        delay_increase = request.form.get('delay_increase')
+        delay_increase = float(delay_increase) if delay_increase else None
+
 
         time_obj = TimeAnalysis(
             duration=duration,
@@ -38,9 +43,12 @@ def time_new():
             frequency=frequency,
             start_datetime=start_dt,
             end_datetime=end_dt,
-            type=request.form['analysis_type'],  
+            type=request.form['analysis_type'],
             activity_id=activity_id or None,
-            task_id=task_id or None
+            task_id=task_id or None,
+            nb_people=nb_people,
+            delay_unit=delay_unit,
+            delay_increase=delay_increase
         )
         db.session.add(time_obj)
         db.session.commit()

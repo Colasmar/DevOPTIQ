@@ -1,51 +1,32 @@
 id,name,onboarding_plan
-2,Relation client,"Plan d'accompagnement pour le développement des habiletés sociocognitives (HSC)
+1,manager,
+2,Relation client,"**1) Module de formation/entrainement**
 
-I. Plan de développement des HSC
+*Formation ""Traitement de l'information et Raisonnement logique""*
 
-1. Module ""Adaptation relationnelle et Sensibilité sociale""
-   Objectifs : Améliorer la capacité d'adaptation dans les relations professionnelles et développer la sensibilité sociale.
-   Durée : 3 jours
-   Méthode : Jeux de rôle, discussions de groupe, études de cas
-   HSC développées : Adaptation relationnelle - Niveau: 4, Sensibilité sociale - Niveau: 2
+- Objectifs : Améliorer la capacité à traiter l'information de manière efficace et à utiliser le raisonnement logique dans la prise de décision.
+- Durée : 1 jour
+- Méthode : Formation interactive avec des exercices pratiques, des études de cas et des jeux de rôle pour simuler des situations réelles.
+- Critères d'évaluation : Capacité à identifier, analyser et synthétiser l'information pertinente dans un exercice de simulation. Capacité à appliquer le raisonnement logique pour résoudre des problèmes lors d'un test post-formation.
 
-2. Module ""Planification et Auto-organisation""
-   Objectifs : Développer les compétences en planification et auto-organisation.
-   Durée : 2 jours
-   Méthode : Exercices pratiques, planification de projets fictifs
-   HSC développées : Planification - Niveau: 4, Auto-organisation - Niveau: 3
+*Formation ""Sensibilité sociale, Planification et Auto-régulation""*
 
-3. Module ""Traitement de l'information et Synthèse""
-   Objectifs : Améliorer la capacité à traiter l'information et à synthétiser.
-   Durée : 2 jours
-   Méthode : Exercices pratiques, analyse de documents
-   HSC développées : Traitement de l’information - Niveau: 3, Synthèse - Niveau: 3
+- Objectifs : Développer la sensibilité sociale pour comprendre et répondre aux besoins des autres, améliorer les compétences en planification et en auto-régulation.
+- Durée : 2 jours
+- Méthode : Formation en groupe avec des activités de team building, des ateliers de planification de projet et des sessions de mindfulness pour l'auto-régulation.
+- Critères d'évaluation : Capacité à identifier et répondre aux besoins des autres lors d'un jeu de rôle. Efficacité de la planification et de l'auto-régulation lors d'un projet simulé.
 
-II. Retour d’Expérience (REX)
+**2) Retour d’Expérience (REX)**
 
-4. Module ""Auto-évaluation et Auto-régulation""
-   Objectifs : Développer la capacité d'auto-évaluation et d'auto-régulation.
-   Durée : 1 jour
-   Méthode : REX, auto-évaluation
-   HSC développées : Auto-évaluation - Niveau: 3, Auto-régulation - Niveau: 3
+Une session de REX pourrait comprendre une discussion en groupe où chaque membre partage des expériences liées aux HSC. Par exemple, un membre pourrait partager comment il a utilisé le raisonnement logique pour résoudre un problème complexe. L'animateur de la session peut ensuite guider le groupe à analyser cette situation, discuter des stratégies utilisées et comment elles pourraient être améliorées ou appliquées dans d'autres contextes.
 
-III. Coaching d’Équipe
+**3) Coaching d’Équipe**
 
-5. Module ""Coopération et Arbitrage""
-   Objectifs : Améliorer les compétences en coopération et arbitrage.
-   Durée : 2 jours
-   Méthode : Jeux de rôle, exercices en équipe
-   HSC développées : Coopération - Niveau: 3, Arbitrage - Niveau: 3
+Pour le coaching d'équipe, il est important de créer un environnement de soutien où les membres se sentent à l'aise pour partager leurs idées et leurs préoccupations. Encouragez la coopération en assignant des tâches qui nécessitent un travail d'équipe et en reconnaissant les contributions de chaque membre. Pour l'auto-organisation, formez les membres sur les outils de gestion de projet et encouragez-les à prendre des initiatives. Enfin, pour l'adaptation, promouvez une culture de l'apprentissage continu et encouragez les membres à être flexibles face aux changements.
 
-IV. Parcours d’Apprentissage Autonome
+**4) Parcours d’Apprentissage Autonome**
 
-6. Module ""Flexibilité mentale et Raisonnement logique""
-   Objectifs : Développer la flexibilité mentale et le raisonnement logique.
-   Durée : 2 jours
-   Méthode : Exercices pratiques, résolution de problèmes
-   HSC développées : Flexibilité mentale - Niveau: 3, Raisonnement logique - Niveau: 4
-
-Ce plan d'accompagnement est conçu pour couvrir toutes les HSC nécessaires pour le rôle de ""relation client"". Chaque module est conçu pour cibler spécifiquement une ou plusieurs HSC, en utilisant des méthodes pédagogiques adaptées. Le plan est divisé en quatre parties, chacune visant à développer différentes compétences et à offrir une variété d'approches pour l'apprentissage."
+Un parcours d'apprentissage autonome pourrait inclure des micro-formations en ligne sur chaque HSC. Par exemple, un cours sur le raisonnement logique pourrait comprendre des vidéos explicatives, des lectures, des exercices pratiques et des quiz pour évaluer la compréhension. Pour la sensibilité sociale, les apprenants pourraient regarder des vidéos de scénarios sociaux et répondre à des questions sur la manière dont ils réagiraient. Pour la planification et l'auto-régulation, ils pourraient utiliser des outils en ligne pour planifier un projet fictif et suivre leur progression."
 3,Coordination projet,"Plan d'accompagnement pour le développement des habiletés sociocognitives (HSC) pour le rôle ""Coordination projet""
 
 1) Plan de développement des HSC
@@ -240,47 +221,53 @@ Lien avec les HSC: Ce module vise à développer la planification, une compéten
 10,Site dessinateur,
 11,Support finance,
 12,Utilisateur,
-13,Web designer,"**1. Module de formation/entrainement**
+13,Web designer,"**1) Module de formation/entrainement :**
 
-**Formation 1: Auto-organisation**
+**Formation 1 : Flexibilité mentale**
+- Objectifs : Comprendre la notion de flexibilité mentale, apprendre à s'adapter aux changements et à modifier ses méthodes de travail en fonction des situations.
+- Durée : 0,5 jour
+- Méthode : Exercices pratiques de résolution de problèmes, jeux de rôle pour s'adapter à des situations inattendues.
+- Critères d'évaluation : Capacité à s'adapter à des situations nouvelles lors d'exercices de simulation, feedback des pairs.
 
-Objectifs: Améliorer la capacité à gérer son temps et ses ressources, à définir des priorités et à travailler de manière autonome.
+**Formation 2 : Synthèse et raisonnement logique**
+- Objectifs : Développer la capacité à synthétiser des informations et à utiliser le raisonnement logique pour prendre des décisions.
+- Durée : 1 jour
+- Méthode : Exercices de synthèse d'informations, jeux de logique, études de cas.
+- Critères d'évaluation : Qualité des synthèses réalisées, capacité à résoudre des problèmes logiques, application du raisonnement logique dans les études de cas.
 
-Durée: 1 jour
+**Formation 3 : Auto-organisation et sensibilité sociale**
+- Objectifs : Améliorer la capacité à s'organiser de manière autonome et à comprendre les émotions et les besoins des autres.
+- Durée : 1,5 jour
+- Méthode : Ateliers de gestion du temps, exercices de mise en situation pour développer l'empathie.
+- Critères d'évaluation : Amélioration de l'organisation personnelle, capacité à comprendre et à répondre aux émotions des autres.
 
-Méthode: Formation interactive avec des ateliers pratiques pour appliquer les principes d'auto-organisation. Les participants travailleront sur des cas réels pour planifier et organiser leur travail.
+**2) Retour d’Expérience (REX) :**
 
-Critères d'évaluation: Capacité à gérer efficacement son temps et ses ressources lors des exercices pratiques, amélioration de la productivité et de l'autonomie dans les semaines suivant la formation.
+La session de REX sera axée sur l'analyse de situations vécues par les participants au cours desquelles ils ont dû faire preuve de flexibilité mentale, de synthèse, d'auto-organisation, de sensibilité sociale et de raisonnement logique. Chaque participant présentera une situation, les actions qu'il a entreprises et les résultats obtenus. Les autres participants et l'animateur donneront leur feedback et proposeront des alternatives pour améliorer les HSC. 
 
-**Formation 2: Raisonnement logique et Flexibilité mentale**
+**3) Coaching d’Équipe :**
 
-Objectifs: Développer la capacité à analyser les situations, à résoudre des problèmes et à s'adapter à des situations changeantes.
+Pour renforcer la coopération, l’auto-organisation et l’adaptation, le coach devra :
+- Encourager la communication ouverte et honnête au sein de l'équipe.
+- Proposer des exercices de team building pour renforcer la coopération.
+- Mettre en place des rituels d'organisation (planning hebdomadaire, réunions de suivi...).
+- Encourager l'initiative personnelle et la prise de décision en équipe.
+- Proposer des exercices de flexibilité mentale pour aider l'équipe à s'adapter aux changements.
 
-Durée: 1 jour
+**4) Parcours d’Apprentissage Autonome :**
 
-Méthode: Formation basée sur des jeux de rôle et des scénarios de résolution de problèmes. Les participants seront confrontés à des situations imprévues pour stimuler leur flexibilité mentale.
-
-Critères d'évaluation: Capacité à résoudre des problèmes et à s'adapter à des situations changeantes lors des jeux de rôle, amélioration du raisonnement logique et de la flexibilité mentale dans les semaines suivant la formation.
-
-**Formation 3: Sensibilité sociale et Traitement de l'information**
-
-Objectifs: Améliorer la capacité à comprendre et à répondre aux émotions et aux besoins des autres, à traiter efficacement l'information.
-
-Durée: 1 jour
-
-Méthode: Formation basée sur des études de cas et des discussions de groupe. Les participants travailleront sur leur écoute active et leur empathie.
-
-Critères d'évaluation: Capacité à comprendre et à répondre aux émotions et aux besoins des autres lors des discussions de groupe, amélioration de la sensibilité sociale et du traitement de l'information dans les semaines suivant la formation.
-
-**2. Retour d’Expérience (REX)**
-
-Une session de REX sera organisée après chaque projet ou tâche significative. Les participants seront invités à partager leurs expériences, en se concentrant sur les situations où ils ont utilisé les HSC. Par exemple, ils pourraient discuter de la manière dont ils ont géré leur temps et leurs ressources, comment ils ont résolu des problèmes, comment ils ont réagi à des situations imprévues, comment ils ont compris et répondu aux émotions et aux besoins des autres, et comment ils ont traité l'information. Les participants recevront des feedbacks constructifs de leurs pairs et des formateurs pour améliorer ces compétences.
-
-**3. Coaching d’Équipe**
-
-Le coaching d'équipe se concentrera sur le renforcement de la coopération, de l'auto-organisation et de l'adaptation. Les coachs encourageront les membres de l'équipe à partager leurs expériences et leurs idées, à s'écouter mutuellement et à prendre des décisions ensemble. Ils aideront l'équipe à définir des objectifs clairs et à planifier leur travail de manière efficace. Ils soutiendront également l'équipe dans la gestion des changements et des imprévus, en les aidant à développer leur flexibilité mentale.
-
-**4. Parcours d’Apprentissage Autonome**
-
-Le parcours d'apprentissage autonome comprendra des micro-formations en ligne, des exercices pratiques et des quiz sur les HSC. Par exemple, les participants pourront suivre des cours en ligne sur la gestion du temps, la résolution de problèmes, l'adaptation au changement, l'écoute active et le traitement de l'information. Ils pourront également faire des exercices pratiques pour appliquer ces compétences dans leur travail quotidien et tester leurs connaissances avec des quiz."
+Le parcours d'apprentissage autonome pourra inclure :
+- Des micro-formations en ligne sur la flexibilité mentale, la synthèse, l'auto-organisation, la sensibilité sociale et le raisonnement logique.
+- Des exercices pratiques à réaliser en autonomie pour développer ces HSC (par exemple, des exercices de synthèse d'articles, des jeux de logique...).
+- Des quiz pour évaluer les progrès réalisés dans le développement de ces HSC."
 14,Animateur Réseaux sociaux,
+15,Intrant,
+16,Extrant,
+17,Analyse,
+18,Développeur,
+19,Testeur,
+20,Gestionnaire de produit,
+110,Développeur Web,
+111,Analyste,
+112,Testeur QA,
+113,Chef de projet,

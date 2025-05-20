@@ -1,7 +1,7 @@
 id,name,description,order,activity_id
 1,Analye de la demande,,0,2
-2,Vérification de la disponibilité catalogue,si catalogue,6,2
-3,Collecte des informations pour les faisabilité,Si produit spécifique,3,2
+2,Vérification de la disponibilité catalogue,si catalogue,3,2
+3,Collecte des informations pour les faisabilité,Si produit spécifique,6,2
 5,Collecter les informations necessaires,,0,4
 6,Rédaction de l'offre,,1,4
 7,Mise en forme de l'offre,,2,4
@@ -33,8 +33,10 @@ id,name,description,order,activity_id
 33,Analyser les contraintes techniques,,1,3
 34,Créer une maquette 3D,Usage platique,,3
 35,Faire le rapport de faisabilité,,,3
-36,Publication des pages modifiées,,7,1
+36,Publication des pages modifiées,,19,1
 37,Etablir la liste des relances,,,16
-39,Vérifier les Ping,,3,1
+39,Vérifier les Ping,,14,1
 40,Faire le comtpe rendu de négo,,,8
-42,Contrôle de l'historiqsue,dans l'histoire,12,1
+43,Traitement des images et photos au format web,,9,1
+44,finalisation de la page savoirs,,5,1
+45,a détruire,blabla,,1

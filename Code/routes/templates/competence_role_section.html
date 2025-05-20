@@ -1,0 +1,104 @@
+<script type="text/template" id="template-role-block">
+  <div class="role-section">
+    <h3 class="toggle-role">▼ <%= role_name %></h3>
+    <div class="role-content hidden">
+
+      <% if (activities.length === 0) { %>
+        <p><em>Aucune activité définie pour ce rôle en tant que garant.</em></p>
+      <% } else { %>
+        <p>Liste des activités du rôle « <%= role_name %> » :</p>
+
+        <% activities.forEach(function(act) { %>
+          <div class="activity-section">
+            <h4 class="toggle-activity">▼ <%= act.name %></h4>
+            <div class="activity-content hidden">
+
+              <table class="eval-table">
+                <caption>Savoirs</caption>
+                <tr><th>Description</th><th>1</th><th>2</th><th>3</th></tr>
+                <% act.savoirs.forEach(function(s) { %>
+                  <tr>
+                    <td><%= s.description %></td>
+                    <% ['1','2','3'].forEach(function(k) { %>
+                      <td class="eval-cell <%= s.evals[k]?.note || '' %>"
+                          data-id="<%= s.id %>"
+                          data-type="savoirs"
+                          data-eval="<%= k %>"
+                          data-activity="<%= act.id %>">
+                      </td>
+                    <% }); %>
+                  </tr>
+                <% }); %>
+              </table>
+
+              <table class="eval-table">
+                <caption>Savoir-Faire</caption>
+                <tr><th>Description</th><th>1</th><th>2</th><th>3</th></tr>
+                <% act.savoir_faires.forEach(function(s) { %>
+                  <tr>
+                    <td><%= s.description %></td>
+                    <% ['1','2','3'].forEach(function(k) { %>
+                      <td class="eval-cell <%= s.evals[k]?.note || '' %>"
+                          data-id="<%= s.id %>"
+                          data-type="savoir_faires"
+                          data-eval="<%= k %>"
+                          data-activity="<%= act.id %>">
+                      </td>
+                    <% }); %>
+                  </tr>
+                <% }); %>
+              </table>
+
+              <table class="eval-table">
+                <caption>Habilités socio-cognitives</caption>
+                <tr><th>Description</th><th>1</th><th>2</th><th>3</th></tr>
+                <% act.hsc.forEach(function(s) { %>
+                  <tr>
+                    <td><%= s.description %> (<%= s.niveau %>)</td>
+                    <% ['1','2','3'].forEach(function(k) { %>
+                      <td class="eval-cell <%= s.evals[k]?.note || '' %>"
+                          data-id="<%= s.id %>"
+                          data-type="softskills"
+                          data-eval="<%= k %>"
+                          data-activity="<%= act.id %>">
+                      </td>
+                    <% }); %>
+                  </tr>
+                <% }); %>
+              </table>
+
+            </div>
+          </div>
+        <% }); %>
+
+        <div class="synthese-role">
+          <h4>Synthèse du rôle « <%= role_name %> »</h4>
+          <table class="eval-table">
+            <caption>Évaluation des activités du rôle</caption>
+            <tr><th>Activité</th><th>Garant</th><th>Manager</th><th>RH</th></tr>
+            <% synthese.forEach(function(row) { %>
+              <tr>
+                <td>
+                  <%= row.activity_name %><br>
+                  <% if (row.competencies && row.competencies.length > 0) { %>
+                    <small><i>Compétences : <%= row.competencies.join(", ") %></i></small>
+                  <% } %>
+                </td>
+
+                <% ['garant','manager','rh'].forEach(function(p) { %>
+                  <td class="eval-cell <%= row.evals[p]?.note || '' %>"
+                      data-id=""
+                      data-type=""
+                      data-eval="<%= p %>"
+                      data-activity="<%= row.activity_id %>">
+                  </td>
+                <% }); %>
+              </tr>
+            <% }); %>
+          </table>
+        </div>
+      <% } %>
+
+    </div>
+  </div>
+</script>

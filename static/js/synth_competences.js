@@ -1,50 +1,26 @@
 // static/js/synth_competences.js
 
-document.addEventListener('DOMContentLoaded', () => {
-    loadRoles();
+let selectedUserId = null;
+
+document.addEventListener("DOMContentLoaded", () => {
     loadManagers();
 
     const saveButton = document.getElementById('save-competencies-button');
     if (saveButton) {
         saveButton.addEventListener('click', saveAllEvaluations);
-    } else {
-        console.error("Le bouton avec l'ID 'save-competencies-button' n'a pas été trouvé.");
     }
 
-    // Événement changement de rôle (pour charger la nouvelle section aussi)
-    document.getElementById('user-roles').addEventListener('change', () => {
-        const roleId = document.getElementById('user-roles').value;
-        if (roleId) {
-            loadRoleCompetencies(roleId); // Charge les compétences avec connexions
-            loadRoleKnowledge(roleId);    // Charge les savoirs, savoir-faire, et HSC avec évaluations passées <-- MODIFIÉ
-            loadCompetencySynthesis(roleId); // NOUVEAU: Charge les compétences pour la synthèse
-        } else {
-            document.getElementById('roles-competencies').innerHTML = '';
-            document.getElementById('knowledge-evolution').innerHTML = '';
-            document.getElementById('competency-synthesis').innerHTML = ''; // Vider la nouvelle section
-        }
-    });
+    const collaboratorSelect = document.getElementById("collaborator-select");
+    if (collaboratorSelect) {
+        collaboratorSelect.addEventListener("change", function () {
+            selectedUserId = this.value;
+            if (selectedUserId) {
+                loadRolesForCollaborator(selectedUserId);
+            }
+        });
+    }
 });
 
-let selectedUserId = null;
-
-// Charger la liste des rôles
-function loadRoles() {
-    fetch('/competences/roles')
-        .then(res => res.json())
-        .then(roles => {
-            const select = document.getElementById('role-to-assign');
-            select.innerHTML = '';
-            roles.forEach(r => {
-                const opt = document.createElement('option');
-                opt.value = r.id;
-                opt.textContent = r.name;
-                select.appendChild(opt);
-            });
-        });
-}
-
-// Charger la liste des managers
 function loadManagers() {
     fetch('/competences/managers')
         .then(res => res.json())
@@ -63,16 +39,47 @@ function loadManagers() {
         });
 }
 
-// Charger les collaborateurs
+function loadExistingEvaluations(userId) {
+    fetch(`/competences/get_user_evaluations_by_user/${userId}`)
+        .then(res => res.json())
+        .then(data => {
+            const evaluationsMap = {};
+            data.forEach(e => {
+                const key = `${e.activity_id}_${e.item_type || 'null'}_${e.item_id || 'null'}_${e.eval_number}`;
+                evaluationsMap[key] = {
+                    note: e.note,
+                    date: e.created_at
+                };
+            });
+
+            document.querySelectorAll('.eval-cell').forEach(cell => {
+                const activityId = cell.dataset.activity;
+                const itemId = cell.dataset.id || 'null';
+                const itemType = cell.dataset.type || 'null';
+                const evalNumber = cell.dataset.eval;
+
+                const key = `${activityId}_${itemType}_${itemId}_${evalNumber}`;
+
+                if (evaluationsMap[key]) {
+                    cell.classList.remove('red', 'orange', 'green');
+                    cell.classList.add(evaluationsMap[key].note);
+                    if (evaluationsMap[key].date) {
+                        cell.dataset.date = evaluationsMap[key].date;
+                    }
+                }
+            });
+        })
+        .catch(err => {
+            console.error('Erreur chargement évaluations:', err);
+        });
+}
+
+
 function loadCollaborators(managerId) {
     if (!managerId) {
         document.getElementById('collaborator-select').innerHTML = '<option value="">Sélectionnez un collaborateur</option>';
-        document.getElementById('user-roles').innerHTML = '<option value="">-- Aucun rôle --</option>';
-        // Vider les sections d'évaluation si aucun collaborateur sélectionné
-        document.getElementById('roles-competencies').innerHTML = '';
-        document.getElementById('knowledge-evolution').innerHTML = '';
-        document.getElementById('competency-synthesis').innerHTML = '';
-        selectedUserId = null; // Réinitialiser l'ID de l'utilisateur sélectionné
+        document.getElementById('roles-sections-container').innerHTML = '';
+        selectedUserId = null;
         return;
     }
     fetch(`/competences/collaborators/${managerId}`)
@@ -82,455 +89,192 @@ function loadCollaborators(managerId) {
             select.innerHTML = '<option value="">Sélectionnez un collaborateur</option>';
             collabs.forEach(c => {
                 const opt = document.createElement('option');
-                opt.value = c.id; // L'ID du collaborateur
+                opt.value = c.id;
                 opt.textContent = `${c.first_name} ${c.last_name}`;
                 select.appendChild(opt);
             });
 
-            // Écouteur pour le changement de collaborateur
-            select.removeEventListener('change', handleCollaboratorChange); // Supprimer l'ancien écouteur
-            select.addEventListener('change', handleCollaboratorChange); // Ajouter le nouvel écouteur
-
-            // Charger les rôles pour le premier collaborateur si la liste n'est pas vide
-            if (collabs.length > 0) {
-                 // Charger les rôles pour le premier collaborateur par défaut
-                 // selectedUserId = collabs[0].id; // Définir l'ID du premier collaborateur
-                 // loadUserRoles(selectedUserId);
-                 // Ne pas charger automatiquement, attendre que l'utilisateur sélectionne
-            } else {
-                document.getElementById('user-roles').innerHTML = '<option value="">-- Aucun rôle assigné --</option>';
-                // Vider les sections d'évaluation si aucun collaborateur
-                document.getElementById('roles-competencies').innerHTML = '';
-                document.getElementById('knowledge-evolution').innerHTML = '';
-                document.getElementById('competency-synthesis').innerHTML = '';
-                selectedUserId = null;
-            }
+            document.getElementById('roles-sections-container').innerHTML = '';
         });
 }
 
-// Nouvelle fonction pour gérer le changement de collaborateur sélectionné
-function handleCollaboratorChange() {
-    selectedUserId = this.value; // Attribuer l'ID du collaborateur sélectionné
-    const userRolesSelect = document.getElementById('user-roles');
-    if (selectedUserId) {
-        loadUserRoles(selectedUserId); // Charger les rôles du nouvel utilisateur sélectionné
-    } else {
-        // Si l'utilisateur sélectionné est "Sélectionnez un collaborateur"
-        userRolesSelect.innerHTML = '<option value="">-- Aucun rôle --</option>';
-        document.getElementById('roles-competencies').innerHTML = '';
-        document.getElementById('knowledge-evolution').innerHTML = '';
-        document.getElementById('competency-synthesis').innerHTML = '';
-    }
-}
-
-
-// Charger et afficher les rôles du collaborateur
-function loadUserRoles(userId) {
-    if (!userId) {
-        document.getElementById('user-roles').innerHTML = '<option value="">-- Aucun rôle --</option>';
-         // Vider les sections d'évaluation
-        document.getElementById('roles-competencies').innerHTML = '';
-        document.getElementById('knowledge-evolution').innerHTML = '';
-        document.getElementById('competency-synthesis').innerHTML = '';
-        return;
-    }
+function loadRolesForCollaborator(userId) {
     fetch(`/competences/get_user_roles/${userId}`)
-        .then(res => res.json())
+        .then(r => r.json())
         .then(data => {
-            const select = document.getElementById('user-roles');
-            select.innerHTML = '';
-            if (data.roles && data.roles.length > 0) {
-                data.roles.forEach(role => {
-                    const opt = document.createElement('option');
-                    opt.value = role.id;
-                    opt.textContent = role.name;
-                    select.appendChild(opt);
-                });
-                // Charger les informations pour le premier rôle par défaut
-                const firstRoleId = data.roles[0].id;
-                loadRoleCompetencies(firstRoleId);
-                loadRoleKnowledge(firstRoleId);
-                loadCompetencySynthesis(firstRoleId); // NOUVEAU: Charger la synthèse pour le premier rôle
-            } else {
-                select.innerHTML = '<option value="">-- Aucun rôle assigné --</option>';
-                // Vider les sections d'évaluation si aucun rôle
-                document.getElementById('roles-competencies').innerHTML = '';
-                document.getElementById('knowledge-evolution').innerHTML = '';
-                document.getElementById('competency-synthesis').innerHTML = '';
-            }
-        });
-}
+            const container = document.getElementById('roles-sections-container');
+            container.innerHTML = '';
+            data.roles.forEach(role => {
+                fetch(`/competences/role_structure/${userId}/${role.id}`)
+                    .then(r => r.json())
+                    .then(roleData => {
+                        const template = document.getElementById('template-role-block').innerHTML;
+                        const rendered = _.template(template)(roleData);
+                        const wrapper = document.createElement('div');
+                        wrapper.innerHTML = rendered;
 
-// Charger les compétences d’un rôle (pour affichage avec connexions)
-function loadRoleCompetencies(roleId) {
-    if (!roleId) {
-        document.getElementById('roles-competencies').innerHTML = '';
-        return;
-    }
-    fetch(`/competences/get_role_competencies/${roleId}`)
-        .then(res => res.json())
-        .then(data => {
-            let container = document.getElementById('roles-competencies');
-             if (!container) {
-                // Créer le conteneur s'il n'existe pas (moins probable maintenant avec le HTML statique)
-                const main = document.querySelector('main');
-                const section = document.createElement('div');
-                section.id = 'roles-competencies';
-                main.appendChild(section);
-                container = section;
-            }
-            container.innerHTML = '<h3>Compétences du rôle</h3>'; // Vider et ajouter le titre
+                        wrapper.querySelectorAll('.toggle-role').forEach(header => {
+                            header.addEventListener('click', () => {
+                                const content = header.nextElementSibling;
+                                content.classList.toggle('hidden');
+                                const isOpen = !content.classList.contains('hidden');
+                                header.innerHTML = (isOpen ? '▲ ' : '▼ ') + header.textContent.slice(2);
+                            });
+                        });
 
-            if (data.competencies && data.competencies.length > 0) {
-                data.competencies.forEach(comp => {
-                    const compDiv = document.createElement('div');
-                    compDiv.className = 'competency';
-                    compDiv.dataset.competencyId = comp.id;
-                    compDiv.style.cursor = 'pointer';
-                    compDiv.innerHTML = `<strong>${comp.name}</strong>`;
-                    compDiv.addEventListener('click', () => {
-                        showConnections(comp.id, compDiv);
+                        wrapper.querySelectorAll('.toggle-activity').forEach(header => {
+                            header.addEventListener('click', () => {
+                                const content = header.nextElementSibling;
+                                content.classList.toggle('hidden');
+                                const isOpen = !content.classList.contains('hidden');
+                                header.innerHTML = (isOpen ? '▲ ' : '▼ ') + header.textContent.slice(2);
+                            });
+                        });
+
+                        container.appendChild(wrapper);
+                        loadExistingEvaluations(userId);
                     });
+            });
 
-                    const connectionsDiv = document.createElement('div');
-                    connectionsDiv.className = 'connections-outgoing';
-                    connectionsDiv.style.display = 'none';
-                    compDiv.appendChild(connectionsDiv);
+            // Charger et afficher la synthèse globale
+            // Charger et afficher la synthèse globale
+            const toggleSummaryBtn = document.getElementById('toggle-summary');
+            const summarySection = document.getElementById('global-summary-section');
 
-                    container.appendChild(compDiv);
+            if (toggleSummaryBtn && summarySection) {
+                toggleSummaryBtn.addEventListener('click', () => {
+                    const isHidden = summarySection.classList.contains('hidden');
+                    if (isHidden) {
+                        loadGlobalSummary(userId);  // charge et affiche le contenu
+                        summarySection.classList.remove('hidden');
+                        toggleSummaryBtn.textContent = "Masquer la synthèse globale";
+                    } else {
+                        summarySection.classList.add('hidden');
+                        toggleSummaryBtn.textContent = "Afficher la synthèse globale";
+                    }
                 });
-            } else {
-                container.innerHTML += '<p>Aucune compétence pour ce rôle.</p>';
             }
         });
 }
 
-// Charger les savoirs, savoir-faire, et HSC (pour l'évolution)
-function loadRoleKnowledge(roleId) {
-    const userId = selectedUserId; // Utiliser l'ID de l'utilisateur sélectionné
-    if (!roleId || !userId) {
-        document.getElementById('knowledge-evolution').innerHTML = '';
-        return;
-    }
+function loadGlobalSummary(userId) {
+    fetch(`/competences/global_flat_summary/${userId}`)
+        .then(res => res.text())
+        .then(html => {
+            const section = document.getElementById('global-summary-section');
+            section.innerHTML = html;
 
-    const container = document.getElementById('knowledge-evolution');
-    container.innerHTML = ''; // Vider le conteneur avant de charger
-    container.innerHTML = '<h3>Évolution des savoirs, savoir-faire et HSC</h3>'; // Ajouter le titre <-- MODIFIÉ
+            const detailBtn = document.getElementById('toggle-detail');
+            const rows = document.querySelectorAll('.details-row');
 
-    // Charger la structure des connaissances (savoirs, savoir-faire, HSC)
-    fetch(`/competences/get_role_knowledge/${roleId}`)
-        .then(res => res.json())
-        .then(data => {
-            const sections = [
-                { title: 'Savoirs', key: 'savoirs' },
-                { title: 'Savoir-Faire', key: 'savoir_faires' },
-                { title: 'HSC', key: 'softskills' } // Changez 'Aptitudes' en 'HSC' et la clé en 'softskills'
-            ];
-
-            sections.forEach(section => {
-                const sectionData = data[section.key];
-
-                const table = document.createElement('table');
-                table.className = 'knowledge-table'; // Classe spécifique pour ce tableau
-
-                const header = document.createElement('tr');
-                header.innerHTML = `
-                    <th>${section.title}</th>
-                    <th>Évaluation 1</th>
-                    <th>Évaluation 2</th>
-                    <th>Évaluation 3</th>
-                `;
-                table.appendChild(header);
-
-                if (sectionData && sectionData.length > 0) {
-                    sectionData.forEach(item => {
-                        const row = document.createElement('tr');
-                        row.innerHTML = `
-                            <td>
-                                ${item.description}
-                                ${section.key === 'softskills' && item.niveau ? ' - Niveau: ' + item.niveau : ''}
-                            </td>
-                            <td class="eval-cell" data-id="${item.id}" data-type="${section.key}" data-eval="1"></td>
-                            <td class="eval-cell" data-id="${item.id}" data-type="${section.key}" data-eval="2"></td>
-                            <td class="eval-cell" data-id="${item.id}" data-type="${section.key}" data-eval="3"></td>
-                            `;
-                        table.appendChild(row);
-                    });
-                } else {
-                     const row = document.createElement('tr');
-                     // Mettez à jour le message en fonction du nouveau titre
-                     row.innerHTML = `<td colspan="4">Aucun ${section.title.toLowerCase()} défini pour ce rôle/cette activité.</td>`;
-                     table.appendChild(row);
-                }
-
-
-                container.appendChild(table);
-            });
-
-            // Une fois que la structure est chargée et affichée, charger les évaluations existantes
-            loadExistingKnowledgeEvaluations(userId, roleId);
-
-        })
-        .catch(error => {
-            console.error('Erreur lors du chargement des connaissances du rôle:', error);
-            container.innerHTML += '<p>Erreur lors du chargement des connaissances.</p>';
-        });
-}
-
-// Nouvelle fonction pour charger et appliquer les évaluations existantes pour Savoirs/Savoir-faire/HSC
-function loadExistingKnowledgeEvaluations(userId, roleId) {
-     fetch(`/competences/get_user_evaluations/${userId}/${roleId}`)
-        .then(res => res.json())
-        .then(existingEvaluations => {
-            const evaluationsMap = {};
-            existingEvaluations.forEach(eval => {
-                // La clé doit identifier l'élément évalué ET le numéro d'évaluation.
-                // Le item_type peut être 'savoirs', 'savoir_faires', ou 'softskills' maintenant.
-                 const key = `${eval.item_id}_${eval.item_type}_${eval.eval_number}`;
-                 evaluationsMap[key] = {
-                    note: eval.note,
-                    date: eval.created_at
-                };
-            });
-
-            // Appliquer les évaluations existantes aux cellules du tableau Knowledge (évolution)
-            const evalCells = document.querySelectorAll('#knowledge-evolution .eval-cell');
-            evalCells.forEach(cell => {
-                 const itemId = cell.dataset.id;
-                 const itemType = cell.dataset.type; // 'savoirs', 'savoir_faires', ou 'softskills'
-                 const evalNumber = cell.dataset.eval;
-                 const key = `${itemId}_${itemType}_${evalNumber}`;
-
-                 if (evaluationsMap[key]) {
-                    cell.classList.remove('red', 'orange', 'green'); // Nettoyer les classes existantes
-                    cell.classList.add(evaluationsMap[key].note);
-                    cell.dataset.date = evaluationsMap[key].date;
-                    // Appliquer la classe enregistrée
-                 } else {
-                     // Si pas d'évaluation existante, s'assurer qu'il n'y a pas de couleur
-                     cell.classList.remove('red', 'orange', 'green');
-                 }
-            });
-        })
-        .catch(error => {
-            console.warn('Aucune évaluation existante trouvée ou erreur lors du chargement des évaluations existantes pour Knowledge:', error);
-            // C'est une erreur moins critique, on peut simplement ne pas appliquer de couleurs
-        });
-}
-
-
-// NOUVELLE FONCTION : Charger et afficher la synthèse des compétences
-function loadCompetencySynthesis(roleId) {
-    const userId = selectedUserId; // Utiliser l'ID de l'utilisateur sélectionné
-    if (!roleId || !userId) {
-        document.getElementById('competency-synthesis').innerHTML = '';
-        return;
-    }
-
-    const container = document.getElementById('competency-synthesis');
-    container.innerHTML = ''; // Vider le conteneur avant de charger
-    container.innerHTML = '<h3>Synthèse des Compétences</h3>'; // Ajouter le titre
-
-    // Récupérer la liste des compétences pour ce rôle (comme dans loadRoleCompetencies, mais sans les connexions)
-    fetch(`/competences/get_role_competencies/${roleId}`)
-        .then(res => res.json())
-        .then(data => {
-            const competencies = data.competencies;
-
-            const table = document.createElement('table');
-            table.className = 'synthesis-table'; // Classe spécifique pour ce tableau
-
-            const header = document.createElement('tr');
-            header.innerHTML = `
-                <th>Compétence</th>
-                <th>Statut Collaborateur</th>
-                <th>Statut Manager</th>
-                <th>Validation RH</th>
-            `;
-            table.appendChild(header);
-
-            if (competencies && competencies.length > 0) {
-                competencies.forEach(comp => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${comp.name}</td>
-                        <td class="eval-cell synthesis-eval" data-id="${comp.id}" data-type="competencies" data-eval="collaborator"></td>
-                        <td class="eval-cell synthesis-eval" data-id="${comp.id}" data-type="competencies" data-eval="manager"></td>
-                        <td class="eval-cell synthesis-eval" data-id="${comp.id}" data-type="competencies" data-eval="rh"></td>
-                    `;
-                    table.appendChild(row);
+            if (detailBtn) {
+                detailBtn.addEventListener('click', () => {
+                    const isHidden = rows[0]?.style.display === 'none';
+                    rows.forEach(r => r.style.display = isHidden ? '' : 'none');
+                    detailBtn.textContent = isHidden ? 'Masquer les détails' : 'Afficher les détails';
                 });
-            } else {
-                const row = document.createElement('tr');
-                row.innerHTML = `<td colspan="4">Aucune compétence définie pour ce rôle.</td>`;
-                table.appendChild(row);
             }
-
-            container.appendChild(table);
-
-            // Charger les évaluations existantes pour cette synthèse
-            loadExistingSynthesisEvaluations(userId, roleId);
-
-        })
-        .catch(error => {
-            console.error('Erreur lors du chargement des compétences pour la synthèse:', error);
-            container.innerHTML += '<p>Erreur lors du chargement de la synthèse des compétences.</p>';
-        });
-}
-
-// Nouvelle fonction pour charger et appliquer les évaluations existantes pour la synthèse des compétences
-function loadExistingSynthesisEvaluations(userId, roleId) {
-    // Utilise la même route backend mais filtre les résultats côté frontend
-    fetch(`/competences/get_user_evaluations/${userId}/${roleId}`)
-        .then(res => res.json())
-        .then(existingEvaluations => {
-            const evaluationsMap = {};
-             // On ne prend que les évaluations dont le type est 'competencies'
-            existingEvaluations.filter(eval => eval.item_type === 'competencies').forEach(eval => {
-                // La clé doit identifier l'élément évalué ET le type d'évaluateur (représenté par eval_number)
-                 const key = `${eval.item_id}_${eval.eval_number}`; // item_type est implicite 'competencies'
-                 evaluationsMap[key] = {
-                    note: eval.note,
-                    date: eval.created_at
-                };
-            });
-
-            // Appliquer les évaluations existantes aux cellules du tableau Synthèse
-            const evalCells = document.querySelectorAll('#competency-synthesis .eval-cell');
-            evalCells.forEach(cell => {
-                 const itemId = cell.dataset.id;
-                 const evalType = cell.dataset.eval; // 'collaborator', 'manager', 'rh'
-                 const key = `${itemId}_${evalType}`;
-
-                 if (evaluationsMap[key]) {
-                    cell.classList.remove('red', 'orange', 'green'); // Nettoyer les classes existantes
-                    cell.classList.add(evaluationsMap[key].note);
-                    cell.dataset.date = evaluationsMap[key].date; // Appliquer la classe enregistrée
-                 } else {
-                     // Si pas d'évaluation existante, s'assurer qu'il n'y a pas de couleur
-                     cell.classList.remove('red', 'orange', 'green');
-                 }
-            });
-        })
-        .catch(error => {
-            console.warn('Aucune évaluation existante trouvée ou erreur lors du chargement des évaluations existantes pour la synthèse:', error);
-            // C'est une erreur moins critique
         });
 }
 
 
-// Modal pour ajouter un collaborateur
-function openAddCollaboratorModal() {
-    fetch('/competences/all_users')
-        .then(res => res.json())
-        .then(users => {
-            const select = document.getElementById('user-to-add');
-            select.innerHTML = '';
-            users.forEach(u => {
-                const opt = document.createElement('option');
-                opt.value = u.id;
-                opt.textContent = u.name;
-                select.appendChild(opt);
-            });
-            document.getElementById('add-collaborator-modal').style.display = 'block';
-        });
-}
 
-// Enregistrement collaborateur
-function saveNewCollaborator() {
-    const managerSelect = document.getElementById('manager-select');
-    const managerId = managerSelect.value;
-    const userId = document.getElementById('user-to-add').value;
-    const roleId = document.getElementById('role-to-assign').value;
-
-    if (!managerId || !userId || !roleId) {
-        alert('Remplissez tous les champs.');
+function saveAllEvaluations() {
+    if (!selectedUserId) {
+        alert("Aucun utilisateur sélectionné.");
         return;
     }
 
-    fetch('/competences/add_collaborator', {
+    const evaluationsToSend = [];
+
+    document.querySelectorAll('.eval-cell').forEach(cell => {
+        const color = ['red', 'orange', 'green'].find(c => cell.classList.contains(c));
+        const activityId = cell.dataset.activity;
+        if (!color || !activityId) return;  // <-- ignore les cellules sans activité
+
+        evaluationsToSend.push({
+            user_id: parseInt(selectedUserId),
+            activity_id: parseInt(activityId),
+            item_id: cell.dataset.id ? parseInt(cell.dataset.id) : null,
+            item_type: cell.dataset.type || null,
+            eval_number: cell.dataset.eval,
+            note: color
+        });
+    });
+
+    if (evaluationsToSend.length === 0) {
+        alert("Aucune évaluation à enregistrer.");
+        return;
+    }
+
+    fetch('/competences/save_user_evaluations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: parseInt(userId), manager_id: parseInt(managerId), role_id: parseInt(roleId) })
+        body: JSON.stringify({
+            userId: selectedUserId,
+            evaluations: evaluationsToSend
+        })
     })
     .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            // Assigner le rôle à l'utilisateur
-            assignRoleToUser(userId, roleId).then(() => {
-                 alert('Collaborateur et rôle ajoutés avec succès !');
-                 document.getElementById('add-collaborator-modal').style.display = 'none';
-                 // Recharger la liste des collaborateurs pour le manager actuel
-                 loadCollaborators(managerId);
-                 // Optionnel: Sélectionner le nouvel utilisateur ajouté après le rechargement
-                 // Cela pourrait nécessiter de trouver l'option par ID et de déclencher l'événement change
-            });
-        } else {
-            alert('Erreur : ' + data.message);
-        }
+    .then(resp => {
+        if (resp.success) {
+        alert('Évaluations enregistrées avec succès !');
+        loadGlobalSummary(selectedUserId);
+    } else {
+        alert('Erreur : ' + resp.message);
+    }
+
     })
-     .catch((error) => {
-        console.error('Erreur lors de l\'ajout du collaborateur:', error);
-        alert('Erreur lors de l\'ajout du collaborateur.');
+    .catch(err => {
+        console.error(err);
+        alert('Erreur serveur.');
     });
 }
 
-function assignRoleToUser(userId, roleId) {
-    return fetch('/competences/add_role_to_user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: parseInt(userId), role_id: parseInt(roleId) })
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (!data.success) {
-            console.error('Erreur lors de l\'ajout du rôle :', data.message);
-            // Gérer l'erreur d'ajout de rôle si nécessaire, mais ne bloque pas l'ajout du collaborateur
-        }
-        return data; // Permet de chaîner les promesses
-    })
-     .catch((error) => {
-        console.error('Erreur de connexion lors de l\'ajout du rôle:', error);
-        // Gérer l'erreur de connexion si nécessaire
-     });
-}
 
-
-function showConnections(compId, compDiv) {
-    const connectionsDiv = compDiv.querySelector('.connections-outgoing');
-    if (connectionsDiv.style.display === 'block') {
-        connectionsDiv.style.display = 'none';
+function saveAllEvaluations() {
+    if (!selectedUserId) {
+        alert("Aucun utilisateur sélectionné.");
         return;
     }
 
-    fetch(`/competences/get_competency_connections/${compId}`)
-        .then(res => res.json())
-        .then(data => {
-            connectionsDiv.innerHTML = '';
-            if (data.connections && data.connections.length > 0) {
-                data.connections.forEach(conn => {
-                    const div = document.createElement('div');
-                    div.className = 'connection';
-                    div.textContent = conn.name; // Assurez-vous que votre route renvoie un champ 'name'
-                    connectionsDiv.appendChild(div);
-                });
-            } else {
-                const div = document.createElement('div');
-                div.textContent = 'Aucune connexion sortante';
-                connectionsDiv.appendChild(div);
-            }
-            connectionsDiv.style.display = 'block';
+    const evaluationsToSend = [];
+
+    document.querySelectorAll('.eval-cell').forEach(cell => {
+        const color = ['red', 'orange', 'green'].find(c => cell.classList.contains(c));
+        if (!color) return;
+
+        evaluationsToSend.push({
+            user_id: parseInt(selectedUserId),
+            activity_id: parseInt(cell.dataset.activity),
+            item_id: cell.dataset.id ? parseInt(cell.dataset.id) : null,
+            item_type: cell.dataset.type || null,
+            eval_number: cell.dataset.eval,
+            note: color
         });
+    });
+
+    fetch('/competences/save_user_evaluations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            userId: selectedUserId,
+            evaluations: evaluationsToSend
+        })
+    })
+    .then(res => res.json())
+    .then(resp => {
+        if (resp.success) {
+            alert('Évaluations enregistrées avec succès !');
+        } else {
+            alert('Erreur : ' + resp.message);
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alert('Erreur serveur.');
+    });
 }
-
-
-
-// Gestion des clics d’évaluation (modifiée pour gérer les deux types de cellules)
-document.addEventListener('click', function (e) {
-    if (e.target.classList.contains('eval-cell')) {
-        cycleEvalColor(e.target);
-    }
-});
 
 function cycleEvalColor(cell) {
     const colors = ['red', 'orange', 'green'];
@@ -540,93 +284,33 @@ function cycleEvalColor(cell) {
     if (!current) {
         nextColor = 'red';
     } else {
-        let idx = colors.indexOf(current);
-        // Si on est sur green, le prochain clic enlève la couleur (pas d'évaluation)
-        if (current === 'green') {
-             nextColor = null; // Pas de couleur pour le prochain état
-        } else {
-            nextColor = colors[(idx + 1) % colors.length];
-        }
-        cell.classList.remove(current); // Toujours enlever la couleur actuelle
+        const idx = colors.indexOf(current);
+        nextColor = current === 'green' ? null : colors[(idx + 1) % colors.length];
+        cell.classList.remove(current);
     }
 
-    cell.classList.remove('red', 'orange', 'green'); // Nettoyer toutes les couleurs
+    cell.classList.remove('red', 'orange', 'green');
     if (nextColor) {
-        cell.classList.add(nextColor); // Ajouter la nouvelle couleur si elle existe
+        cell.classList.add(nextColor);
     }
 }
 
-
-// Fonction pour collecter toutes les évaluations et les envoyer au backend (modifiée pour inclure la synthèse)
-function saveAllEvaluations() {
-    if (!selectedUserId) {
-        alert("Aucun utilisateur sélectionné.");
-        return;
+document.addEventListener('click', e => {
+    if (e.target.classList.contains('eval-cell') &&
+        !document.getElementById('global-summary-section')?.contains(e.target)) {
+        cycleEvalColor(e.target);
     }
-    const selectedRoleId = document.getElementById('user-roles').value;
-    if (!selectedRoleId) {
-         alert("Aucun rôle sélectionné.");
-         return;
-    }
-
-    const evaluationsToSend = [];
-    // Sélectionne toutes les cellules d'évaluation, y compris celles de la synthèse
-    const evalCells = document.querySelectorAll('.eval-cell');
-
-    evalCells.forEach(cell => {
-        const color = ['red', 'orange', 'green'].find(c => cell.classList.contains(c));
-        // N'inclure que les cellules qui ont une couleur (ont été évaluées)
-        if (color) {
-            // Pour les cellules de synthèse, data-eval sera 'collaborator', 'manager', ou 'rh'
-            // Pour les cellules d'évolution, data-eval sera '1', '2', ou '3'
-            // Le item_type peut être 'savoirs', 'savoir_faires', 'softskills', ou 'competencies' <-- MODIFIÉ
-            evaluationsToSend.push({
-                item_id: parseInt(cell.dataset.id),
-                item_type: cell.dataset.type,
-                eval_number: cell.dataset.eval,
-                note: color
-            });
-        }
-    });
-
-    const dataToSend = {
-        userId: parseInt(selectedUserId),
-        roleId: parseInt(selectedRoleId),
-        evaluations: evaluationsToSend
-    };
-
-    fetch('/competences/save_user_evaluations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dataToSend)
-    })
-    .then(res => res.json())
-    .then(resp => {
-        if (resp.success) {
-            alert('Évaluations enregistrées avec succès !');
-            // Optionnel: Recharger les évaluations pour confirmer la sauvegarde
-            // loadRoleKnowledge(selectedRoleId);
-            // loadCompetencySynthesis(selectedRoleId);
-        } else {
-            alert('Erreur lors de l’enregistrement : ' + resp.message);
-        }
-    })
-    .catch((error) => {
-        console.error('Erreur de connexion au serveur:', error);
-        alert('Erreur de connexion au serveur lors de la sauvegarde.');
-    });
-}
+});
 
 
 let tooltipTimeout;
 let tooltipActive = false;
 
-// Survol de cellule : lancer le timer pour afficher la date
 document.addEventListener('mouseover', (e) => {
     const target = e.target;
     if (target.classList.contains('eval-cell') && target.dataset.date) {
         tooltipTimeout = setTimeout(() => {
-            if (tooltipActive) return; // Empêche le double affichage
+            if (tooltipActive) return;
             tooltipActive = true;
 
             const tooltip = document.createElement('div');
@@ -639,17 +323,16 @@ document.addEventListener('mouseover', (e) => {
             tooltip.style.borderRadius = '6px';
             tooltip.style.fontSize = '13px';
             tooltip.style.zIndex = 9999;
-            tooltip.style.maxWidth = '220px';        // Plus large
-            tooltip.style.whiteSpace = 'normal';     // Autorise les retours à la ligne
+            tooltip.style.maxWidth = '220px';
+            tooltip.style.whiteSpace = 'normal';
             tooltip.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
             tooltip.style.top = `${e.pageY + 12}px`;
             tooltip.style.left = `${e.pageX + 12}px`;
             document.body.appendChild(tooltip);
-        }, 1500); // S'affiche après 1,5s de survol sans clic
+        }, 1500);
     }
 });
 
-// Sortie de la cellule : supprimer le tooltip
 document.addEventListener('mouseout', (e) => {
     if (e.target.classList.contains('eval-cell')) {
         clearTimeout(tooltipTimeout);
@@ -659,7 +342,6 @@ document.addEventListener('mouseout', (e) => {
     }
 });
 
-// Si l'utilisateur clique sur la cellule : annuler le tooltip immédiatement
 document.addEventListener('mousedown', (e) => {
     if (e.target.classList.contains('eval-cell')) {
         clearTimeout(tooltipTimeout);

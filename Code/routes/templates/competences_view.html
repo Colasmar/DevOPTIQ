@@ -18,55 +18,27 @@
         <div>
             <label for="manager-select">Manager :</label>
             <select id="manager-select"></select>
-
             <label for="collaborator-select">Collaborateurs :</label>
             <select id="collaborator-select"></select>
-
-            <label for="user-roles">Rôles du collaborateur :</label>
-            <select id="user-roles">
-                <option value="">-- Aucun rôle --</option>
-            </select>
-            <button onclick="openAddCollaboratorModal()">Ajouter un collaborateur</button>
+            <div id="roles-sections-container" style="margin-top: 30px;"></div>
         </div>
 
-         <!-- Modal pour ajouter un collaborateur -->
-         <div id="add-collaborator-modal" style="display:none; margin-top:20px;">
-            <h3>Ajouter un collaborateur</h3>
-            <label for="user-to-add">Utilisateur :</label>
-            <select id="user-to-add"></select>
-
-            <label for="role-to-assign">Rôle :</label>
-            <select id="role-to-assign">
-                <option value="23">Manager</option>
-                <option value="24">Collaborateur</option>
-                <option value="25">RH</option>
-                <!-- Ajoute ici tous les rôles possibles -->
-            </select>
-
-            <button onclick="saveNewCollaborator()">Valider</button>
-        </div>
+        <hr>
+        <button id="toggle-summary" class="btn btn-secondary">Afficher la synthèse globale</button>
+        <div id="global-summary-section" class="hidden" style="margin-top: 30px;"></div>
 
 
         <div id="roles-competencies" style="margin-top: 40px;"></div>
-
-        <div id="knowledge-evolution" style="margin-top: 40px;">
-            <h3>Évolution des savoirs, savoir-faire et aptitudes</h3>
-        </div>
-
-        <!-- NOUVELLE SECTION POUR LA SYNTHÈSE DES COMPÉTENCES -->
-        <div id="competency-synthesis" style="margin-top: 40px;">
-            <h3>Synthèse des Compétences</h3>
-            <!-- Le tableau sera généré par JavaScript ici -->
-        </div>
+        
 
         <button id="save-competencies-button">Enregistrer ma notation de compétence</button>
-
-
-
-
     </main>
 
 
-    <script src="./../../../static/js/synth_competences.js"></script>
+    {% include 'competence_role_section.html' %}
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.13.6/underscore-min.js"></script>
+    <script src="{{ url_for('static', filename='js/synth_competences.js') }}"></script>
+
 </body>
 </html>

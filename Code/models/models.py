@@ -1,7 +1,6 @@
 from Code.extensions import db
 from datetime import datetime
 
-
 # ---------------------------------------------------------
 #  Table d'association entre Task et Tool
 # ---------------------------------------------------------
@@ -19,55 +18,13 @@ class Activities(db.Model):
     description = db.Column(db.Text, nullable=True)
     is_result = db.Column(db.Boolean, nullable=False, default=False)
 
-    # Tâches
-    tasks = db.relationship(
-        'Task',
-        backref='activity',
-        lazy=True,
-        order_by='Task.order',
-        cascade="all, delete-orphan"
-    )
-    # Compétences (NF X50-124)
-    competencies = db.relationship(
-        'Competency',
-        backref='activity',
-        lazy=True,
-        cascade="all, delete-orphan"
-    )
-    # Softskills (HSC)
-    softskills = db.relationship(
-        'Softskill',
-        backref='activity',
-        lazy=True,
-        cascade="all, delete-orphan"
-    )
-    # Contraintes
-    constraints = db.relationship(
-        'Constraint',
-        backref='activity',
-        lazy=True,
-        cascade="all, delete-orphan"
-    )
-
-    # NOUVEAU : relations vers Savoirs, SavoirFaire, Aptitude
-    savoirs = db.relationship(
-        'Savoir',
-        backref='activity',
-        lazy=True,
-        cascade="all, delete-orphan"
-    )
-    savoir_faires = db.relationship(
-        'SavoirFaire',
-        backref='activity',
-        lazy=True,
-        cascade="all, delete-orphan"
-    )
-    aptitudes = db.relationship(
-        'Aptitude',
-        backref='activity',
-        lazy=True,
-        cascade="all, delete-orphan"
-    )
+    tasks = db.relationship('Task', backref='activity', lazy=True, order_by='Task.order', cascade="all, delete-orphan")
+    competencies = db.relationship('Competency', backref='activity', lazy=True, cascade="all, delete-orphan")
+    softskills = db.relationship('Softskill', backref='activity', lazy=True, cascade="all, delete-orphan")
+    constraints = db.relationship('Constraint', backref='activity', lazy=True, cascade="all, delete-orphan")
+    savoirs = db.relationship('Savoir', backref='activity', lazy=True, cascade="all, delete-orphan")
+    savoir_faires = db.relationship('SavoirFaire', backref='activity', lazy=True, cascade="all, delete-orphan")
+    aptitudes = db.relationship('Aptitude', backref='activity', lazy=True, cascade="all, delete-orphan")
 
 class Data(db.Model):
     __tablename__ = 'data'
@@ -196,7 +153,6 @@ class User(db.Model):
     subordinates = db.relationship('User', backref=db.backref('manager', remote_side=[id]))
     evaluations = db.relationship('CompetencyEvaluation', back_populates='user', cascade='all, delete-orphan')
 
-
 class UserRole(db.Model):
     __tablename__ = 'user_roles'
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)
@@ -204,52 +160,57 @@ class UserRole(db.Model):
     user = db.relationship('User', backref='user_roles')
     role = db.relationship('Role', backref='user_roles')
 
-
-
 class CompetencyEvaluation(db.Model):
     __tablename__ = 'competency_evaluation'
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), nullable=False)
-    item_id = db.Column(db.Integer, nullable=False)
-    item_type = db.Column(db.String(50), nullable=False)
-    eval_number = db.Column(db.Integer, nullable=False)
-    note = db.Column(db.String(10), nullable=False)
-    created_at = db.Column(db.String, nullable=True)  
 
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
+    item_id = db.Column(db.Integer, nullable=True)
+    item_type = db.Column(db.String(50), nullable=True)
+    eval_number = db.Column(db.String(50), nullable=False)
+    note = db.Column(db.String(10), nullable=False)
+    created_at = db.Column(db.Text, default=datetime.utcnow)
 
     user = db.relationship('User', back_populates='evaluations')
-    __table_args__ = (db.UniqueConstraint('user_id', 'role_id', 'item_id', 'item_type', 'eval_number', name='_user_role_item_eval_uc'),)
 
-    def __repr__(self):
-        return f"<CompetencyEvaluation user_id={self.user_id} role_id={self.role_id} item_type={self.item_type} item_id={self.item_id} eval={self.eval_number} note={self.note}>"
-    
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'activity_id', 'item_id', 'item_type', 'eval_number'),
+    )
+
 class TimeAnalysis(db.Model):
     __tablename__ = 'time_analysis'
-    
+
     id = db.Column(db.Integer, primary_key=True)
     duration = db.Column(db.Integer, nullable=False)
     recurrence = db.Column(db.String(20), nullable=False)
     frequency = db.Column(db.Integer, nullable=False)
     start_datetime = db.Column(db.DateTime, nullable=False)
     end_datetime = db.Column(db.DateTime, nullable=False)
-    type = db.Column(db.String(20), nullable=False)  
-    
+    type = db.Column(db.String(20), nullable=False)
+
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=True)
     task_id = db.Column(db.Integer, db.ForeignKey('tasks.id'), nullable=True)
+
+    nb_people = db.Column(db.Integer, nullable=False, default=1)
+    delay_unit = db.Column(db.String(20), nullable=True)
+    delay_increase = db.Column(db.Float, nullable=True)
 
     activity = db.relationship('Activities', backref='time_analyses')
     task = db.relationship('Task', backref='time_analyses')
 
     @property
-    def weight(self):
-        recurrence_multiplier = {
-            "journalier": 5 * 45,
-            "hebdo": 45,
-            "mensuel": 12,
+    def recurrence_factor(self):
+        return {
+            "journalier": 220,
+            "hebdo": 42,
+            "mensuel": 10.5,
             "annuel": 1
-        }
-        return self.duration * self.frequency * recurrence_multiplier.get(self.recurrence, 0)
+        }.get(self.recurrence, 0)
+
+    @property
+    def annual_time(self):
+        return self.duration * self.recurrence_factor * self.frequency * self.nb_people
 
     @property
     def delay_str(self):
@@ -269,3 +230,9 @@ class TimeAnalysis(db.Model):
                 parts.append(f"{minutes} min")
             return ' '.join(parts) if parts else '0 min'
         return "N/A"
+
+    @property
+    def delay_gap(self):
+        if self.delay_increase:
+            return f"+{self.delay_increase} {self.delay_unit}" if self.delay_unit else f"+{self.delay_increase}"
+        return "0"

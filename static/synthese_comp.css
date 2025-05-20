@@ -1,46 +1,67 @@
-/* style.css */
 body {
     font-family: Arial, sans-serif;
     background-color: #f4f4f4;
     margin: 0;
     padding: 20px;
-}
-
-h1 {
     color: #333;
 }
 
-#competences-table {
-    width: 100%;
-    border-collapse: collapse;
+h1, h3, h4 {
     margin-top: 20px;
 }
 
-#competences-table th,
-#competences-table td {
-    padding: 12px;
-    text-align: left;
-    border: 1px solid #ddd;
+h3.toggle-role,
+h4.toggle-activity {
+    cursor: pointer;
+    background-color: #007bff;
+    color: white;
+    padding: 10px;
+    margin: 0;
+    border-radius: 4px;
 }
 
-#competences-table tr:nth-child(even) {
-    background-color: #f9f9f9;
+h4.toggle-activity {
+    background-color: #0069d9;
 }
 
-#competences-table tr:hover {
-    background-color: #f1f1f1;
+.role-section,
+.activity-section {
+    margin-bottom: 20px;
+    border: 1px solid #ccc;
+    background-color: white;
+    border-radius: 6px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    overflow: hidden;
 }
 
-select {
-    padding: 6px;
+.role-content,
+.activity-content {
+    padding: 15px;
 }
 
-.knowledge-table {
+.hidden {
+    display: none;
+}
+
+.eval-table, .synthesis-table, .knowledge-table {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 30px;
+    margin-top: 10px;
+    margin-bottom: 20px;
 }
 
+.eval-table caption {
+    text-align: left;
+    font-weight: bold;
+    padding: 5px;
+    font-size: 1.1em;
+    background-color: #eee;
+    border: 1px solid #ccc;
+    border-bottom: none;
+}
+
+.eval-table th, .eval-table td,
+.synthesis-table th, .synthesis-table td,
 .knowledge-table th, .knowledge-table td {
     border: 1px solid #ccc;
     padding: 8px;
@@ -48,90 +69,42 @@ select {
 }
 
 .eval-cell {
+    cursor: pointer;
+    min-width: 60px;
     height: 30px;
+    transition: background-color 0.3s;
+}
+
+.eval-cell.red    { background-color: #ff6767; }
+.eval-cell.orange { background-color: #f8b95a; }
+.eval-cell.green  { background-color: #6aff6a; }
+
+.synthesis-table th {
+    background-color: #f2f2f2;
+}
+
+#save-competencies-button {
+    margin-top: 20px;
+    padding: 12px 24px;
+    background-color: #28a745;
+    border: none;
+    color: white;
+    border-radius: 5px;
+    font-size: 1em;
     cursor: pointer;
 }
 
-.eval-cell.red { background-color: #f44336; }
-.eval-cell.orange { background-color: #ff9800; }
-.eval-cell.green { background-color: #4caf50; }
-/* static/synthese_comp.css */
+#save-competencies-button:hover {
+    background-color: #218838;
+}
 
-/* Styles existants pour knowledge-table */
-.knowledge-table {
-    width: 100%;
-    border-collapse: collapse;
+select {
+    padding: 6px 10px;
+    margin-right: 10px;
+}
+
+main > div:first-of-type {
     margin-bottom: 20px;
-    margin-top: 10px;
-}
-
-.knowledge-table th, .knowledge-table td {
-    border: 1px solid #ddd;
-    padding: 8px;
-    text-align: left;
-}
-
-.knowledge-table th {
-    background-color: #f2f2f2;
-    color: #333;
-}
-
-.knowledge-table tr:nth-child(even){
-    background-color: #f9f9f9;
-}
-
-/* NOUVEAUX STYLES POUR LA SYNTHÈSE DES COMPÉTENCES */
-.synthesis-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 20px;
-    margin-top: 10px;
-}
-
-.synthesis-table th, .synthesis-table td {
-    border: 1px solid #ddd;
-    padding: 8px;
-    text-align: left;
-}
-
-.synthesis-table th {
-    background-color: #e9e9e9; /* Légèrement différent pour distinguer */
-    color: #333;
-}
-
-.synthesis-table tr:nth-child(even){
-    background-color: #f9f9f9;
-}
-
-
-/* Styles pour les cellules d'évaluation (communs aux deux tableaux) */
-.eval-cell {
-    width: 80px; /* Largeur fixe pour les cellules de couleur */
-    text-align: center !important; /* Centrer le contenu */
-    cursor: pointer; /* Indiquer que c'est cliquable */
-    min-width: 50px; /* S'assurer qu'elles ne deviennent pas trop étroites */
-}
-
-/* Couleurs des cellules d'évaluation */
-.eval-cell.red {
-    background-color: #ff6767; /* Rouge clair */
-}
-
-.eval-cell.orange {
-    background-color: #f8b95a; /* Orange clair */
-}
-
-.eval-cell.green {
-    background-color: #6aff6a; /* Vert clair */
-}
-
-/* Style pour les compétences dans la section "Compétences du rôle" */
-.competency {
-    border: 1px solid #ccc;
-    padding: 10px;
-    margin-bottom: 5px;
-    background-color: #f0f0f0;
-    cursor: pointer; /* Indiquer que c'est cliquable */
 }
 
 .connections-outgoing {
@@ -142,43 +115,10 @@ select {
     color: #555;
 }
 
-.connection {
-    margin-bottom: 3px;
+#global-summary-section .eval-cell {
+  pointer-events: none;
 }
 
-/* Styles pour le modal (si vous en avez besoin) */
-#add-collaborator-modal {
-    border: 1px solid #ccc;
-    padding: 20px;
-    background-color: #fff;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    /* Ajoutez des styles de positionnement si c'est un vrai modal */
-}
-
-#add-collaborator-modal select,
-#add-collaborator-modal button {
-    margin-right: 10px;
-}
-
-/* Styles pour les listes déroulantes principales */
-main > div:first-of-type select,
-main > div:first-of-type button {
-    margin-right: 15px;
-    padding: 5px;
-}
-
-/* Styles pour le bouton d'enregistrement */
-#save-competencies-button {
-    margin-top: 20px;
-    padding: 10px 20px;
-    background-color: #007bff;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 1em;
-}
-
-#save-competencies-button:hover {
-    background-color: #0056b3;
+.eval-table th.green {
+  background-color: #a3f7a3 !important;
 }
