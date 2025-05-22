@@ -281,3 +281,72 @@ def global_flat_summary(user_id):
     )
 
 
+@competences_bp.route('/users/global_summary', methods=['GET'])
+def users_global_summary():
+    from Code.models.models import User, Role, Activities, CompetencyEvaluation, activity_roles
+
+    users = User.query.all()
+    roles = Role.query.order_by(Role.name).all()
+
+    # Récupération de toutes les notations disponibles
+    all_evals = CompetencyEvaluation.query.filter_by(eval_number='manager').all()
+
+    # Dictionnaire pour faciliter la recherche de notations
+    eval_map = {}
+    for e in all_evals:
+        eval_map.setdefault(e.user_id, {})[e.activity_id] = e.note
+
+    # Détermination des rôles et activités à afficher
+    role_headers = []
+    roles_loop = []
+
+    for role in roles:
+        activities = db.session.query(Activities).join(activity_roles)\
+            .filter(activity_roles.c.role_id == role.id).all()
+
+        # Ne garder que les activités avec au moins une notation
+        filtered_activities = []
+        for act in activities:
+            has_note = any(act.id in user_eval for user_eval in eval_map.values())
+            if has_note:
+                filtered_activities.append(act)
+
+        if filtered_activities:
+            role_headers.append({
+                'id': role.id,
+                'name': role.name,
+                'activities': filtered_activities,
+                'status': ''  # à calculer
+            })
+            for _ in filtered_activities:
+                roles_loop.append(role.name)
+
+    # Génération des lignes utilisateur
+    user_rows = []
+    for user in users:
+        notes = []
+        user_evals = eval_map.get(user.id, {})
+        for role in role_headers:
+            role_all_green = True
+            for act in role['activities']:
+                note = user_evals.get(act.id)
+                notes.append(note)
+                if note != 'green':
+                    role_all_green = False
+            role['status'] = 'green' if role['activities'] and role_all_green else ''
+        user_rows.append({
+            'user': f"{user.first_name} {user.last_name}",
+            'notes': notes
+        })
+
+    role_names = [r.name for r in roles]
+
+    return render_template(
+        'global_users_summary.html',
+        roles=role_headers,
+        user_rows=user_rows,
+        all_role_names=role_names,
+        roles_loop=roles_loop
+    )
+
+
