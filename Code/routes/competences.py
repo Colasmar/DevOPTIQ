@@ -14,6 +14,7 @@ competences_bp = Blueprint('competences_bp', __name__, url_prefix='/competences'
 def competences_view():
     return render_template('competences_view.html')
 
+
 @competences_bp.route('/managers', methods=['GET'])
 def get_managers():
     role_manager = Role.query.filter_by(name='manager').first()
@@ -288,65 +289,46 @@ def users_global_summary():
     users = User.query.all()
     roles = Role.query.order_by(Role.name).all()
 
-    # Récupération de toutes les notations disponibles
-    all_evals = CompetencyEvaluation.query.filter_by(eval_number='manager').all()
-
-    # Dictionnaire pour faciliter la recherche de notations
-    eval_map = {}
-    for e in all_evals:
-        eval_map.setdefault(e.user_id, {})[e.activity_id] = e.note
-
-    # Détermination des rôles et activités à afficher
-    role_headers = []
-    roles_loop = []
-
+    # Préparer l'ensemble des activités par rôle
+    role_activities_map = {}
     for role in roles:
-        activities = db.session.query(Activities).join(activity_roles)\
+        acts = db.session.query(Activities).join(activity_roles)\
             .filter(activity_roles.c.role_id == role.id).all()
+        role_activities_map[role.id] = acts
 
-        # Ne garder que les activités avec au moins une notation
-        filtered_activities = []
-        for act in activities:
-            has_note = any(act.id in user_eval for user_eval in eval_map.values())
-            if has_note:
-                filtered_activities.append(act)
-
-        if filtered_activities:
-            role_headers.append({
-                'id': role.id,
-                'name': role.name,
-                'activities': filtered_activities,
-                'status': ''  # à calculer
-            })
-            for _ in filtered_activities:
-                roles_loop.append(role.name)
-
-    # Génération des lignes utilisateur
     user_rows = []
     for user in users:
+        evals = CompetencyEvaluation.query.filter_by(user_id=user.id, eval_number='manager').all()
         notes = []
-        user_evals = eval_map.get(user.id, {})
-        for role in role_headers:
-            role_all_green = True
-            for act in role['activities']:
-                note = user_evals.get(act.id)
-                notes.append(note)
-                if note != 'green':
-                    role_all_green = False
-            role['status'] = 'green' if role['activities'] and role_all_green else ''
+
+        for role in roles:
+            role_activities = role_activities_map.get(role.id, [])
+            related_notes = [
+                e.note for e in evals
+                if e.activity_id in [a.id for a in role_activities]
+            ]
+            note = related_notes[0] if related_notes else None
+            notes.append(note)
+
         user_rows.append({
             'user': f"{user.first_name} {user.last_name}",
+            'user_id': user.id,
+            'manager_id': user.manager_id,  
             'notes': notes
         })
 
     role_names = [r.name for r in roles]
+    roles_loop = [r.name for r in roles]
 
     return render_template(
         'global_users_summary.html',
-        roles=role_headers,
+        roles=roles,
         user_rows=user_rows,
         all_role_names=role_names,
         roles_loop=roles_loop
     )
+
+
+
 
 

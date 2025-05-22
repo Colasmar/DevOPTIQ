@@ -20,32 +20,24 @@ async function exportToExcel() {
   const table = document.getElementById("user-summary-table");
   const rows = table.querySelectorAll("tr");
 
-  // Ajouter toutes les lignes du tableau HTML à Excel
   rows.forEach((row, rIdx) => {
-    const excelRow = worksheet.addRow([]);
+    const rowData = [];
     row.querySelectorAll("th, td").forEach((cell, cIdx) => {
       const isHeader = cell.tagName === "TH";
       const text = cell.innerText.trim();
+      const cellValue = isHeader || cIdx === 0 ? text : (text === "-" ? "-" : "");
 
-      // Cellule d'en-tête ou nom d'utilisateur
-      if (isHeader || (cIdx === 0 && text !== "")) {
-        excelRow.getCell(cIdx + 1).value = text;
-      }
-      // Cellule de note
-      else if (text === "-") {
-        excelRow.getCell(cIdx + 1).value = "-";
-      } else {
-        excelRow.getCell(cIdx + 1).value = "";
-      }
+      rowData.push(cellValue);
     });
+    worksheet.addRow(rowData);
   });
 
-  // Appliquer les couleurs de fond aux cellules de notation
+  // Appliquer les couleurs de fond uniquement pour les notations (sans texte)
   table.querySelectorAll("tbody tr").forEach((tr, rIdx) => {
     tr.querySelectorAll("td").forEach((td, cIdx) => {
       const noteClass = [...td.classList].find(cls => ['green', 'orange', 'red'].includes(cls));
       if (noteClass) {
-        const excelCell = worksheet.getRow(rIdx + 4).getCell(cIdx + 2); // +4 car 3 lignes d’en-tête + Excel = 1-based
+        const excelCell = worksheet.getRow(rIdx + 2).getCell(cIdx + 2); // +2 : une ligne header + nom utilisateur
         const colorMap = {
           green: 'A0E6A0',
           orange: 'FFE0A3',
@@ -60,9 +52,10 @@ async function exportToExcel() {
     });
   });
 
-  // Génération du fichier .xlsx
   const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  });
 
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -82,18 +75,28 @@ function exportToPDF() {
 
   const body = [];
   const rows = table.querySelectorAll("tr");
-  rows.forEach(row => {
+
+  rows.forEach((row, rIdx) => {
     const rowData = [];
-    row.querySelectorAll("th, td").forEach(cell => {
-      const text = cell.innerText.trim();
-      rowData.push(text === "" ? cell.classList[1] || "-" : text);
+    row.querySelectorAll("th, td").forEach((cell, cIdx) => {
+      if (cell.tagName === "TH") {
+        rowData.push(cell.innerText.trim());
+      } else if (cIdx === 0) {
+        rowData.push(cell.innerText.trim());
+      } else {
+        const cls = [...cell.classList];
+        const note = cls.includes("green") ? "green"
+                   : cls.includes("orange") ? "orange"
+                   : cls.includes("red") ? "red" : "-";
+        rowData.push(note);
+      }
     });
     body.push(rowData);
   });
 
   doc.autoTable({
-    head: [body[0], body[1]],
-    body: body.slice(2),
+    head: [body[0]],
+    body: body.slice(1),
     startY: 20,
     theme: 'grid',
     styles: {
@@ -106,4 +109,19 @@ function exportToPDF() {
 
   doc.save("Apercu_Utilisateurs.pdf");
 }
+
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("tr.user-row").forEach(row => {
+    row.style.cursor = "pointer";
+    row.addEventListener("click", () => {
+      const userId = row.querySelector(".user-name").dataset.userId;
+      const managerId = row.dataset.managerId;
+      if (userId && managerId) {
+        window.location.href = `/competences/view`;
+      }
+    });
+  });
+});
+
+
 
