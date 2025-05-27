@@ -21,6 +21,28 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
+async function getCurrentUserInfo() {
+  const response = await fetch('/auth/current_user_info');
+  return await response.json();
+}
+
+getCurrentUserInfo().then(user => {
+  if (user.roles.includes("manager")) {
+    // Il est manager → il verra ses propres collaborateurs
+    document.getElementById('manager-name').textContent = `${user.first_name} ${user.last_name}`;
+    loadCollaborators(user.id);
+  } else {
+    // Il n’est pas manager → on utilise son manager
+    fetch(`/competences/collaborators/${user.manager_id}`)
+      .then(r => r.json())
+      .then(collabs => {
+        document.getElementById('manager-name').textContent = `${user.manager_first_name} ${user.manager_last_name}`;
+        loadCollaborators(user.manager_id);
+      });
+  }
+});
+
+
 function loadManagers() {
     fetch('/competences/managers')
         .then(res => res.json())

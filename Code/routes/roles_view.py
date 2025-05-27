@@ -59,13 +59,14 @@ def view_roles():
         # Filtrés par les activités qui contiennent les tâches où ce rôle intervient
 
         # Obtenir les IDs des activités qui contiennent des tâches où ce rôle intervient
+        # Obtenir les IDs des activités liées aux tâches OU en tant que Garant
         stmt_ids = text("""
-            SELECT DISTINCT t.activity_id
-            FROM task_roles tr
-            JOIN tasks t ON tr.task_id = t.id
-            WHERE tr.role_id = :rid
+            SELECT DISTINCT ar.activity_id
+            FROM activity_roles ar
+            WHERE ar.role_id = :rid AND ar.status = 'Garant'
         """)
         activity_ids = [row[0] for row in db.session.execute(stmt_ids, {"rid": role.id}).fetchall()]
+
 
         savoirs = {}
         savoir_faires = {}

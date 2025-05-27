@@ -35,3 +35,29 @@ def logout():
     return redirect(url_for('auth.login'))
 
 
+@auth_bp.route('/auth/current_user_info')
+def current_user_info():
+    from flask import session, jsonify
+    from Code.models.models import User, UserRole, Role
+
+    email = session.get('user_email')
+    if not email:
+        return jsonify({'error': 'Utilisateur non connecté'}), 403
+
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({'error': 'Utilisateur non trouvé'}), 404
+
+    roles = [ur.role.name for ur in user.user_roles]
+    manager = User.query.get(user.manager_id) if user.manager_id else None
+
+    return jsonify({
+        'id': user.id,
+        'first_name': user.first_name,
+        'last_name': user.last_name,
+        'roles': roles,
+        'manager_id': user.manager_id,
+        'manager_first_name': manager.first_name if manager else "",
+        'manager_last_name': manager.last_name if manager else ""
+    })
+
