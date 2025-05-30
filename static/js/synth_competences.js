@@ -1,8 +1,31 @@
+
 // static/js/synth_competences.js
 
 let selectedUserId = null;
+let userStatus = 'user';
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
+    try {
+        const user = await getCurrentUserInfo();
+        userStatus = user.status || 'user';
+    } catch (err) {
+        console.error("Impossible de récupérer l'utilisateur courant :", err);
+    }
+
+    getCurrentUserInfo().then(user => {
+        if (user.roles.includes("manager")) {
+            document.getElementById('manager-name').textContent = `${user.first_name} ${user.last_name}`;
+            loadCollaborators(user.id);
+        } else {
+            fetch(`/competences/collaborators/${user.manager_id}`)
+              .then(r => r.json())
+              .then(collabs => {
+                document.getElementById('manager-name').textContent = `${user.manager_first_name} ${user.manager_last_name}`;
+                loadCollaborators(user.manager_id);
+              });
+        }
+    });
+
     loadManagers();
 
     const saveButton = document.getElementById('save-competencies-button');
@@ -19,6 +42,11 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
+
+    if (userStatus === 'administrateur') {
+        const msg = document.getElementById("admin-permission-message");
+        if (msg) msg.style.display = "block";
+    }
 });
 
 async function getCurrentUserInfo() {
@@ -26,28 +54,12 @@ async function getCurrentUserInfo() {
   return await response.json();
 }
 
-getCurrentUserInfo().then(user => {
-  if (user.roles.includes("manager")) {
-    // Il est manager → il verra ses propres collaborateurs
-    document.getElementById('manager-name').textContent = `${user.first_name} ${user.last_name}`;
-    loadCollaborators(user.id);
-  } else {
-    // Il n’est pas manager → on utilise son manager
-    fetch(`/competences/collaborators/${user.manager_id}`)
-      .then(r => r.json())
-      .then(collabs => {
-        document.getElementById('manager-name').textContent = `${user.manager_first_name} ${user.manager_last_name}`;
-        loadCollaborators(user.manager_id);
-      });
-  }
-});
-
-
 function loadManagers() {
     fetch('/competences/managers')
         .then(res => res.json())
         .then(managers => {
             const select = document.getElementById('manager-select');
+            if (!select) return;
             select.innerHTML = '<option value="">Sélectionnez un manager</option>';
             managers.forEach(m => {
                 const opt = document.createElement('option');
@@ -82,11 +94,23 @@ function loadExistingEvaluations(userId) {
 
                 const key = `${activityId}_${itemType}_${itemId}_${evalNumber}`;
 
-                if (evaluationsMap[key]) {
-                    cell.classList.remove('red', 'orange', 'green');
-                    cell.classList.add(evaluationsMap[key].note);
-                    if (evaluationsMap[key].date) {
-                        cell.dataset.date = evaluationsMap[key].date;
+                const entry = evaluationsMap[key];
+                if (entry) {
+                    const note = entry.note || 'empty';
+                    const date = entry.date ? new Date(entry.date).toLocaleDateString('fr-FR') : '';
+
+                    cell.classList.remove('red', 'orange', 'green', 'empty');
+                    cell.classList.add(note);
+
+                    cell.innerHTML = `
+                        <div class="note-color"></div>
+                        <div class="note-date">${date}</div>
+                    `;
+
+                    if (note !== 'empty' && userStatus !== 'administrateur') {
+                        cell.dataset.locked = "true";
+                    } else {
+                        cell.removeAttribute('data-locked');
                     }
                 }
             });
@@ -95,7 +119,6 @@ function loadExistingEvaluations(userId) {
             console.error('Erreur chargement évaluations:', err);
         });
 }
-
 
 function loadCollaborators(managerId) {
     if (!managerId) {
@@ -115,7 +138,6 @@ function loadCollaborators(managerId) {
                 opt.textContent = `${c.first_name} ${c.last_name}`;
                 select.appendChild(opt);
             });
-
             document.getElementById('roles-sections-container').innerHTML = '';
         });
 }
@@ -158,8 +180,6 @@ function loadRolesForCollaborator(userId) {
                     });
             });
 
-            // Charger et afficher la synthèse globale
-            // Charger et afficher la synthèse globale
             const toggleSummaryBtn = document.getElementById('toggle-summary');
             const summarySection = document.getElementById('global-summary-section');
 
@@ -167,7 +187,7 @@ function loadRolesForCollaborator(userId) {
                 toggleSummaryBtn.addEventListener('click', () => {
                     const isHidden = summarySection.classList.contains('hidden');
                     if (isHidden) {
-                        loadGlobalSummary(userId);  // charge et affiche le contenu
+                        loadGlobalSummary(userId);
                         summarySection.classList.remove('hidden');
                         toggleSummaryBtn.textContent = "Masquer la synthèse globale";
                     } else {
@@ -179,27 +199,6 @@ function loadRolesForCollaborator(userId) {
         });
 }
 
-function loadGlobalSummary(userId) {
-    fetch(`/competences/global_flat_summary/${userId}`)
-        .then(res => res.text())
-        .then(html => {
-            const section = document.getElementById('global-summary-section');
-            section.innerHTML = html;
-
-            const detailBtn = document.getElementById('toggle-detail');
-            const rows = document.querySelectorAll('.details-row');
-
-            if (detailBtn) {
-                detailBtn.addEventListener('click', () => {
-                    const isHidden = rows[0]?.style.display === 'none';
-                    rows.forEach(r => r.style.display = isHidden ? '' : 'none');
-                    detailBtn.textContent = isHidden ? 'Masquer les détails' : 'Afficher les détails';
-                });
-            }
-        });
-}
-
-
 
 function saveAllEvaluations() {
     if (!selectedUserId) {
@@ -210,9 +209,9 @@ function saveAllEvaluations() {
     const evaluationsToSend = [];
 
     document.querySelectorAll('.eval-cell').forEach(cell => {
-        const color = ['red', 'orange', 'green'].find(c => cell.classList.contains(c));
+        const color = ['red', 'orange', 'green', 'empty'].find(c => cell.classList.contains(c)) || 'empty';
         const activityId = cell.dataset.activity;
-        if (!color || !activityId) return;
+        if (!activityId) return;
 
         evaluationsToSend.push({
             user_id: parseInt(selectedUserId),
@@ -240,16 +239,18 @@ function saveAllEvaluations() {
     .then(res => res.json())
     .then(resp => {
         if (resp.success) {
+            document.querySelectorAll('.eval-cell').forEach(cell => {
+                if (userStatus !== 'administrateur') {
+                    const color = ['red', 'orange', 'green'].find(c => cell.classList.contains(c));
+                    if (color) {
+                        cell.dataset.locked = "true";
+                    }
+                }
+            });
+
+            // Afficher message succès
             alert('Évaluations enregistrées avec succès !');
-
-            // Si la synthèse globale est visible, la recharger dynamiquement
-            const summarySection = document.getElementById('global-summary-section');
-            const isVisible = summarySection && !summarySection.classList.contains('hidden');
-
-            if (isVisible) {
-                loadGlobalSummary(selectedUserId);
-            }
-
+            refreshGlobalSummary(selectedUserId);
         } else {
             alert('Erreur : ' + resp.message);
         }
@@ -259,42 +260,8 @@ function saveAllEvaluations() {
         alert('Erreur serveur.');
     });
 }
+);
 
-
-
-function saveAllEvaluations() {
-    if (!selectedUserId) {
-        alert("Aucun utilisateur sélectionné.");
-        return;
-    }
-
-    const evaluationsToSend = [];
-
-    document.querySelectorAll('.eval-cell').forEach(cell => {
-        const color = ['red', 'orange', 'green'].find(c => cell.classList.contains(c));
-        if (!color) return;
-
-        evaluationsToSend.push({
-            user_id: parseInt(selectedUserId),
-            activity_id: parseInt(cell.dataset.activity),
-            item_id: cell.dataset.id ? parseInt(cell.dataset.id) : null,
-            item_type: cell.dataset.type || null,
-            eval_number: cell.dataset.eval,
-            note: color
-        });
-    });
-
-    fetch('/competences/save_user_evaluations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            userId: selectedUserId,
-            evaluations: evaluationsToSend
-        })
-    })
-    .then(res => res.json())
-    .then(resp => {
-        if (resp.success) {
             alert('Évaluations enregistrées avec succès !');
             refreshGlobalSummary(selectedUserId);
         } else {
@@ -308,22 +275,20 @@ function saveAllEvaluations() {
 }
 
 function cycleEvalColor(cell) {
-    const colors = ['red', 'orange', 'green'];
-    let current = colors.find(c => cell.classList.contains(c));
-    let nextColor;
+    if (cell.dataset.locked === "true" && userStatus !== 'administrateur') return;
 
-    if (!current) {
-        nextColor = 'red';
-    } else {
-        const idx = colors.indexOf(current);
-        nextColor = current === 'green' ? null : colors[(idx + 1) % colors.length];
-        cell.classList.remove(current);
-    }
+    const colors = ['red', 'orange', 'green', 'empty'];
+    let current = colors.find(c => cell.classList.contains(c)) || 'empty';
+    let nextColor = colors[(colors.indexOf(current) + 1) % colors.length];
 
-    cell.classList.remove('red', 'orange', 'green');
-    if (nextColor) {
-        cell.classList.add(nextColor);
-    }
+    colors.forEach(c => cell.classList.remove(c));
+    cell.classList.add(nextColor);
+
+    const dateStr = new Date().toLocaleDateString('fr-FR');
+    cell.innerHTML = `
+        <div class="note-color"></div>
+        <div class="note-date">${nextColor !== 'empty' ? dateStr : ''}</div>
+    `;
 }
 
 document.addEventListener('click', e => {
@@ -333,58 +298,9 @@ document.addEventListener('click', e => {
     }
 });
 
-
-let tooltipTimeout;
-let tooltipActive = false;
-
-document.addEventListener('mouseover', (e) => {
-    const target = e.target;
-    if (target.classList.contains('eval-cell') && target.dataset.date) {
-        tooltipTimeout = setTimeout(() => {
-            if (tooltipActive) return;
-            tooltipActive = true;
-
-            const tooltip = document.createElement('div');
-            tooltip.id = 'tooltip-popup';
-            tooltip.textContent = `Saisie le : ${new Date(target.dataset.date).toLocaleString('fr-FR')}`;
-            tooltip.style.position = 'absolute';
-            tooltip.style.background = '#f9f9f9';
-            tooltip.style.border = '1px solid #ccc';
-            tooltip.style.padding = '8px';
-            tooltip.style.borderRadius = '6px';
-            tooltip.style.fontSize = '13px';
-            tooltip.style.zIndex = 9999;
-            tooltip.style.maxWidth = '220px';
-            tooltip.style.whiteSpace = 'normal';
-            tooltip.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
-            tooltip.style.top = `${e.pageY + 12}px`;
-            tooltip.style.left = `${e.pageX + 12}px`;
-            document.body.appendChild(tooltip);
-        }, 1500);
-    }
-});
-
-document.addEventListener('mouseout', (e) => {
-    if (e.target.classList.contains('eval-cell')) {
-        clearTimeout(tooltipTimeout);
-        const popup = document.getElementById('tooltip-popup');
-        if (popup) popup.remove();
-        tooltipActive = false;
-    }
-});
-
-document.addEventListener('mousedown', (e) => {
-    if (e.target.classList.contains('eval-cell')) {
-        clearTimeout(tooltipTimeout);
-        const popup = document.getElementById('tooltip-popup');
-        if (popup) popup.remove();
-        tooltipActive = false;
-    }
-});
-
 function refreshGlobalSummary(userId) {
     const summarySection = document.getElementById('global-summary-section');
     if (summarySection && !summarySection.classList.contains('hidden')) {
-        loadGlobalSummary(userId); 
+        loadGlobalSummary(userId);
     }
 }

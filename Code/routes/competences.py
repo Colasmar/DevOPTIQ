@@ -64,18 +64,23 @@ def save_user_evaluations():
             ).first()
 
             if existing:
-                existing.note = note
-                existing.created_at = datetime.utcnow()
+                if note == 'empty':
+                    db.session.delete(existing)
+                else:
+                    existing.note = note
+                    existing.created_at = datetime.utcnow()
             else:
-                db.session.add(CompetencyEvaluation(
-                    user_id=user_id,
-                    activity_id=activity_id,
-                    item_id=item_id,
-                    item_type=item_type,
-                    eval_number=eval_number,
-                    note=note,
-                    created_at=datetime.utcnow()
-                ))
+                if note != 'empty':
+                    db.session.add(CompetencyEvaluation(
+                        user_id=user_id,
+                        activity_id=activity_id,
+                        item_id=item_id,
+                        item_type=item_type,
+                        eval_number=eval_number,
+                        note=note,
+                        created_at=datetime.utcnow()
+                    ))
+
 
         db.session.commit()
         return jsonify({'success': True})

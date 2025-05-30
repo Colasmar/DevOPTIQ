@@ -68,12 +68,6 @@ h4.toggle-activity {
     text-align: center;
 }
 
-.eval-cell {
-    cursor: pointer;
-    min-width: 60px;
-    height: 30px;
-    transition: background-color 0.3s;
-}
 
 .eval-cell.red    { background-color: #ff6767; }
 .eval-cell.orange { background-color: #f8b95a; }
@@ -121,4 +115,17 @@ main > div:first-of-type {
 
 .eval-table th.green {
   background-color: #a3f7a3 !important;
+}
+
+.note-date {
+  font-size: 0.65em;
+  margin-top: 2px;
+  color: #333;
+}
+
+.eval-cell {
+    cursor: pointer;
+    min-width: 60px;
+    height: 30px;
+    transition: background-color 0.3s;
 }

@@ -33,6 +33,10 @@
         
 
         <button id="save-competencies-button">Enregistrer ma notation de compétence</button>
+        <p id="admin-permission-message" style="margin-top: 10px; font-weight: bold; color: green; display: none;">
+            Vous avez le statut d'administrateur. Vous pouvez ainsi modifier cette page de manière permanente.
+        </p>
+
     </main>
 
 
@@ -40,6 +44,13 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.13.6/underscore-min.js"></script>
     <script src="{{ url_for('static', filename='js/synth_competences.js') }}"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            if (userStatus === 'administrateur') {
+                document.getElementById("admin-permission-message").style.display = "block";
+            }
+        });
+    </script>
 
 </body>
 </html>

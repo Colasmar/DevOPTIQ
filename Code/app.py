@@ -164,6 +164,10 @@ def create_app():
     from Code.routes.routes_password  import auth_password_bp
     app.register_blueprint(auth_password_bp)
 
+    from Code.routes.gestion_rh import gestion_rh_bp
+    app.register_blueprint(gestion_rh_bp)
+
+
     # Clé secrète pour session et sécurité
     app.secret_key = 'votre_clé_secrète_unique'
 
