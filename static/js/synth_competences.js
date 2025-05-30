@@ -1,6 +1,3 @@
-
-// static/js/synth_competences.js
-
 let selectedUserId = null;
 let userStatus = 'user';
 
@@ -8,11 +5,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
         const user = await getCurrentUserInfo();
         userStatus = user.status || 'user';
-    } catch (err) {
-        console.error("Impossible de récupérer l'utilisateur courant :", err);
-    }
 
-    getCurrentUserInfo().then(user => {
         if (user.roles.includes("manager")) {
             document.getElementById('manager-name').textContent = `${user.first_name} ${user.last_name}`;
             loadCollaborators(user.id);
@@ -24,28 +17,29 @@ document.addEventListener("DOMContentLoaded", async () => {
                 loadCollaborators(user.manager_id);
               });
         }
-    });
 
-    loadManagers();
+        const saveButton = document.getElementById('save-competencies-button');
+        if (saveButton) {
+            saveButton.addEventListener('click', saveAllEvaluations);
+        }
 
-    const saveButton = document.getElementById('save-competencies-button');
-    if (saveButton) {
-        saveButton.addEventListener('click', saveAllEvaluations);
-    }
+        const collaboratorSelect = document.getElementById("collaborator-select");
+        if (collaboratorSelect) {
+            collaboratorSelect.addEventListener("change", function () {
+                selectedUserId = this.value;
+                if (selectedUserId) {
+                    loadRolesForCollaborator(selectedUserId);
+                }
+            });
+        }
 
-    const collaboratorSelect = document.getElementById("collaborator-select");
-    if (collaboratorSelect) {
-        collaboratorSelect.addEventListener("change", function () {
-            selectedUserId = this.value;
-            if (selectedUserId) {
-                loadRolesForCollaborator(selectedUserId);
-            }
-        });
-    }
+        if (userStatus === 'administrateur') {
+            const msg = document.getElementById("admin-permission-message");
+            if (msg) msg.style.display = "block";
+        }
 
-    if (userStatus === 'administrateur') {
-        const msg = document.getElementById("admin-permission-message");
-        if (msg) msg.style.display = "block";
+    } catch (err) {
+        console.error("Erreur récupération utilisateur courant :", err);
     }
 });
 
@@ -54,79 +48,8 @@ async function getCurrentUserInfo() {
   return await response.json();
 }
 
-function loadManagers() {
-    fetch('/competences/managers')
-        .then(res => res.json())
-        .then(managers => {
-            const select = document.getElementById('manager-select');
-            if (!select) return;
-            select.innerHTML = '<option value="">Sélectionnez un manager</option>';
-            managers.forEach(m => {
-                const opt = document.createElement('option');
-                opt.value = m.id;
-                opt.textContent = m.name;
-                select.appendChild(opt);
-            });
-            select.addEventListener('change', () => {
-                loadCollaborators(select.value);
-            });
-        });
-}
-
-function loadExistingEvaluations(userId) {
-    fetch(`/competences/get_user_evaluations_by_user/${userId}`)
-        .then(res => res.json())
-        .then(data => {
-            const evaluationsMap = {};
-            data.forEach(e => {
-                const key = `${e.activity_id}_${e.item_type || 'null'}_${e.item_id || 'null'}_${e.eval_number}`;
-                evaluationsMap[key] = {
-                    note: e.note,
-                    date: e.created_at
-                };
-            });
-
-            document.querySelectorAll('.eval-cell').forEach(cell => {
-                const activityId = cell.dataset.activity;
-                const itemId = cell.dataset.id || 'null';
-                const itemType = cell.dataset.type || 'null';
-                const evalNumber = cell.dataset.eval;
-
-                const key = `${activityId}_${itemType}_${itemId}_${evalNumber}`;
-
-                const entry = evaluationsMap[key];
-                if (entry) {
-                    const note = entry.note || 'empty';
-                    const date = entry.date ? new Date(entry.date).toLocaleDateString('fr-FR') : '';
-
-                    cell.classList.remove('red', 'orange', 'green', 'empty');
-                    cell.classList.add(note);
-
-                    cell.innerHTML = `
-                        <div class="note-color"></div>
-                        <div class="note-date">${date}</div>
-                    `;
-
-                    if (note !== 'empty' && userStatus !== 'administrateur') {
-                        cell.dataset.locked = "true";
-                    } else {
-                        cell.removeAttribute('data-locked');
-                    }
-                }
-            });
-        })
-        .catch(err => {
-            console.error('Erreur chargement évaluations:', err);
-        });
-}
-
 function loadCollaborators(managerId) {
-    if (!managerId) {
-        document.getElementById('collaborator-select').innerHTML = '<option value="">Sélectionnez un collaborateur</option>';
-        document.getElementById('roles-sections-container').innerHTML = '';
-        selectedUserId = null;
-        return;
-    }
+    if (!managerId) return;
     fetch(`/competences/collaborators/${managerId}`)
         .then(res => res.json())
         .then(collabs => {
@@ -139,6 +62,39 @@ function loadCollaborators(managerId) {
                 select.appendChild(opt);
             });
             document.getElementById('roles-sections-container').innerHTML = '';
+        });
+}
+
+function loadExistingEvaluations(userId) {
+    fetch(`/competences/get_user_evaluations_by_user/${userId}`)
+        .then(res => res.json())
+        .then(data => {
+            const map = {};
+            data.forEach(e => {
+                const key = `${e.activity_id}_${e.item_type || 'null'}_${e.item_id || 'null'}_${e.eval_number}`;
+                map[key] = { note: e.note, date: e.created_at };
+            });
+
+            document.querySelectorAll('.eval-cell').forEach(cell => {
+                const activityId = cell.dataset.activity;
+                const itemId = cell.dataset.id || 'null';
+                const itemType = cell.dataset.type || 'null';
+                const evalNumber = cell.dataset.eval;
+                const key = `${activityId}_${itemType}_${itemId}_${evalNumber}`;
+                const evalData = map[key];
+
+                if (evalData) {
+                    const note = evalData.note;
+                    const date = new Date(evalData.date).toLocaleDateString('fr-FR');
+                    cell.classList.remove('red', 'orange', 'green', 'empty');
+                    cell.classList.add(note);
+                    cell.innerHTML = `
+                        <div class="note-color"></div>
+                        <div class="note-date">${date}</div>
+                    `;
+                    cell.dataset.locked = "true";
+                }
+            });
         });
 }
 
@@ -179,43 +135,19 @@ function loadRolesForCollaborator(userId) {
                         loadExistingEvaluations(userId);
                     });
             });
-
-            const toggleSummaryBtn = document.getElementById('toggle-summary');
-            const summarySection = document.getElementById('global-summary-section');
-
-            if (toggleSummaryBtn && summarySection) {
-                toggleSummaryBtn.addEventListener('click', () => {
-                    const isHidden = summarySection.classList.contains('hidden');
-                    if (isHidden) {
-                        loadGlobalSummary(userId);
-                        summarySection.classList.remove('hidden');
-                        toggleSummaryBtn.textContent = "Masquer la synthèse globale";
-                    } else {
-                        summarySection.classList.add('hidden');
-                        toggleSummaryBtn.textContent = "Afficher la synthèse globale";
-                    }
-                });
-            }
         });
 }
 
-
 function saveAllEvaluations() {
-    if (!selectedUserId) {
-        alert("Aucun utilisateur sélectionné.");
-        return;
-    }
+    if (!selectedUserId) return alert("Aucun utilisateur sélectionné.");
 
-    const evaluationsToSend = [];
-
+    const evaluations = [];
     document.querySelectorAll('.eval-cell').forEach(cell => {
         const color = ['red', 'orange', 'green', 'empty'].find(c => cell.classList.contains(c)) || 'empty';
-        const activityId = cell.dataset.activity;
-        if (!activityId) return;
-
-        evaluationsToSend.push({
+        if (cell.dataset.locked === "true") return;
+        evaluations.push({
             user_id: parseInt(selectedUserId),
-            activity_id: parseInt(activityId),
+            activity_id: parseInt(cell.dataset.activity),
             item_id: cell.dataset.id ? parseInt(cell.dataset.id) : null,
             item_type: cell.dataset.type || null,
             eval_number: cell.dataset.eval,
@@ -223,84 +155,41 @@ function saveAllEvaluations() {
         });
     });
 
-    if (evaluationsToSend.length === 0) {
-        alert("Aucune évaluation à enregistrer.");
-        return;
-    }
+    if (evaluations.length === 0) return alert("Aucune évaluation à enregistrer.");
 
     fetch('/competences/save_user_evaluations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            userId: selectedUserId,
-            evaluations: evaluationsToSend
-        })
+        body: JSON.stringify({ userId: selectedUserId, evaluations })
     })
-    .then(res => res.json())
+    .then(r => r.json())
     .then(resp => {
         if (resp.success) {
             document.querySelectorAll('.eval-cell').forEach(cell => {
-                if (userStatus !== 'administrateur') {
-                    const color = ['red', 'orange', 'green'].find(c => cell.classList.contains(c));
-                    if (color) {
-                        cell.dataset.locked = "true";
-                    }
+                if (!cell.dataset.locked && ['red', 'orange', 'green'].some(c => cell.classList.contains(c))) {
+                    cell.dataset.locked = "true";
                 }
             });
-
-            // Afficher message succès
-            alert('Évaluations enregistrées avec succès !');
-            refreshGlobalSummary(selectedUserId);
+            alert("Évaluations enregistrées !");
+            loadExistingEvaluations(selectedUserId);
         } else {
-            alert('Erreur : ' + resp.message);
+            alert("Erreur : " + resp.message);
         }
-    })
-    .catch(err => {
-        console.error(err);
-        alert('Erreur serveur.');
     });
-}
-);
-
-            alert('Évaluations enregistrées avec succès !');
-            refreshGlobalSummary(selectedUserId);
-        } else {
-            alert('Erreur : ' + resp.message);
-        }
-    })
-    .catch(err => {
-        console.error(err);
-        alert('Erreur serveur.');
-    });
-}
-
-function cycleEvalColor(cell) {
-    if (cell.dataset.locked === "true" && userStatus !== 'administrateur') return;
-
-    const colors = ['red', 'orange', 'green', 'empty'];
-    let current = colors.find(c => cell.classList.contains(c)) || 'empty';
-    let nextColor = colors[(colors.indexOf(current) + 1) % colors.length];
-
-    colors.forEach(c => cell.classList.remove(c));
-    cell.classList.add(nextColor);
-
-    const dateStr = new Date().toLocaleDateString('fr-FR');
-    cell.innerHTML = `
-        <div class="note-color"></div>
-        <div class="note-date">${nextColor !== 'empty' ? dateStr : ''}</div>
-    `;
 }
 
 document.addEventListener('click', e => {
-    if (e.target.classList.contains('eval-cell') &&
-        !document.getElementById('global-summary-section')?.contains(e.target)) {
-        cycleEvalColor(e.target);
+    if (e.target.classList.contains('eval-cell')) {
+        if (e.target.dataset.locked === "true") return;
+        const colors = ['red', 'orange', 'green', 'empty'];
+        const current = colors.find(c => e.target.classList.contains(c)) || 'empty';
+        const next = colors[(colors.indexOf(current) + 1) % colors.length];
+        colors.forEach(c => e.target.classList.remove(c));
+        e.target.classList.add(next);
+        const date = new Date().toLocaleDateString('fr-FR');
+        e.target.innerHTML = `
+            <div class="note-color"></div>
+            <div class="note-date">${next !== 'empty' ? date : ''}</div>
+        `;
     }
 });
-
-function refreshGlobalSummary(userId) {
-    const summarySection = document.getElementById('global-summary-section');
-    if (summarySection && !summarySection.classList.contains('hidden')) {
-        loadGlobalSummary(userId);
-    }
-}

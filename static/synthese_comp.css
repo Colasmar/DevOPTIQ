@@ -121,6 +121,8 @@ main > div:first-of-type {
   font-size: 0.65em;
   margin-top: 2px;
   color: #333;
+  pointer-events: none;
+
 }
 
 .eval-cell {
