@@ -56,6 +56,23 @@
     <input type="file" name="role_file" accept=".csv" required>
     <button type="submit">Importer</button>
   </form>
+
+  <hr>
+  
+  <h2>Collaborateurs</h2>
+  <div class="collaborateur-controls">
+    <input type="text" id="search-collab" placeholder="Rechercher un collaborateur...">
+    <select id="filter-role">
+      <option value="">Tous les rôles</option>
+      {% for role in roles %}
+        <option value="{{ role.name }}">{{ role.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div id="collaborateur-list" class="collaborateur-list">
+    <!-- Collaborateurs chargés dynamiquement ici -->
+  </div>
+
 </div>
 </body>
 </html>

@@ -116,3 +116,50 @@ def delete_role(role_id):
         db.session.commit()
         return jsonify(success=True)
     return jsonify(success=False), 404
+
+
+@gestion_rh_bp.route('/collaborateurs')
+def get_collaborateurs():
+    search = request.args.get('search', '').lower()
+    role_filter = request.args.get('role', '')
+
+    query = db.session.query(User).join(UserRole, isouter=True).join(Role, isouter=True)
+
+    if search:
+        query = query.filter((User.first_name + ' ' + User.last_name).ilike(f"%{search}%"))
+
+    if role_filter:
+        query = query.filter(Role.name == role_filter)
+
+    users = query.order_by(User.last_name).all()
+
+    # Récupération manuelle des rôles pour chaque user
+    user_roles = db.session.execute(text("""
+        SELECT ur.user_id, r.name
+        FROM user_roles ur
+        JOIN roles r ON r.id = ur.role_id
+    """)).fetchall()
+
+    user_roles_map = {}
+    for row in user_roles:
+        user_roles_map.setdefault(row[0], []).append(row[1])
+
+    return jsonify([
+        {
+            "id": u.id,
+            "name": f"{u.first_name} {u.last_name}",
+            "roles": user_roles_map.get(u.id, [])
+        }
+        for u in users
+    ])
+
+
+@gestion_rh_bp.route('/collaborateur_roles', methods=['POST'])
+def update_collaborateur_roles():
+    user_id = request.form.get('user_id')
+    new_roles = request.form.getlist('role_ids[]')  # tableau de IDs
+    db.session.query(UserRole).filter_by(user_id=user_id).delete()
+    for rid in new_roles:
+        db.session.add(UserRole(user_id=user_id, role_id=int(rid)))
+    db.session.commit()
+    return jsonify(success=True)

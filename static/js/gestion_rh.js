@@ -1,4 +1,3 @@
-// Fonction toast
 function showToast(message = "Changement enregistré !") {
   const toast = document.getElementById("toast");
   toast.textContent = message;
@@ -70,13 +69,12 @@ document.addEventListener("DOMContentLoaded", () => {
     setTimeout(() => location.reload(), 1000);
   });
 
-    // MODIFICATION + SUPPRESSION DES RÔLES
+  // MODIFICATION + SUPPRESSION DES RÔLES
   document.querySelectorAll(".role-group").forEach(group => {
     const roleId = group.dataset.roleId;
     const label = group.querySelector(".role-label");
     const editBtn = group.querySelector(".edit-role-btn");
 
-    // bouton Supprimer
     const deleteBtn = document.createElement("button");
     deleteBtn.textContent = "Supprimer";
     deleteBtn.style.marginLeft = "10px";
@@ -140,4 +138,105 @@ document.addEventListener("DOMContentLoaded", () => {
       group.querySelector(".role-actions").appendChild(cancelBtn);
     });
   });
+
+  // COLLABORATEURS
+  async function loadCollaborateurs() {
+    const search = document.getElementById("search-collab").value;
+    const role = document.getElementById("filter-role").value;
+
+    const res = await fetch(`/gestion_rh/collaborateurs?search=${encodeURIComponent(search)}&role=${encodeURIComponent(role)}`);
+    const data = await res.json();
+
+    const container = document.getElementById("collaborateur-list");
+    container.innerHTML = "";
+
+    data.forEach(user => {
+      const div = document.createElement("div");
+      div.className = "collab-item";
+
+      const label = document.createElement("div");
+      label.className = "collab-name";
+      label.textContent = user.name;
+
+      const summary = document.createElement("div");
+      summary.className = "collab-summary";
+      summary.textContent = "Rôles : " + (user.roles.length ? user.roles.join(", ") : "Aucun");
+
+      const editZone = document.createElement("div");
+      editZone.className = "collab-edit-zone";
+
+      const roleContainer = document.createElement("div");
+      roleContainer.className = "collab-role-checkboxes";
+
+      roles.forEach(r => {
+        const cbLabel = document.createElement("label");
+        cbLabel.className = "checkbox-label";
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = r.id;
+        checkbox.checked = user.roles.includes(r.name);
+        if (checkbox.checked) cbLabel.classList.add("active");
+
+        checkbox.addEventListener("change", () => {
+          if (checkbox.checked) {
+            cbLabel.classList.remove("removed");
+            cbLabel.classList.add("active");
+          } else if (user.roles.includes(r.name)) {
+            cbLabel.classList.remove("active");
+            cbLabel.classList.add("removed");
+          } else {
+            cbLabel.classList.remove("removed");
+            cbLabel.classList.remove("active");
+          }
+        });
+
+        cbLabel.appendChild(checkbox);
+        cbLabel.appendChild(document.createTextNode(" " + r.name));
+        roleContainer.appendChild(cbLabel);
+      });
+
+      const saveBtn = document.createElement("button");
+      saveBtn.textContent = "Enregistrer";
+      saveBtn.addEventListener("click", async () => {
+        const selectedRoles = Array.from(roleContainer.querySelectorAll("input:checked")).map(c => c.value);
+        const formData = new FormData();
+        formData.append("user_id", user.id);
+        selectedRoles.forEach(id => formData.append("role_ids[]", id));
+        await fetch("/gestion_rh/collaborateur_roles", {
+          method: "POST",
+          body: formData
+        });
+        showToast("Rôles mis à jour");
+
+        roleContainer.querySelectorAll(".checkbox-label").forEach(lab => {
+          lab.classList.remove("removed");
+          lab.classList.add("transition-reset");
+          setTimeout(() => {
+            lab.classList.remove("transition-reset");
+          }, 500);
+        });
+      });
+
+      editZone.appendChild(roleContainer);
+      editZone.appendChild(saveBtn);
+
+      label.addEventListener("click", () => {
+        div.classList.toggle("expanded");
+      });
+
+      div.appendChild(label);
+      div.appendChild(summary);
+      div.appendChild(editZone);
+      container.appendChild(div);
+    });
+  }
+
+  document.getElementById("search-collab").addEventListener("input", loadCollaborateurs);
+  document.getElementById("filter-role").addEventListener("change", loadCollaborateurs);
+
+  window.roles = Array.from(document.querySelectorAll("#filter-role option"))
+    .filter(o => o.value)
+    .map((o, i) => ({ id: i + 1, name: o.value }));
+
+  loadCollaborateurs();
 });
