@@ -163,3 +163,72 @@ def update_collaborateur_roles():
         db.session.add(UserRole(user_id=user_id, role_id=int(rid)))
     db.session.commit()
     return jsonify(success=True)
+
+
+@gestion_rh_bp.route('/assign_manager', methods=['POST'])
+def assign_manager():
+    data = request.get_json()
+    manager_id = data.get('manager_id')
+    assignments = data.get('assignments', [])  # liste de { user_id, role_id }
+
+    if not manager_id or not assignments:
+        return jsonify({'error': 'Paramètres manquants'}), 400
+
+    for a in assignments:
+        user = User.query.get(a['user_id'])
+        if user:
+            user.manager_id = manager_id
+
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+
+@gestion_rh_bp.route('/roles')
+def get_all_roles():
+    roles = Role.query.order_by(Role.name).all()
+    return jsonify([{'id': r.id, 'name': r.name} for r in roles])
+
+@gestion_rh_bp.route('/users_by_roles')
+def get_users_by_roles():
+    role_ids = request.args.get('roles', '')
+    role_ids = [int(rid) for rid in role_ids.split(',') if rid.isdigit()]
+    user_roles = UserRole.query.filter(UserRole.role_id.in_(role_ids)).all()
+
+    users_map = {}
+    for ur in user_roles:
+        user = ur.user
+        if user.id not in users_map:
+            users_map[user.id] = {
+                'id': user.id,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'roles': []
+            }
+        users_map[user.id]['roles'].append(ur.role.name)
+
+    return jsonify(list(users_map.values()))
+
+@gestion_rh_bp.route('/users_with_roles')
+def get_users_with_roles():
+    users = User.query.all()
+    result = []
+    for user in users:
+        roles = [ur.role.name for ur in user.user_roles if ur.role is not None]
+        if roles:
+            result.append({
+                'id': user.id,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'roles': roles
+            })
+    return jsonify(result)
+
+@gestion_rh_bp.route('/users_with_role')
+def get_users_with_role():
+    role_name = request.args.get('role')
+    role = Role.query.filter_by(name=role_name).first()
+    if not role:
+        return jsonify([])
+    users = db.session.query(User).join(UserRole).filter(UserRole.role_id == role.id).all()
+    return jsonify([{'id': u.id, 'first_name': u.first_name, 'last_name': u.last_name} for u in users])

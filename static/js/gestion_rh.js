@@ -93,7 +93,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     editBtn.after(deleteBtn);
-
     editBtn.addEventListener("click", () => {
       const currentValue = label.textContent.trim();
       label.innerHTML = `<input type="text" value="${currentValue}" class="role-input">`;
@@ -149,6 +148,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const container = document.getElementById("collaborateur-list");
     container.innerHTML = "";
+
+    window.fullCollabData = data;
+    renderPartialCollaborators();
+  }
+
+  function renderPartialCollaborators(showAll = false) {
+    const container = document.getElementById("collaborateur-list");
+    container.innerHTML = "";
+    const data = showAll ? window.fullCollabData : window.fullCollabData.slice(0, 4);
 
     data.forEach(user => {
       const div = document.createElement("div");
@@ -208,6 +216,10 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         showToast("Rôles mis à jour");
 
+        // 🔁 recharge à chaud
+        loadCollaborateurs();
+        document.getElementById("mode-by-users").click();
+
         roleContainer.querySelectorAll(".checkbox-label").forEach(lab => {
           lab.classList.remove("removed");
           lab.classList.add("transition-reset");
@@ -229,14 +241,234 @@ document.addEventListener("DOMContentLoaded", () => {
       div.appendChild(editZone);
       container.appendChild(div);
     });
+
+    const toggleBtn = document.getElementById("toggle-collab-view");
+    if (toggleBtn) {
+      toggleBtn.textContent = showAll ? "Réduire la liste" : "Afficher tous les collaborateurs";
+      toggleBtn.onclick = () => renderPartialCollaborators(!showAll);
+    }
   }
 
   document.getElementById("search-collab").addEventListener("input", loadCollaborateurs);
   document.getElementById("filter-role").addEventListener("change", loadCollaborateurs);
 
-  window.roles = Array.from(document.querySelectorAll("#filter-role option"))
-    .filter(o => o.value)
-    .map((o, i) => ({ id: i + 1, name: o.value }));
+  window.roles = [];  
+  fetch("/gestion_rh/roles")
+    .then(res => res.json())
+    .then(data => {
+      window.roles = data;
+
+      const select = document.getElementById("filter-role");
+      if (select) {
+        data.forEach(role => {
+          const option = document.createElement("option");
+          option.value = role.name;
+          option.textContent = role.name;
+          select.appendChild(option);
+        });
+      }
+
+      loadCollaborateurs();  // charger les collaborateurs une fois que les rôles sont prêts
+    });
+
 
   loadCollaborateurs();
+});
+
+// ---------- AFFECTATION DES MANAGERS ----------
+document.addEventListener("DOMContentLoaded", () => {
+  const managerSelect = document.getElementById("manager-select");
+  const container = document.getElementById("manager-assignment-container");
+  const btnConfirm = document.getElementById("confirm-manager-assignment");
+  let selectedUserIds = new Set();
+  let selectedUserRolesMap = {};
+
+  // Charger les managers existants (utilisateurs ayant le rôle manager)
+  fetch("/gestion_rh/users_with_role?role=manager")
+    .then(res => res.json())
+    .then(users => {
+      users.forEach(u => {
+        const opt = document.createElement("option");
+        opt.value = u.id;
+        opt.textContent = `${u.first_name} ${u.last_name}`;
+        managerSelect.appendChild(opt);
+      });
+    });
+
+  // Fonction pour recharger les utilisateurs + rôles dans la section manager (utilisée dynamiquement)
+  function reloadManagerUserList() {
+    const activeTab = document.querySelector(".manager-options .active-tab");
+    if (activeTab && activeTab.id === "mode-by-users") {
+      document.getElementById("mode-by-users").click();
+    } else if (activeTab && activeTab.id === "mode-by-roles") {
+      document.getElementById("mode-by-roles").click();
+    }
+  }
+
+  // MODE PAR RÔLES
+  document.getElementById("mode-by-roles").addEventListener("click", (e) => {
+    e.target.classList.add("active-tab");
+    document.getElementById("mode-by-users").classList.remove("active-tab");
+
+    fetch("/gestion_rh/roles")
+      .then(r => r.json())
+      .then(roles => {
+        container.innerHTML = `
+          <div class="manager-role-section">
+            <label class="section-title">Choisir des rôles :</label>
+            <div id="multi-role-checkboxes" class="collab-role-checkboxes"></div>
+          </div>
+          <div class="manager-user-section">
+            <label class="section-title">Collaborateurs correspondants :</label>
+            <div id="user-list-by-role" class="user-list"></div>
+          </div>
+        `;
+
+        const roleContainer = document.getElementById("multi-role-checkboxes");
+
+        roles.forEach(role => {
+          const label = document.createElement("label");
+          label.className = "checkbox-label";
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.value = role.id;
+          checkbox.dataset.name = role.name;
+
+          checkbox.addEventListener("change", () => {
+            label.classList.toggle("active", checkbox.checked);
+          });
+
+          label.appendChild(checkbox);
+          label.appendChild(document.createTextNode(" " + role.name));
+          roleContainer.appendChild(label);
+        });
+
+        const loadBtn = document.createElement("button");
+        loadBtn.textContent = "Charger collaborateurs";
+        loadBtn.style.marginTop = "12px";
+        loadBtn.style.marginBottom = "12px";
+        loadBtn.className = "btn-validate";
+        container.appendChild(loadBtn);
+
+        loadBtn.addEventListener("click", () => {
+          const selectedRoles = Array.from(roleContainer.querySelectorAll("input:checked")).map(c => c.value);
+          fetch(`/gestion_rh/users_by_roles?roles=${selectedRoles.join(",")}`)
+            .then(r => r.json())
+            .then(users => {
+              const list = document.getElementById("user-list-by-role");
+              list.innerHTML = "";
+              users.forEach(user => {
+                const item = document.createElement("div");
+                item.className = "user-item";
+                item.textContent = `${user.first_name} ${user.last_name} (${user.roles.join(", ")})`;
+                item.dataset.userId = user.id;
+                item.addEventListener("click", () => {
+                  const id = user.id;
+                  item.classList.toggle("selected");
+                  if (item.classList.contains("selected")) selectedUserIds.add(id);
+                  else selectedUserIds.delete(id);
+                  btnConfirm.classList.remove("hidden");
+                });
+                list.appendChild(item);
+              });
+            });
+        });
+      });
+  });
+
+  // MODE PAR UTILISATEUR
+  document.getElementById("mode-by-users").addEventListener("click", (e) => {
+    e.target.classList.add("active-tab");
+    document.getElementById("mode-by-roles").classList.remove("active-tab");
+
+    fetch("/gestion_rh/users_with_roles")
+      .then(r => r.json())
+      .then(users => {
+        container.innerHTML = `<div id="user-list-by-user" class="user-list"></div>`;
+        const list = document.getElementById("user-list-by-user");
+        list.innerHTML = "";
+        selectedUserIds = new Set();
+        selectedUserRolesMap = {};
+
+        users.forEach(user => {
+          const item = document.createElement("div");
+          item.className = "user-item";
+          item.dataset.userId = user.id;
+
+          const nameDiv = document.createElement("div");
+          nameDiv.textContent = `${user.first_name} ${user.last_name}`;
+
+          const roleBox = document.createElement("div");
+          roleBox.className = "user-role-box";
+
+          user.roles.forEach(r => {
+            const roleObj = window.roles.find(ro => ro.name === r);
+            if (!roleObj) return;
+            const cbLabel = document.createElement("label");
+            cbLabel.className = "checkbox-label";
+            const cb = document.createElement("input");
+            cb.type = "checkbox";
+            cb.value = roleObj.id;
+
+            cb.addEventListener("change", () => {
+              const uid = user.id;
+              if (!selectedUserRolesMap[uid]) selectedUserRolesMap[uid] = new Set();
+              if (cb.checked) {
+                cbLabel.classList.add("active");
+                selectedUserRolesMap[uid].add(roleObj.id);
+                selectedUserIds.add(uid);
+              } else {
+                cbLabel.classList.remove("active");
+                selectedUserRolesMap[uid].delete(roleObj.id);
+                if (selectedUserRolesMap[uid].size === 0) {
+                  selectedUserIds.delete(uid);
+                }
+              }
+              btnConfirm.classList.remove("hidden");
+            });
+
+            cbLabel.appendChild(cb);
+            cbLabel.appendChild(document.createTextNode(" " + r));
+            roleBox.appendChild(cbLabel);
+          });
+
+          item.appendChild(nameDiv);
+          item.appendChild(roleBox);
+          list.appendChild(item);
+        });
+      });
+  });
+
+  // ENREGISTRER
+  btnConfirm.addEventListener("click", () => {
+    const managerId = managerSelect.value;
+    if (!managerId || selectedUserIds.size === 0) return;
+
+    let assignments = [];
+
+    selectedUserIds.forEach(uid => {
+      const roleIds = selectedUserRolesMap[uid];
+      if (roleIds && roleIds.size > 0) {
+        roleIds.forEach(rid => {
+          assignments.push({ user_id: uid, role_id: rid });
+        });
+      }
+    });
+
+    fetch("/gestion_rh/assign_manager", {
+      method: "POST",
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        manager_id: managerId,
+        assignments: assignments
+      })
+    }).then(() => {
+      showToast("Affectation réussie !");
+      selectedUserIds.clear();
+      selectedUserRolesMap = {};
+      btnConfirm.classList.add("hidden");
+      reloadManagerUserList(); // 🔁 recharger section dynamique
+    });
+  });
+
 });
