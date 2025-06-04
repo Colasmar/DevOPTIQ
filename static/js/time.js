@@ -1,47 +1,65 @@
 document.addEventListener('DOMContentLoaded', () => {
     const addBtn = document.getElementById('addAnalysisBtn');
-    const formContainer = document.getElementById('analysisFormContainer');
-    const cancelBtn = document.getElementById('cancelBtn');
-    const analysisTypeSelect = document.getElementById('analysisType');
-    const activityContainer = document.getElementById('activitySelectContainer');
-    const taskContainer = document.getElementById('taskSelectContainer');
+    const modal = document.getElementById('analysisModal');
+    const closeBtn = document.getElementById('closeModal');
     const form = document.getElementById('timeAnalysisForm');
 
-    // Ajoute une info pour l'utilisateur
-    const formInfo = document.createElement('p');
-    formInfo.innerText = "Les dates de début et de fin définissent la période concernée.";
-    form.insertBefore(formInfo, form.firstChild);
-
+    // Ouvrir le modal uniquement au clic sur le bouton
     if (addBtn) {
         addBtn.addEventListener('click', () => {
-            formContainer.classList.remove('hidden');
-        });
-    }
-    if (cancelBtn) {
-        cancelBtn.addEventListener('click', () => {
-            formContainer.classList.add('hidden');
-            form.reset();
-            // Réinitialiser l'affichage
-            activityContainer.classList.add('hidden');
-            taskContainer.classList.add('hidden');
+            modal.classList.remove('hidden');
         });
     }
 
-    if (analysisTypeSelect) {
-        analysisTypeSelect.addEventListener('change', () => {
-            const val = analysisTypeSelect.value;
-            if (val === 'activity') {
-                activityContainer.classList.remove('hidden');
-                taskContainer.classList.add('hidden');
-            } else if (val === 'task') {
-                activityContainer.classList.add('hidden');
-                taskContainer.classList.remove('hidden');
-            } else {
-                activityContainer.classList.add('hidden');
-                taskContainer.classList.add('hidden');
-            }
-            // Mettre à jour le champ caché
-            document.getElementById('analysis_type').value = val;
+    // Fermer avec la croix
+    if (closeBtn) {
+        closeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            modal.classList.add('hidden');
+            form.reset();
+        });
+    }
+
+    // Fermer si clic en dehors du contenu
+    window.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.classList.add('hidden');
+            form.reset();
+        }
+    });
+
+    // Gestion de l’affichage conditionnel des blocs
+    const typeSelect = document.getElementById('analysisType');
+    const activityContainer = document.getElementById('activitySelectContainer');
+    const roleContainer = document.getElementById('roleSelectContainer');
+    const userContainer = document.getElementById('userSelectContainer');
+    const weightWarning = document.getElementById('weightWarning');
+    const autoWeightCheckbox = document.getElementById('autoWeight');
+    const userSearch = document.getElementById('userSearch');
+    const userSelect = document.getElementById('userSelect');
+
+    if (typeSelect) {
+        typeSelect.addEventListener('change', () => {
+            const val = typeSelect.value;
+            activityContainer.classList.toggle('hidden', val !== 'activity');
+            roleContainer.classList.toggle('hidden', val !== 'role');
+            userContainer.classList.toggle('hidden', val !== 'user');
+        });
+    }
+
+    if (autoWeightCheckbox && weightWarning) {
+        autoWeightCheckbox.addEventListener('change', () => {
+            weightWarning.classList.toggle('hidden', !autoWeightCheckbox.checked);
+        });
+    }
+
+    if (userSearch && userSelect) {
+        userSearch.addEventListener('input', () => {
+            const search = userSearch.value.toLowerCase();
+            Array.from(userSelect.options).forEach(option => {
+                const text = option.textContent.toLowerCase();
+                option.style.display = text.includes(search) ? '' : 'none';
+            });
         });
     }
 });

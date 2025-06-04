@@ -1,6 +1,6 @@
 id,name,onboarding_plan
 1,manager,
-2,Relation clients,"**1) Module de formation/entrainement**
+2,Relation client,"**1) Module de formation/entrainement**
 
 *Formation ""Traitement de l'information et Raisonnement logique""*
 
@@ -271,24 +271,3 @@ Le parcours d'apprentissage autonome pourra inclure :
 111,Analyste,
 112,Testeur QA,
 113,Chef de projet,
-114,id,
-116,2,
-117,3,
-119,5,
-122,8,
-123,9,
-124,10,
-125,11,
-126,12,
-127,13,
-128,14,
-129,15,
-130,16,
-131,17,
-132,18,
-133,19,
-134,20,
-135,110,
-136,111,
-137,112,
-138,113,

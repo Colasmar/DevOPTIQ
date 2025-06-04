@@ -270,9 +270,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
       loadCollaborateurs();  // charger les collaborateurs une fois que les rôles sont prêts
     });
-
-
-  loadCollaborateurs();
 });
 
 // ---------- AFFECTATION DES MANAGERS ----------

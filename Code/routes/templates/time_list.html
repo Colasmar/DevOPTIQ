@@ -6,9 +6,16 @@
 
 <button id="addAnalysisBtn" class="btn-primary">Ajouter une analyse de temps</button>
 
-<div id="analysisFormContainer" class="hidden">
-    {% include "time_form.html" %}
+<div id="analysisModal" class="modal hidden">
+  <div class="modal-content">
+    <span class="close-btn" id="closeModal">&times;</span>
+    <div id="analysisFormContainer">
+      {% include "time_form.html" %}
+    </div>
+  </div>
 </div>
+
+
 
 <h2>Liste des analyses</h2>
 <table class="styled-table">
@@ -17,42 +24,64 @@
       <th>ID</th>
       <th>Type</th>
       <th>Activité</th>
+      <th>Tâche</th>
+      <th>Rôle</th>
+      <th>Utilisateur</th>
       <th>Durée</th>
       <th>Récurrence</th>
       <th>Fréquence</th>
       <th>Personnes</th>
       <th>Temps annuel</th>
-      <th>Délai standard</th>
+      <th>Délai</th>
       <th>Impact</th>
       <th>Retard</th>
-      <th>Tâche</th>
+      <th>% Retard</th>
     </tr>
   </thead>
+
   <tbody>
     {% for t in analyses %}
     <tr>
       <td>{{ t.id }}</td>
       <td>{{ t.type }}</td>
-      <td>{{ t.activity.name if t.activity else "" }}</td>
-      <td>{{ t.duration }}</td>
+      <td>{{ t.activity.name if t.activity else '' }}</td>
+      <td>{{ t.task.name if t.task else '' }}</td>
+      <td>{{ t.role.name if t.role_id and t.role else '' }}</td>
+      <td>
+        {% if t.user_id and t.user %}
+          {{ t.user.first_name }} {{ t.user.last_name }}
+        {% endif %}
+      </td>
+      <td>{{ t.duration }} min</td>
       <td>{{ t.recurrence }}</td>
       <td>{{ t.frequency }}</td>
       <td>{{ t.nb_people }}</td>
-      <td>{{ "%.1f" | format(t.annual_time / 60) }} h</td>
-      <td>{{ t.delay or '0' }} min</td>
-      <td>{{ t.delay_increase or '0' }} {{ t.delay_unit or '' }}</td>
-      <td>
-        {% if t.delay and t.delay_increase %}
-          {{ t.delay + t.delay_increase }}
-        {% elif t.delay %}
-          {{ t.delay }}
+      <td>{{ "%.1f"|format(t.annual_time / 60) }} h</td>
+      <td>{{ t.delay or 0 }}</td>
+      <td>{{ t.delay_increase or 0 }} {{ t.impact_unit or '' }}</td>
+
+      <td class="
+        {% if t.delay_gap >= 120 %}
+          retard-rouge
+        {% elif t.delay_gap >= 60 %}
+          retard-orange
         {% else %}
-          {{ t.delay_increase or 0 }}
+          retard-vert
         {% endif %}
-        min
+      ">
+        {{ t.delay_gap }} min
       </td>
-      <td>{{ t.task.name if t.task else "" }}</td>
+
+
+      <td>
+        {% if t.delay_percentage %}
+          {{ t.delay_percentage }}%
+        {% else %}
+          -
+        {% endif %}
+      </td>
     </tr>
     {% endfor %}
   </tbody>
+
 </table>

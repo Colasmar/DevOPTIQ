@@ -77,3 +77,121 @@ body {
 .styled-table tbody tr:nth-child(even) {
     background-color: #f3f3f3;
 }
+
+#timeAnalysisForm label {
+    display: block;
+    margin-top: 12px;
+    font-weight: bold;
+    color: #007b8a;
+}
+
+#timeAnalysisForm input[type="number"],
+#timeAnalysisForm select,
+#timeAnalysisForm input[type="text"] {
+    width: 100%;
+    padding: 8px;
+    margin-top: 4px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+#timeAnalysisForm input:focus,
+#timeAnalysisForm select:focus {
+    outline: none;
+    border-color: #009879;
+    box-shadow: 0 0 4px #007b8a44;
+}
+
+#userSearch {
+    margin-top: 8px;
+    margin-bottom: 10px;
+    padding: 6px;
+    border-radius: 4px;
+    width: 100%;
+    border: 1px solid #bbb;
+}
+
+#weightWarning {
+    padding: 10px;
+    background-color: #fff3cd;
+    border: 1px solid #ffeeba;
+    border-radius: 5px;
+    color: #856404;
+    margin-top: 8px;
+}
+
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: white;
+    padding: 30px;
+    border-radius: 10px;
+    width: 80%;
+    max-width: 1000px;
+    max-height: 80vh;
+    overflow-y: auto;
+    position: relative;
+    box-shadow: 0 0 15px rgba(0,0,0,0.2);
+}
+
+.close-btn {
+    position: absolute;
+    right: 20px;
+    top: 10px;
+    font-size: 32px;
+    font-weight: bold;
+    cursor: pointer;
+    color: #222;
+    transition: color 0.3s;
+}
+.close-btn:hover {
+    color: #e00;
+}
+
+
+
+.retard-vert {
+    background-color: #d4edda;
+    color: #155724;
+    font-weight: bold;
+}
+
+.retard-orange {
+    background-color: #fff3cd;
+    color: #856404;
+    font-weight: bold;
+}
+
+.retard-rouge {
+    background-color: #f8d7da;
+    color: #721c24;
+    font-weight: bold;
+}
+
+#analysisFormContainer {
+    margin: 0 auto;
+    text-align: center;
+}
+
+#timeAnalysisForm {
+    display: inline-block;
+    text-align: left;
+    width: 100%;
+    max-width: 600px;
+}
+
+.hidden {
+    display: none !important;
+}

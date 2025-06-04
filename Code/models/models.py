@@ -182,23 +182,27 @@ class TimeAnalysis(db.Model):
     __tablename__ = 'time_analysis'
 
     id = db.Column(db.Integer, primary_key=True)
+    duration = db.Column(db.Integer, nullable=False)
+    recurrence = db.Column(db.String(20), nullable=False)
+    frequency = db.Column(db.Integer, nullable=False)
+    delay = db.Column(db.Integer, nullable=True)
 
-    duration = db.Column(db.Integer, nullable=False)                # Durée en minutes
-    recurrence = db.Column(db.String(20), nullable=False)           # Journalier, hebdo, etc.
-    frequency = db.Column(db.Integer, nullable=False)               # Nb de fois / période
-    delay = db.Column(db.Integer, nullable=True)                    # Délai standard (nouveau)
-
-    type = db.Column(db.String(20), nullable=False)                 # Activité, tâche, défaillance
+    type = db.Column(db.String(20), nullable=False)  # activité, rôle, utilisateur
 
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=True)
     task_id = db.Column(db.Integer, db.ForeignKey('tasks.id'), nullable=True)
+    role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
 
-    nb_people = db.Column(db.Integer, nullable=False, default=1)   # Nombre de personnes
-    delay_unit = db.Column(db.String(20), nullable=True)           # Unité du retard (impact)
-    delay_increase = db.Column(db.Float, nullable=True)            # Valeur du retard (impact)
+    nb_people = db.Column(db.Integer, nullable=False, default=1)
+    impact_unit = db.Column(db.String(20), nullable=True)
+    delay_increase = db.Column(db.Float, nullable=True)
+    delay_percentage = db.Column(db.Float, nullable=True)
 
     activity = db.relationship('Activities', backref='time_analyses')
     task = db.relationship('Task', backref='time_analyses')
+    role = db.relationship('Role', backref='time_analyses')
+    user = db.relationship('User', backref='time_analyses')
 
     @property
     def recurrence_factor(self):
@@ -211,15 +215,14 @@ class TimeAnalysis(db.Model):
 
     @property
     def annual_time(self):
-        # Temps annuel en minutes (converti en heures côté affichage)
         return self.duration * self.recurrence_factor * self.frequency * self.nb_people
 
     @property
     def delay_gap(self):
-        # Retard total = délai + impact (si les deux existent)
         if self.delay and self.delay_increase:
             return self.delay + self.delay_increase
         elif self.delay:
             return self.delay
         else:
             return self.delay_increase or 0
+
