@@ -4,14 +4,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeBtn = document.getElementById('closeModal');
     const form = document.getElementById('timeAnalysisForm');
 
-    // Ouvrir le modal uniquement au clic sur le bouton
     if (addBtn) {
         addBtn.addEventListener('click', () => {
             modal.classList.remove('hidden');
         });
     }
 
-    // Fermer avec la croix
     if (closeBtn) {
         closeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -20,7 +18,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Fermer si clic en dehors du contenu
     window.addEventListener('click', (e) => {
         if (e.target === modal) {
             modal.classList.add('hidden');
@@ -28,7 +25,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Gestion de l’affichage conditionnel des blocs
     const typeSelect = document.getElementById('analysisType');
     const activityContainer = document.getElementById('activitySelectContainer');
     const roleContainer = document.getElementById('roleSelectContainer');

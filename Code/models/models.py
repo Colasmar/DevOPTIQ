@@ -226,3 +226,12 @@ class TimeAnalysis(db.Model):
         else:
             return self.delay_increase or 0
 
+    @property
+    def delay_ratio(self):
+        if self.delay and self.delay_increase:
+            try:
+                return round((self.delay_increase / self.delay) * 100, 1)
+            except ZeroDivisionError:
+                return 0
+        return 0
+
