@@ -96,6 +96,29 @@
       <button id="confirm-manager-assignment" class="btn-validate hidden">Valider l’affectation</button>
     </div>
 
+    <section id="global-user-summary">
+      <h2>Aperçu global des utilisateurs</h2>
+      <div id="global-users-container">Chargement...</div>
+    </section>
+
+    <!-- JS du tableau -->
+    <script src="./../../../static/js/global_users_summary.js"></script>
+    <script>
+      // Charge dynamiquement le tableau via AJAX
+      fetch("/competences/users/global_summary")
+        .then(res => res.text())
+        .then(html => {
+          document.getElementById("global-users-container").innerHTML = html;
+        })
+        .catch(err => {
+          document.getElementById("global-users-container").innerHTML = "<p>Erreur de chargement.</p>";
+          console.error(err);
+        });
+    </script>
+
+
+
+
   </div>
 </body>
 </html>

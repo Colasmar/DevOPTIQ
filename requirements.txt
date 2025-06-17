@@ -7,3 +7,4 @@ python-docx
 pydotplus
 graphviz
 flask_mail
+python-dotenv

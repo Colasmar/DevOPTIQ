@@ -246,10 +246,23 @@ def global_flat_summary(user_id):
 
     evaluations = CompetencyEvaluation.query.filter_by(user_id=user_id).all()
     eval_map = {}
+    eval_date_map = {}
     for e in evaluations:
         if e.item_type is None and e.item_id is None:
             key = f"{e.activity_id}_activity_{e.eval_number}"
             eval_map[key] = e.note
+            if e.created_at:
+                if isinstance(e.created_at, str):
+                    try:
+                        parsed_date = datetime.fromisoformat(e.created_at)
+                    except ValueError:
+                        parsed_date = datetime.strptime(e.created_at, "%d/%m/%Y")
+                else:
+                    parsed_date = e.created_at
+
+                eval_date_map[key] = parsed_date.strftime('%d/%m/%Y')
+            else:
+                eval_date_map[key] = ''
 
     header_roles = []
     header_activities = []
@@ -261,7 +274,6 @@ def global_flat_summary(user_id):
         if not activities:
             continue
 
-        # Vérifier si toutes les activités du rôle sont "green"
         all_green = all(
             eval_map.get(f"{act.id}_activity_manager", '') == 'green'
             for act in activities
@@ -276,15 +288,22 @@ def global_flat_summary(user_id):
 
         for act in activities:
             header_activities.append(act.name)
-            row_manager.append(eval_map.get(f"{act.id}_activity_manager", ''))
+            key = f"{act.id}_activity_manager"
+            row_manager.append({
+                'activity_id': act.id,
+                'note': eval_map.get(key, ''),
+                'date': eval_date_map.get(key, '')
+            })
 
     return render_template(
         'global_flat_summary.html',
         user=user,
         header_roles=header_roles,
         header_activities=header_activities,
-        row_manager=row_manager
+        row_manager=row_manager,
+        current_date=datetime.now().strftime('%d/%m/%Y') 
     )
+
 
 
 @competences_bp.route('/users/global_summary', methods=['GET'])

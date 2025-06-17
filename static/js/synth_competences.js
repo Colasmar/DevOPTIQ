@@ -38,6 +38,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (msg) msg.style.display = "block";
         }
 
+        document.getElementById("toggle-summary")?.addEventListener("click", toggleGlobalSynthesis);
+
     } catch (err) {
         console.error("Erreur récupération utilisateur courant :", err);
     }
@@ -85,12 +87,23 @@ function loadExistingEvaluations(userId) {
 
                 if (evalData) {
                     const note = evalData.note;
-                    const date = new Date(evalData.date).toLocaleDateString('fr-FR');
+                    const rawDate = evalData.date;
+                    let formattedDate = '';
+
+                    try {
+                        const parsedDate = new Date(rawDate);
+                        if (!isNaN(parsedDate)) {
+                            formattedDate = parsedDate.toLocaleDateString('fr-FR');
+                        }
+                    } catch (e) {
+                        formattedDate = '';
+                    }
+
                     cell.classList.remove('red', 'orange', 'green', 'empty');
-                    cell.classList.add(note);
+                    cell.classList.add(note || 'empty');
                     cell.innerHTML = `
                         <div class="note-color"></div>
-                        <div class="note-date">${date}</div>
+                        <div class="note-date">${formattedDate}</div>
                     `;
                     cell.dataset.locked = "true";
                 }
@@ -179,17 +192,83 @@ function saveAllEvaluations() {
 }
 
 document.addEventListener('click', e => {
-    if (e.target.classList.contains('eval-cell')) {
-        if (e.target.dataset.locked === "true") return;
+    const cell = e.target.closest('.eval-cell');
+    if (cell) {
+        const isLocked = cell.dataset.locked === "true";
+        const isEmpty = cell.classList.contains('empty');
+
+        if (isLocked && !isEmpty) return;
+
         const colors = ['red', 'orange', 'green', 'empty'];
-        const current = colors.find(c => e.target.classList.contains(c)) || 'empty';
+        const current = colors.find(c => cell.classList.contains(c)) || 'empty';
         const next = colors[(colors.indexOf(current) + 1) % colors.length];
-        colors.forEach(c => e.target.classList.remove(c));
-        e.target.classList.add(next);
+        colors.forEach(c => cell.classList.remove(c));
+        cell.classList.add(next);
+
         const date = new Date().toLocaleDateString('fr-FR');
-        e.target.innerHTML = `
+        cell.innerHTML = `
             <div class="note-color"></div>
             <div class="note-date">${next !== 'empty' ? date : ''}</div>
         `;
     }
 });
+
+function toggleGlobalSynthesis() {
+  const section = document.getElementById("global-summary-section");
+  if (!section) return;
+
+  const isVisible = !section.classList.contains("hidden");
+  section.classList.toggle("hidden");
+
+  const button = document.getElementById("toggle-summary");
+  if (button) {
+    button.textContent = isVisible ? "Afficher la synthèse globale" : "Masquer la synthèse globale";
+  }
+
+  if (!isVisible && section.innerHTML.trim() === "") {
+    loadGlobalSummary();
+  }
+}
+
+function loadGlobalSummary() {
+  const section = document.getElementById("global-summary-section");
+  if (!selectedUserId || !section) return;
+
+  fetch(`/competences/global_flat_summary/${selectedUserId}`)
+    .then(res => res.text())
+    .then(html => {
+      section.innerHTML = html;
+
+      document.querySelectorAll('.eval-cell').forEach(cell => {
+        const note = ['red', 'orange', 'green'].find(c => cell.classList.contains(c)) || 'empty';
+        const rawDate = cell.dataset.date || '';
+        let formattedDate = '';
+
+        try {
+          const parsed = new Date(rawDate);
+          if (!isNaN(parsed)) {
+            formattedDate = parsed.toLocaleDateString('fr-FR');
+          } else {
+            formattedDate = rawDate;
+          }
+        } catch (e) {
+          formattedDate = '';
+        }
+
+        cell.classList.remove('red', 'orange', 'green', 'empty');
+        cell.classList.add(note);
+        cell.innerHTML = `
+          <div class="note-color"></div>
+          <div class="note-date">${note !== 'empty' ? formattedDate : ''}</div>
+        `;
+
+        if (note !== 'empty') {
+          cell.dataset.locked = "true";
+        }
+      });
+    })
+    .catch(err => {
+      console.error("Erreur chargement synthèse globale:", err);
+      section.innerHTML = "<p>Erreur de chargement de la synthèse.</p>";
+    });
+}
