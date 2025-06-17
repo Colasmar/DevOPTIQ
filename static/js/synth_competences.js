@@ -184,7 +184,8 @@ function saveAllEvaluations() {
                 }
             });
             alert("Évaluations enregistrées !");
-            loadExistingEvaluations(selectedUserId);
+            loadExistingEvaluations(selectedUserId);  // recharge activités
+            loadGlobalSummary(); // recharge synthèse globale
         } else {
             alert("Erreur : " + resp.message);
         }
