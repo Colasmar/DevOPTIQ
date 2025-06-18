@@ -1,0 +1,11 @@
+<script type="text/template" id="template-performance-perso">
+  <div class="perf-perso-block" data-perf-id="<%= id %>">
+    <textarea class="perf-text"><%= content %></textarea>
+    <div class="perf-date"><%= updated_at ? 'Dernière modification : ' + updated_at : '' %></div>
+    <div class="perf-buttons">
+      <button class="btn-save-perf">Enregistrer</button>
+      <button class="btn-delete-perf">Supprimer</button>
+      <button class="btn-history-perf">Historique</button>
+    </div>
+  </div>
+</script>

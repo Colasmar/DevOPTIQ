@@ -116,6 +116,20 @@ class Performance(db.Model):
     link_id = db.Column(db.Integer, db.ForeignKey('links.id', ondelete='CASCADE'), unique=True)
     link = db.relationship('Link', backref=db.backref('performance', uselist=False))
 
+class PerformancePersonnalisee(db.Model):
+    __tablename__ = 'personalized_performance'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.Text, default=datetime.utcnow)
+    updated_at = db.Column(db.Text, nullable=True)
+
+    user = db.relationship('User', backref='personalized_performances')
+    activity = db.relationship('Activities', backref='personalized_performances')
+
+
 class Constraint(db.Model):
     __tablename__ = 'constraints'
     id = db.Column(db.Integer, primary_key=True)

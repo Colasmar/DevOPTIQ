@@ -5,7 +5,7 @@ from Code.extensions import db
 from datetime import datetime
 from Code.models.models import (
     Competency, Role, Activities, User, UserRole,
-    CompetencyEvaluation, Savoir, SavoirFaire, Aptitude, Softskill, activity_roles
+    CompetencyEvaluation, Savoir, SavoirFaire, Aptitude, Softskill, activity_roles, PerformancePersonnalisee
 )
 
 competences_bp = Blueprint('competences_bp', __name__, url_prefix='/competences')
@@ -353,6 +353,85 @@ def users_global_summary():
     )
 
 
+
+@competences_bp.route('/general_performance/<int:activity_id>', methods=['GET'])
+def get_general_performance(activity_id):
+    from Code.models.models import Link, Performance
+    # On récupère une performance attachée à un lien dont source est activity_id
+    link = Link.query.filter_by(source_activity_id=activity_id).first()
+    if not link or not link.performance:
+        return jsonify({'content': ''})
+    return jsonify({'content': link.performance.name or ''})
+
+
+@competences_bp.route('/performance_perso_list/<int:user_id>/<int:activity_id>', methods=['GET'])
+def get_personalized_performance_list(user_id, activity_id):
+    performances = PerformancePersonnalisee.query.filter_by(user_id=user_id, activity_id=activity_id).all()
+    return jsonify([
+        {
+            'id': p.id,
+            'content': p.content,
+            'updated_at': (
+                p.updated_at if isinstance(p.updated_at, str)
+                else p.updated_at.strftime('%d/%m/%Y %H:%M') if p.updated_at else ''
+            )
+        }
+        for p in performances
+    ])
+
+
+@competences_bp.route('/performance_perso', methods=['POST'])
+def save_or_update_personalized_performance():
+    data = request.get_json()
+    user_id = data.get('user_id')
+    activity_id = data.get('activity_id')
+    content = data.get('content')
+
+    if not user_id or not activity_id:
+        return jsonify({'success': False, 'message': 'ID manquant'}), 400
+
+    try:
+        perf = PerformancePersonnalisee.query.filter_by(user_id=user_id, activity_id=activity_id).first()
+        now = datetime.utcnow()
+
+        if perf:
+            perf.content = content
+            perf.updated_at = now
+        else:
+            perf = PerformancePersonnalisee(
+                user_id=user_id,
+                activity_id=activity_id,
+                content=content,
+                created_at=now,
+                updated_at=now
+            )
+            db.session.add(perf)
+
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@competences_bp.route('/performance_history/<int:user_id>/<int:activity_id>')
+def get_performance_history(user_id, activity_id):
+    from sqlalchemy import or_
+    performances = PerformancePersonnalisee.query.filter(
+        PerformancePersonnalisee.user_id == user_id,
+        PerformancePersonnalisee.activity_id == activity_id,
+        or_(PerformancePersonnalisee.content != '', PerformancePersonnalisee.content.isnot(None))
+    ).order_by(PerformancePersonnalisee.updated_at.desc()).all()
+
+    history = [{
+        "content": p.content,
+        "updated_at": (
+            p.updated_at.strftime("%d/%m/%Y %H:%M") if p.updated_at and not isinstance(p.updated_at, str)
+            else p.updated_at if p.updated_at else ''
+        )
+    } for p in performances]
+
+    return jsonify(history)
 
 
 

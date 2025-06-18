@@ -126,6 +126,7 @@ function loadRolesForCollaborator(userId) {
                         const wrapper = document.createElement('div');
                         wrapper.innerHTML = rendered;
 
+                        // Interactivité pour déplier les rôles
                         wrapper.querySelectorAll('.toggle-role').forEach(header => {
                             header.addEventListener('click', () => {
                                 const content = header.nextElementSibling;
@@ -135,6 +136,7 @@ function loadRolesForCollaborator(userId) {
                             });
                         });
 
+                        // Interactivité pour déplier les activités
                         wrapper.querySelectorAll('.toggle-activity').forEach(header => {
                             header.addEventListener('click', () => {
                                 const content = header.nextElementSibling;
@@ -146,10 +148,20 @@ function loadRolesForCollaborator(userId) {
 
                         container.appendChild(wrapper);
                         loadExistingEvaluations(userId);
+
+                        // 👉 Ajout des performances personnalisées après le rendu des activités
+                        wrapper.querySelectorAll('.activity-section').forEach(section => {
+                            const activityId = section.dataset.activityId;
+                            const perfTarget = document.createElement('div');
+                            perfTarget.classList.add('perf-container');
+                            section.appendChild(perfTarget);
+                            insertPerformanceBlock(activityId, perfTarget);
+                        });
                     });
             });
         });
 }
+
 
 function saveAllEvaluations() {
     if (!selectedUserId) return alert("Aucun utilisateur sélectionné.");

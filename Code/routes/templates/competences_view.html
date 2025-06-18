@@ -52,5 +52,19 @@
         });
     </script>
 
+    {% include 'performance_perso_block.html' %}
+    <script src="{{ url_for('static', filename='js/performance_perso.js') }}"></script>
+
+    <div id="perf-history-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-history">&times;</span>
+            <h3>Historique des performances</h3>
+            <div id="history-entries"></div>
+        </div>
+    </div>
+
+    <div id="toast-message" class="toast hidden">Succès</div>
+
+
 </body>
 </html>

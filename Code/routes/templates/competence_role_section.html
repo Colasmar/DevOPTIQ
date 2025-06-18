@@ -9,7 +9,7 @@
         <p>Liste des activités du rôle « <%= role_name %> » :</p>
 
         <% activities.forEach(function(act) { %>
-          <div class="activity-section">
+          <div class="activity-section" data-activity-id="<%= act.id %>">
             <h4 class="toggle-activity">▼ <%= act.name %></h4>
             <div class="activity-content hidden">
 
