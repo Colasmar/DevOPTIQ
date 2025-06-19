@@ -8,66 +8,85 @@ propose_aptitudes_bp = Blueprint('propose_aptitudes_bp', __name__, url_prefix='/
 @propose_aptitudes_bp.route('/propose', methods=['POST'])
 def propose_aptitudes():
     """
-    Reçoit { "activity_data": {...} } en JSON
-    Renvoie { "proposals": [ ... ] } => liste de Aptitudes
-    Endpoint : POST /propose_aptitudes
+    Analyse l'activité et génère entre 5 et 7 aptitudes pertinentes
+    sous forme de phrases simples, sans numérotation ni puce.
     """
     data = request.get_json() or {}
     activity_name = data.get("name", "Activité sans nom")
     input_data_value = data.get("input_data", "")
-    output_data = data.get("output_data", "")
+    output_data_value = data.get("output_data", "")
+    tasks_list = data.get("tasks", [])
+    tools_list = data.get("tools", [])
+    constraints_list = data.get("constraints", [])
+    competencies_list = data.get("competencies", [])
+    outgoing_list = data.get("outgoing", [])
 
-    if isinstance(output_data, dict):
-        output_data_value = output_data.get("text", "")
-    else:
-        output_data_value = output_data
+    # Construire texte tâches, outils, contraintes, etc.
+    tasks_text = "\n".join([f"- {t}" for t in tasks_list]) or "Aucune tâche"
+    tools_text = ", ".join(tools_list) or "Aucun outil"
+    constraints_text = "\n".join([f"- {c.get('description','')}" for c in constraints_list]) or "Aucune contrainte"
+    comps_text = ", ".join([c.get("description", "") for c in competencies_list]) or "Aucune compétence"
+    perf_text = "\n".join([
+        f"- {o['performance']['name']}: {o['performance'].get('description', '')}"
+        for o in outgoing_list if o.get("performance")
+    ]) or "Aucune performance"
 
-    # Contenu du prompt remplacé par celui du deuxième fichier
     prompt = f"""
-Tu es un expert en organisation du travail et en accessibilité inclusive.
+Tu es un assistant expert en analyse d'activités professionnelles.
 
-À partir de la description suivante d'une activité professionnelle :
+À partir des éléments suivants, rédige entre 5 et 7 **aptitudes clés** que la personne doit posséder pour bien réaliser cette activité.
+Ne donne que des phrases directes, sans puces ni numérotation. Chaque aptitude doit être une phrase brève, claire, pratique.
 
-{activity_name}
+Activité : {activity_name}
+Entrées : {input_data_value}
+Sorties : {output_data_value}
 
-Analyse les points suivants :
-1. **Handicaps particulièrement adaptés** : lesquels pourraient apporter une véritable valeur ajoutée à cette activité, et pourquoi ?
-2. **Sans aménagement majeur** : cette activité peut-elle être tenue par une personne en situation de handicap sans adaptation spécifique ? Dans quel(s) cas ?
-3. **Avec aménagements simples** : si des aménagements légers permettraient de la rendre accessible, lesquels recommandes-tu ?
-4. **Contraintes majeures à étudier** : quelles limitations rendent l’activité plus complexe ou bloquante selon certains handicaps ? Et quelles pistes pour lever ces obstacles ?
+Tâches :
+{tasks_text}
 
-Donne une réponse **structurée en 4 paragraphes**, en respectant les titres ci-dessus, sans jargon médical, et en te basant uniquement sur les éléments présents dans la description de l’activité.
-    """
+Outils :
+{tools_text}
+
+Contraintes :
+{constraints_text}
+
+Compétences existantes :
+{comps_text}
+
+Performances attendues :
+{perf_text}
+"""
 
     openai.api_key = os.getenv("OPENAI_API_KEY")
     if not openai.api_key:
-        return jsonify({"error": "Clé DeepAI manquante (OPENAI_API_KEY)."}), 500
+        return jsonify({"error": "Clé OpenAI manquante (OPENAI_API_KEY)."}), 500
+
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "Tu es un assistant expert en accessibilité et organisation inclusive du travail."},
+                {"role": "system", "content": "Tu es un assistant spécialisé en analyse d'activité et recrutement par les aptitudes."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.7,
-            max_tokens=1000
+            temperature=0.4,
+            max_tokens=800
         )
         raw_text = response['choices'][0]['message']['content'].strip()
-        lines = [l.strip() for l in raw_text.split("\n") if l.strip()]
 
-        # FALLBACK : si < 3 lignes => tenter un split sur '. '
+        # Nettoyage
+        lines = [l.strip("-• \n") for l in raw_text.split("\n") if l.strip()]
+
+        # Fallback si nécessaire
         if len(lines) < 3:
             import re
-            splitted = re.split(r'\.\s+', raw_text)
-            splitted = [s.strip() for s in splitted if s.strip()]
-            if len(splitted) > len(lines):
-                lines = splitted
+            fallback = re.split(r'\.\s+', raw_text)
+            lines = [s.strip() for s in fallback if s.strip()]
 
-        # On force lines à 10 maximum si l'IA en renvoie plus
+        # Limite max
         if len(lines) > 10:
             lines = lines[:10]
 
         return jsonify({"proposals": lines}), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": f"Erreur lors de la proposition d'aptitudes : {str(e)}"}), 500
