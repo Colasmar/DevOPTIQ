@@ -366,22 +366,26 @@ def get_general_performance(activity_id):
 
 @competences_bp.route('/performance_perso_list/<int:user_id>/<int:activity_id>', methods=['GET'])
 def get_personalized_performance_list(user_id, activity_id):
-    performances = PerformancePersonnalisee.query.filter_by(user_id=user_id, activity_id=activity_id).all()
+    performances = PerformancePersonnalisee.query.filter_by(
+        user_id=user_id, activity_id=activity_id, deleted=False
+    ).order_by(PerformancePersonnalisee.updated_at.desc()).all()
+
     return jsonify([
         {
             'id': p.id,
             'content': p.content,
             'updated_at': (
-                p.updated_at if isinstance(p.updated_at, str)
-                else p.updated_at.strftime('%d/%m/%Y %H:%M') if p.updated_at else ''
+                p.updated_at.strftime('%d/%m/%Y %H:%M') if p.updated_at and not isinstance(p.updated_at, str)
+                else p.updated_at
             )
         }
         for p in performances
     ])
 
 
+
 @competences_bp.route('/performance_perso', methods=['POST'])
-def save_or_update_personalized_performance():
+def save_new_personalized_performance():
     data = request.get_json()
     user_id = data.get('user_id')
     activity_id = data.get('activity_id')
@@ -391,27 +395,21 @@ def save_or_update_personalized_performance():
         return jsonify({'success': False, 'message': 'ID manquant'}), 400
 
     try:
-        perf = PerformancePersonnalisee.query.filter_by(user_id=user_id, activity_id=activity_id).first()
-        now = datetime.utcnow()
-
-        if perf:
-            perf.content = content
-            perf.updated_at = now
-        else:
-            perf = PerformancePersonnalisee(
-                user_id=user_id,
-                activity_id=activity_id,
-                content=content,
-                created_at=now,
-                updated_at=now
-            )
-            db.session.add(perf)
-
+        perf = PerformancePersonnalisee(
+            user_id=user_id,
+            activity_id=activity_id,
+            content=content,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+            deleted=False
+        )
+        db.session.add(perf)
         db.session.commit()
         return jsonify({'success': True})
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
+
 
 
 @competences_bp.route('/performance_history/<int:user_id>/<int:activity_id>')
@@ -428,10 +426,25 @@ def get_performance_history(user_id, activity_id):
         "updated_at": (
             p.updated_at.strftime("%d/%m/%Y %H:%M") if p.updated_at and not isinstance(p.updated_at, str)
             else p.updated_at if p.updated_at else ''
-        )
+        ),
+        "deleted": p.deleted
     } for p in performances]
+
 
     return jsonify(history)
 
 
+@competences_bp.route('/performance_perso/<int:perf_id>', methods=['DELETE'])
+def delete_personalized_performance(perf_id):
+    perf = PerformancePersonnalisee.query.get(perf_id)
+    if not perf:
+        return jsonify({'success': False, 'message': 'Introuvable'}), 404
+    try:
+        perf.deleted = True
+        perf.updated_at = datetime.utcnow()
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
 

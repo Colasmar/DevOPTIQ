@@ -3,7 +3,6 @@ function insertPerformanceBlock(activityId, container) {
 
   container.innerHTML = '';
 
-  // Performance générale
   fetch(`/competences/general_performance/${activityId}`)
     .then(r => r.json())
     .then(data => {
@@ -15,7 +14,7 @@ function insertPerformanceBlock(activityId, container) {
       `;
       container.appendChild(perfDiv);
 
-      // Performances personnalisées — on les injecte après
+      // Performances personnalisées
       fetch(`/competences/performance_perso_list/${selectedUserId}/${activityId}`)
         .then(r => r.json())
         .then(list => {
@@ -23,12 +22,19 @@ function insertPerformanceBlock(activityId, container) {
           subContainer.className = 'perf-perso-container';
 
           if (list.length === 0) {
-            subContainer.innerHTML = `<p class="no-perf-message"><em>Aucune performance définie pour cette activité.</em></p>`;
+            const msg = document.createElement('p');
+            msg.className = 'no-perf-message';
+            msg.innerHTML = "<em>Aucune performance personnalisée définie pour cette activité.</em>";
+            subContainer.appendChild(msg);
           } else {
             list.forEach(perf => {
               renderPersonalPerf(perf, subContainer, activityId);
             });
           }
+
+          const actionRow = document.createElement('div');
+          actionRow.style.display = 'flex';
+          actionRow.style.gap = '10px';
 
           const addBtn = document.createElement('button');
           addBtn.className = 'btn-add-perf';
@@ -36,9 +42,19 @@ function insertPerformanceBlock(activityId, container) {
           addBtn.addEventListener('click', () => {
             renderPersonalPerf({ content: "", id: null }, subContainer, activityId, true);
           });
-          subContainer.appendChild(addBtn);
 
-          container.appendChild(subContainer);  // en dessous du bloc général
+          const historyBtn = document.createElement('button');
+          historyBtn.className = 'btn-history-perf';
+          historyBtn.textContent = 'Historique';
+          historyBtn.addEventListener('click', () => {
+            showPerformanceHistory(selectedUserId, activityId, data.content);
+          });
+
+          actionRow.appendChild(addBtn);
+          actionRow.appendChild(historyBtn);
+          subContainer.appendChild(actionRow);
+
+          container.appendChild(subContainer);
         });
     });
 }
@@ -47,21 +63,33 @@ function renderPersonalPerf(perf, container, activityId, isNew = false) {
   const wrapper = document.createElement('div');
   wrapper.className = 'perf-perso-block';
 
-  const idAttr = perf.id ? `data-id="${perf.id}"` : '';
-  wrapper.innerHTML = `
-    <textarea class="perf-text">${perf.content || ''}</textarea>
-    <div class="perf-date">${perf.updated_at ? `Dernière modification : ${perf.updated_at}` : ''}</div>
-    <button class="btn-save-perf">Enregistrer</button>
-    <button class="btn-delete-perf">Supprimer</button>
-    <button class="btn-history-perf">Historique</button>
-  `;
+  const textarea = document.createElement('textarea');
+  textarea.className = 'perf-text';
+  textarea.value = perf.content || '';
+  wrapper.appendChild(textarea);
 
-  const textarea = wrapper.querySelector('.perf-text');
-  const saveBtn = wrapper.querySelector('.btn-save-perf');
-  const deleteBtn = wrapper.querySelector('.btn-delete-perf');
-  const historyBtn = wrapper.querySelector('.btn-history-perf');
+  const dateSpan = document.createElement('div');
+  dateSpan.className = 'perf-date';
+  if (perf.updated_at) {
+    dateSpan.textContent = `Dernière modification : ${perf.updated_at}`;
+  }
+  wrapper.appendChild(dateSpan);
 
-  saveBtn.addEventListener('click', () => {
+  const btnSave = document.createElement('button');
+  btnSave.className = 'btn-save-perf';
+  btnSave.textContent = 'Enregistrer';
+
+  const btnDelete = document.createElement('button');
+  btnDelete.className = 'btn-delete-perf';
+  btnDelete.textContent = 'Supprimer';
+
+  const btnGroup = document.createElement('div');
+  btnGroup.className = 'perf-buttons';
+  btnGroup.appendChild(btnSave);
+  btnGroup.appendChild(btnDelete);
+  wrapper.appendChild(btnGroup);
+
+  btnSave.addEventListener('click', () => {
     fetch('/competences/performance_perso', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -82,15 +110,26 @@ function renderPersonalPerf(perf, container, activityId, isNew = false) {
     });
   });
 
-  deleteBtn.addEventListener('click', () => {
-    textarea.value = "";
+  btnDelete.addEventListener('click', () => {
+    if (!perf.id) {
+      wrapper.remove();
+    } else {
+      fetch(`/competences/performance_perso/${perf.id}`, {
+        method: 'DELETE'
+      })
+      .then(r => r.json())
+      .then(resp => {
+        if (resp.success) {
+          showToast("Performance supprimée.", "success");
+          insertPerformanceBlock(activityId, container.parentElement);
+        } else {
+          showToast("Erreur : " + resp.message, "error");
+        }
+      });
+    }
   });
 
-  historyBtn.addEventListener('click', () => {
-    showPerformanceHistory(selectedUserId, activityId);
-  });
-
-  container.insertBefore(wrapper, container.querySelector('.btn-add-perf'));
+  container.insertBefore(wrapper, container.querySelector('.btn-add-perf')?.parentElement || null);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -101,12 +140,14 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
-window.showPerformanceHistory = function(userId, activityId) {
+window.showPerformanceHistory = function(userId, activityId, activityTitle = '') {
   fetch(`/competences/performance_history/${userId}/${activityId}`)
     .then(r => r.json())
     .then(history => {
       const container = document.getElementById("history-entries");
+      const modalTitle = document.getElementById("history-modal-title");
       container.innerHTML = "";
+      modalTitle.textContent = `Historique des performances personnalisées – ${activityTitle}`;
 
       if (history.length === 0) {
         container.innerHTML = "<p><em>Aucun historique trouvé.</em></p>";
@@ -114,7 +155,12 @@ window.showPerformanceHistory = function(userId, activityId) {
         history.forEach(h => {
           const div = document.createElement("div");
           div.classList.add("history-entry");
-          div.innerHTML = `<p><strong>${h.updated_at}</strong><br>${h.content}</p>`;
+          div.innerHTML = `
+            <p>
+              <strong>${h.updated_at}</strong> 
+              ${h.deleted ? '<span style="color:red">(supprimée)</span>' : ''}
+              <br>${h.content}
+            </p>`;
           container.appendChild(div);
         });
       }

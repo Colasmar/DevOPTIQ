@@ -1,3 +1,4 @@
+<!-- Template des performances personnalisées (conservé si utilisé ailleurs, mais les boutons sont déplacés) -->
 <script type="text/template" id="template-performance-perso">
   <div class="perf-perso-block" data-perf-id="<%= id %>">
     <textarea class="perf-text"><%= content %></textarea>
@@ -5,7 +6,15 @@
     <div class="perf-buttons">
       <button class="btn-save-perf">Enregistrer</button>
       <button class="btn-delete-perf">Supprimer</button>
-      <button class="btn-history-perf">Historique</button>
     </div>
   </div>
 </script>
+
+<!-- Modale d'historique -->
+<div id="perf-history-modal" class="modal hidden">
+  <div class="modal-content">
+    <span class="close-history">&times;</span>
+    <h3 id="history-modal-title">Historique des performances personnalisées</h3>
+    <div id="history-entries"></div>
+  </div>
+</div>
