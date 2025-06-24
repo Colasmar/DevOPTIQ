@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Projection Métiers ROME</title>
+  <link rel="stylesheet" href="./../../../static/projection_metier.css">
+  <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="container">
+    <h2>Projection Métiers via API ROME</h2>
+
+    <label for="user-select">Sélectionner un utilisateur :</label>
+    <select id="user-select" class="form-select">
+      <option value="">-- Choisir --</option>
+      {% for u in users %}
+        <option value="{{ u.id }}">{{ u.first_name }} {{ u.last_name }}</option>
+      {% endfor %}
+    </select>
+
+    <div id="results" style="margin-top: 2em;">
+      <h3>Métiers maîtrisables</h3>
+      <ul id="full-list"></ul>
+      <h3>Métiers envisageables</h3>
+      <ul id="partial-list"></ul>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/projection_metier.js') }}"></script>
+</body>
+</html>

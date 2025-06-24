@@ -167,6 +167,11 @@ def create_app():
     from Code.routes.gestion_rh import gestion_rh_bp
     app.register_blueprint(gestion_rh_bp)
 
+    from Code.routes.projection_metier import projection_metier_bp
+    app.register_blueprint(projection_metier_bp)
+
+
+
 
     # Clé secrète pour session et sécurité
     app.secret_key = 'votre_clé_secrète_unique'

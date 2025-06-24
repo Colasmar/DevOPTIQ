@@ -1,0 +1,65 @@
+/* Style principal */
+.container {
+  max-width: 1000px;
+  margin: 40px auto;
+  padding: 30px;
+  background: #fdfdff;
+  border-radius: 15px;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.08);
+}
+
+/* Titre */
+.container h2 {
+  font-size: 28px;
+  color: #444;
+  margin-bottom: 20px;
+}
+
+/* Sélecteur utilisateur */
+#user-select {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  background: #fffdf9;
+  font-size: 16px;
+  margin-bottom: 20px;
+}
+
+/* Titres de section */
+#results h3 {
+  margin-top: 30px;
+  color: #333;
+  font-size: 22px;
+  border-left: 5px solid #9ac6f7;
+  padding-left: 10px;
+}
+
+/* Listes de métiers */
+#results ul {
+  list-style-type: none;
+  padding-left: 0;
+}
+
+#results li {
+  background-color: #e7f3ff;
+  margin-bottom: 10px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  border-left: 4px solid #3f88c5;
+  box-shadow: 1px 1px 5px rgba(0,0,0,0.05);
+}
+
+/* Texte fort dans les listes */
+#results li strong {
+  color: #2b4f81;
+}
+
+/* Liste partielle - couleur différente */
+#partial-list li {
+  background-color: #fff5e6;
+  border-left-color: #ffa94d;
+}
+
+#partial-list li strong {
+  color: #a45c00;
+}
