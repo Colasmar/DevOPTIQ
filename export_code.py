@@ -1,6 +1,7 @@
 import os
 from docx import Document
 import pydotplus as pydot
+import shutil
 
 from Code.extensions import db
 import Code.models.models  # pour enregistrer les modèles SQLAlchemy
@@ -15,9 +16,9 @@ excluded_file_names = {"jquery-3.6.0.min.js"}
 doc = Document()
 doc.add_heading("Export de l'Architecture, du Code et de la Structure de la Base de Données", level=1)
 
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------
 # 1. Architecture du Projet
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------
 doc.add_heading("1. Architecture du Projet", level=2)
 
 def add_architecture(path, indent=""):
@@ -40,9 +41,9 @@ def add_architecture(path, indent=""):
 
 add_architecture(root_dir)
 
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------
 # 2. Code Source
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------
 doc.add_heading("2. Code Source", level=2)
 
 for folder, subdirs, files in os.walk(root_dir):
@@ -56,21 +57,18 @@ for folder, subdirs, files in os.walk(root_dir):
             if file in excluded_file_names:
                 doc.add_paragraph("⚠️ Fichier volumineux ou minifié ignoré pour lisibilité.")
                 doc.add_heading(f"Fin du fichier: {file}", level=3)
-                print(f"⏭️ Contenu ignoré : {file_path}")
                 continue
             try:
                 with open(file_path, "r", encoding="utf-8") as f:
                     code = f.read()
                     doc.add_paragraph(code)
                     doc.add_heading(f"Fin du fichier: {file}", level=3)
-                print(f"✅ Fichier exporté : {file_path}")
             except Exception as e:
                 doc.add_paragraph(f"❌ Erreur de lecture : {e}")
-                print(f"❌ Erreur pour : {file_path}")
 
-# ------------------------------------------------------------------------------
-# 3. Structure de la Base de Données (texte)
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------
+# 3. Structure de la Base de Données (Texte)
+# --------------------------------------------------------------------
 doc.add_heading("3. Structure de la Base de Données (Texte)", level=2)
 metadata = db.Model.metadata
 for table in metadata.sorted_tables:
@@ -78,9 +76,9 @@ for table in metadata.sorted_tables:
     for column in table.columns:
         doc.add_paragraph(f"• {column.name} ({column.type})")
 
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------
 # 4. Diagramme Visuel de la Base de Données
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------
 doc.add_heading("4. Diagramme Visuel de la Base de Données", level=2)
 
 def create_schema_graph(metadata):
@@ -104,15 +102,22 @@ def create_schema_graph(metadata):
 
 diagram_path = os.path.join(root_dir, "database_schema.png")
 try:
+    print("📊 Vérification de Graphviz...")
+    if not shutil.which("dot"):
+        raise EnvironmentError("Graphviz (dot) n'est pas installé ou n’est pas dans le PATH système.")
+
     graph = create_schema_graph(metadata)
     graph.write_png(diagram_path)
-    doc.add_paragraph(f"Diagramme généré : {diagram_path}")
+    print(f"✅ Diagramme PNG généré avec succès : {diagram_path}")
+    doc.add_paragraph(f"✅ Diagramme généré avec succès : {diagram_path}")
 except Exception as e:
+    print(f"❌ Erreur de génération du diagramme : {e}")
     doc.add_paragraph(f"❌ Erreur lors de la génération du diagramme : {e}")
 
-# ------------------------------------------------------------------------------
+
+# --------------------------------------------------------------------
 # 5. Sauvegarde finale
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------
 output_path = os.path.join(root_dir, "export_code.docx")
 doc.save(output_path)
 print(f"✅ Export terminé ! Fichier généré : {output_path}")
