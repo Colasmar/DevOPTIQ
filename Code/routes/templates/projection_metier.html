@@ -3,26 +3,48 @@
 <head>
   <meta charset="UTF-8">
   <title>Projection Métiers ROME</title>
-  <link rel="stylesheet" href="./../../../static/projection_metier.css">
-  <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='projection_metier.css') }}">
 </head>
 <body>
   <div class="container">
     <h2>Projection Métiers via API ROME</h2>
 
-    <label for="user-select">Sélectionner un utilisateur :</label>
+    <div class="muted">
+      Base URL ROME (produit) utilisée côté serveur :
+      <code id="base-url"></code>
+    </div>
+
+    <label for="user-select" class="label">Sélectionner un utilisateur :</label>
     <select id="user-select" class="form-select">
-      <option value="">-- Choisir --</option>
+      <option value="0">-- Choisir --</option>
       {% for u in users %}
         <option value="{{ u.id }}">{{ u.first_name }} {{ u.last_name }}</option>
       {% endfor %}
     </select>
 
-    <div id="results" style="margin-top: 2em;">
-      <h3>Métiers maîtrisables</h3>
-      <ul id="full-list"></ul>
-      <h3>Métiers envisageables</h3>
-      <ul id="partial-list"></ul>
+    <div id="alert" class="alert"></div>
+
+    <!-- Spinner global -->
+    <div class="loader">
+      <span id="spinner" class="spinner" aria-label="Chargement" title="Chargement"></span>
+    </div>
+
+    <div id="results" class="results">
+      <!-- Maîtrisables -->
+      <div class="section-header">
+        <h3>Métiers maîtrisables <span class="count" id="full-count">0/0</span></h3>
+        <button class="btn more" id="full-more" type="button">Afficher plus</button>
+      </div>
+      <ul id="full-list" class="jobs"></ul>
+
+      <!-- Envisageables -->
+      <div class="section-header">
+        <h3>Métiers envisageables <span class="count" id="partial-count">0/0</span></h3>
+      </div>
+      <ul id="partial-list" class="jobs"></ul>
+      <div class="list-footer">
+        <button class="btn more" id="partial-more" type="button">Afficher plus</button>
+      </div>
     </div>
   </div>
 
