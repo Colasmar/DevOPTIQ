@@ -93,6 +93,26 @@ def save_user_evaluations():
 
 @competences_bp.route('/get_user_evaluations_by_user/<int:user_id>', methods=['GET'])
 def get_user_evaluations_by_user(user_id):
+    from datetime import datetime
+
+    def to_iso(dt):
+        if not dt:
+            return ''
+        # la colonne est Text : dt peut être str ou datetime
+        if isinstance(dt, datetime):
+            return dt.isoformat()  # ex: 2025-08-15T12:34:56.789123
+        if isinstance(dt, str):
+            # essaie iso → sinon quelques formats courants → sinon renvoie tel quel
+            for fmt in ("%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%d %H:%M:%S.%f",
+                        "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S",
+                        "%d/%m/%Y %H:%M", "%d/%m/%Y"):
+                try:
+                    return datetime.strptime(dt, fmt).isoformat()
+                except ValueError:
+                    continue
+            return dt  # on garde la valeur, le front fera un fallback
+        return ''
+
     evaluations = CompetencyEvaluation.query.filter_by(user_id=user_id).all()
     return jsonify([{
         'activity_id': e.activity_id,
@@ -100,8 +120,9 @@ def get_user_evaluations_by_user(user_id):
         'item_type': e.item_type,
         'eval_number': e.eval_number,
         'note': e.note,
-        'created_at': e.created_at
+        'created_at': to_iso(e.created_at)
     } for e in evaluations])
+
 
 @competences_bp.route('/role_structure/<int:user_id>/<int:role_id>', methods=['GET'])
 def get_role_structure(user_id, role_id):
