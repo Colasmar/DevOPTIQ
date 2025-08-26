@@ -170,6 +170,9 @@ def create_app():
     from Code.routes.projection_metier import projection_metier_bp
     app.register_blueprint(projection_metier_bp)
 
+    from Code.routes.gestion_outils import bp_tools
+    app.register_blueprint(bp_tools)
+
 
 
 
