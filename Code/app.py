@@ -119,8 +119,8 @@ def create_app():
     from Code.routes.constraints import constraints_bp
     app.register_blueprint(constraints_bp)
 
-    from Code.routes.propose_softskills import propose_softskills_bp
-    app.register_blueprint(propose_softskills_bp)
+    from Code.routes.propose_softskills import bp_propose_softskills
+    app.register_blueprint(bp_propose_softskills)
 
     from Code.routes.translate_softskills import translate_softskills_bp
     app.register_blueprint(translate_softskills_bp)
@@ -146,14 +146,15 @@ def create_app():
     # ---------------------
     #  Nouveaux blueprints
     # ---------------------
-    from Code.routes.propose_savoirs import propose_savoirs_bp
-    app.register_blueprint(propose_savoirs_bp)
 
-    from Code.routes.propose_savoir_faires import propose_savoir_faires_bp
-    app.register_blueprint(propose_savoir_faires_bp)
+    from Code.routes.propose_savoirs import bp_propose_savoirs
+    app.register_blueprint(bp_propose_savoirs)
 
-    from Code.routes.propose_aptitudes import propose_aptitudes_bp
-    app.register_blueprint(propose_aptitudes_bp)
+    from Code.routes.propose_savoir_faires import bp_propose_sf
+    app.register_blueprint(bp_propose_sf)
+
+    from Code.routes.propose_aptitudes import bp_propose_aptitudes
+    app.register_blueprint(bp_propose_aptitudes)
 
     from Code.routes.time_view import time_bp
     app.register_blueprint(time_bp)
