@@ -1,452 +1,465 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Vue des Rôles</title>
-  <!-- Votre feuille de style principale -->
-  <link rel="stylesheet" href="/static/optiq.css">
-  <!-- Feuille de style du spinner, à la racine de static/ -->
-  <link rel="stylesheet" href="/static/spinner.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
+  <link rel="stylesheet" href="/static/optiq.css" />
+  <link rel="stylesheet" href="/static/spinner.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <style>
-    /* Conteneur global du rôle */
+    /* Conteneur global */
+    .page-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 12px;
+    }
+
+    /* Carte rôle */
     .role-container {
-      border: 1px solid #ccc;
-      padding: 10px;
-      margin-bottom: 10px;
-      background-color: #2ecc71; /* Fond vert pour le rôle */
-      color: #fff;
+      border: 1px solid #e3e3e3;
+      padding: 10px 10px 14px;
+      margin-bottom: 14px;
+      background-color: #f8fff9;
+      color: #222;
+      border-radius: 8px;
     }
     .role-header {
       cursor: pointer;
-      font-size: 1.2em;
-      font-weight: bold;
-      padding: 5px;
-      background-color: #27ae60;
-      position: relative;
+      font-size: 1.1rem;
+      font-weight: 700;
+      padding: 6px 8px;
+      background-color: #e9f8ee;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .role-header .actions {
+      margin-left: auto;
+      display: flex;
+      gap: 10px;
+    }
+    .role-header .actions i {
+      cursor: pointer;
+      color: #444;
     }
     .toggle-icon {
-      margin-right: 5px;
+      font-weight: 700;
+      width: 18px;
+      display: inline-block;
+      text-align: center;
     }
-    /* Icônes d'édition et de suppression pour les rôles */
-    .role-edit-icon, .role-delete-icon {
-      font-size: 1em;
-      margin-left: 10px;
-      cursor: pointer;
-      color: #fff;
+    .role-body {
+      display: none;
+      margin-top: 8px;
     }
-    /* Blocs internes (le header conserve la couleur d'origine) */
+
+    /* Blocs internes */
     .role-block {
-      margin: 5px 0;
-      border: 1px solid rgba(255,255,255,0.6);
+      margin: 10px 0;
+      border: 1px solid #e3e3e3;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #fff;
     }
-    .block-1 { background-color: #1e8449; }
-    .block-2 { background-color: #27ae60; }
-    .block-3 { background-color: #27ae60; }
-    .block-4 { background-color: #a9dfbf; }
     .block-header {
       cursor: pointer;
-      font-size: 1em;
-      font-weight: bold;
-      padding: 3px;
-      border-bottom: 1px solid rgba(255,255,255,0.6);
-      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 8px 10px;
+      background: #f3f6f8;
+      border-bottom: 1px solid #e3e3e3;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
-    /* Style commun pour le contenu déployé de tous les blocs */
     .block-content {
       display: none;
-      background-color: #fff;
-      color: #000;
       padding: 10px;
+      color: #222;
     }
-    /* Bouton Retour */
-    .back-button {
-      display: inline-block;
-      margin: 10px 0;
-      padding: 10px 15px;
-      background-color: #007BFF;
-      color: #fff;
-      text-decoration: none;
-      border-radius: 5px;
+
+    /* Mission Générale */
+    .mission-area {
+      width: 100%;
+      min-height: 100px;
+      resize: vertical;
+      padding: 8px;
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+      font-family: inherit;
     }
-    /* Modale d'onboarding */
-    #onboardingModal {
-      display: none;
-      position: fixed;
-      top: 10%;
-      left: 20%;
-      width: 60%;
-      height: 70%;
-      background: #fff;
-      border: 1px solid #aaa;
-      padding: 20px;
-      z-index: 10000;
-      overflow-y: auto;
-      color: #000; /* Texte noir pour lisibilité */
+    .mission-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 8px;
     }
-    #onboardingModal .close-btn {
-      float: right;
-      cursor: pointer;
-      font-size: 1.2em;
-      color: #333;
-    }
-    .onboarding-btn {
-      margin: 10px 5px;
+    .btn-primary {
       padding: 8px 12px;
-      background-color: #007BFF;
-      color: #fff;
+      border-radius: 6px;
       border: none;
-      border-radius: 4px;
+      background: #1f7a54;
+      color: #fff;
       cursor: pointer;
     }
-    .role-container {
-    padding: 10px;
-    border: 1px solid #ccc;
-    margin-top: 10px;
-}
+    .btn-secondary {
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid #d0d7de;
+      background: #fff;
+      cursor: pointer;
+    }
 
-.role-title {
-    font-weight: bold;
-    cursor: pointer;
-    color: #007bff;
-}
+    /* Tableau simple */
+    table.simple {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    table.simple th, table.simple td {
+      border: 1px solid #e3e3e3;
+      padding: 6px 8px;
+      text-align: left;
+    }
+    table.simple thead {
+      background: #f3f6f8;
+    }
 
-.role-details {
-    display: none; /* Masqué par défaut */
-    padding: 10px;
-    background-color: #f8f9fa;
-}
+    /* Titulaires */
+    .holder-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border-radius: 16px;
+      background: #f3f6f8;
+      border: 1px solid #e3e3e3;
+      margin: 4px 6px 0 0;
+    }
+    .holder-badge .level {
+      font-weight: 700;
+      color: #222;
+      min-width: 1.5rem;
+      text-align: center;
+    }
 
-.softskill-details {
-    padding: 5px;
-    border: 1px dotted #6c757d;
-    margin: 5px 0;
-    background-color: #e9ecef;
-}
+    /* Spinner overlay */
+    #spinnerOverlay {
+      display:none;
+      position:fixed; top:0; left:0; right:0; bottom:0;
+      background:rgba(0,0,0,0.25); z-index:9999;
+    }
+    #spinnerOverlay .center {
+      position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    }
   </style>
 </head>
 <body>
-  <!-- Bouton pour revenir à la vue des activités -->
-  <a href="/activities/view" class="back-button">
-    <i class="fa-solid fa-arrow-left"></i> Retour aux activités
-  </a>
+  {% include "header_buttons.html" %}
 
-  <h1>Vue des Rôles</h1>
-  
-  {% for item in roles_data %}
-    <div class="role-container">
-      <!-- En-tête du rôle avec icônes d'édition et de suppression -->
-      <div class="role-header" onclick="toggleRoleContainer('role-body-{{ item.role.id }}', event)">
-        <span class="toggle-icon" id="role-icon-{{ item.role.id }}">▶</span>
-        Rôle : <span id="role-name-{{ item.role.id }}">{{ item.role.name }}</span>
-        <i class="fas fa-pencil-alt role-edit-icon" onclick="editRole(event, {{ item.role.id }})"></i>
-        <i class="fas fa-trash role-delete-icon" onclick="deleteRole(event, {{ item.role.id }})"></i>
-      </div>
-      <div id="role-body-{{ item.role.id }}" style="display:none;">
-        <!-- Bloc 1 : Activités où ce rôle est Garant -->
-        <div class="role-block block-1">
-          <div class="block-header" onclick="toggleBlock('block1-{{ item.role.id }}', event)">
-            <span class="toggle-icon" id="block1-icon-{{ item.role.id }}">▶</span>
-            Bloc 1 : Activités où ce rôle est Garant
-          </div>
-          <div id="block1-{{ item.role.id }}" class="block-content">
-            {% if item.block1 %}
-              <ul>
-                {% for act in item.block1 %}
-                  <li>{{ act.name }} (ID: {{ act.id }}) - {{ act.description }}</li>
-                {% endfor %}
-              </ul>
-            {% else %}
-              <p>Aucune activité trouvée.</p>
-            {% endif %}
+  <div class="page-container">
+    <h1>Vue des Rôles</h1>
+
+    {% for item in roles_data %}
+      <div class="role-container">
+        <!-- En-tête -->
+        <div class="role-header" onclick="toggleRoleContainer('role-body-{{ item.role.id }}', event)">
+          <span class="toggle-icon" id="role-icon-{{ item.role.id }}">▶</span>
+          Rôle : <span id="role-name-{{ item.role.id }}">{{ item.role.name }}</span>
+          <div class="actions">
+            <i class="fas fa-pencil-alt" title="Renommer le rôle" onclick="editRole(event, {{ item.role.id }})"></i>
+            <i class="fas fa-trash" title="Supprimer le rôle" onclick="deleteRole(event, {{ item.role.id }})"></i>
           </div>
         </div>
-        <!-- Bloc 2 : Activités/Tâches où ce rôle intervient (non Garant) -->
-        <div class="role-block block-2">
-          <div class="block-header" onclick="toggleBlock('block2-{{ item.role.id }}', event)">
-            <span class="toggle-icon" id="block2-icon-{{ item.role.id }}">▶</span>
-            Bloc 2 : Activités/Tâches où ce rôle intervient (non Garant)
+
+        <div id="role-body-{{ item.role.id }}" class="role-body">
+          <!-- Bloc Mission Générale -->
+          <div class="role-block">
+            <div class="block-header" onclick="toggleBlock('mission-{{ item.role.id }}', event)">
+              <span class="toggle-icon" id="mission-icon-{{ item.role.id }}">▼</span>
+              Mission Générale
+            </div>
+            <div id="mission-{{ item.role.id }}" class="block-content" style="display:block;">
+              <textarea id="mission-text-{{ item.role.id }}" class="mission-area"
+                        placeholder="Décrire ici la mission générale du rôle…">{{ item.mission_generale }}</textarea>
+              <div class="mission-footer">
+                <button class="btn-secondary" onclick="resetMission({{ item.role.id }})">Annuler</button>
+                <button class="btn-primary" onclick="saveMission({{ item.role.id }})">Enregistrer</button>
+              </div>
+            </div>
           </div>
-          <div id="block2-{{ item.role.id }}" class="block-content">
-            {% if item.block2 %}
-              <table style="width:100%; border-collapse: collapse;">
-                <thead>
-                  <tr>
-                    <th style="border: 1px solid #ccc; padding: 5px;">Activité</th>
-                    <th style="border: 1px solid #ccc; padding: 5px;">Tâche</th>
-                    <th style="border: 1px solid #ccc; padding: 5px;">Statut</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for t in item.block2 %}
-                    <tr>
-                      <td style="border: 1px solid #ccc; padding: 5px;">{{ t.activity_name }}</td>
-                      <td style="border: 1px solid #ccc; padding: 5px;">{{ t.task_name }}</td>
-                      <td style="border: 1px solid #ccc; padding: 5px;">{{ t.status }}</td>
-                    </tr>
+
+          <!-- Bloc 1 : Activités où ce rôle est Garant -->
+          <div class="role-block">
+            <div class="block-header" onclick="toggleBlock('block1-{{ item.role.id }}', event)">
+              <span class="toggle-icon" id="block1-icon-{{ item.role.id }}">▶</span>
+              Activités où ce rôle est Garant
+            </div>
+            <div id="block1-{{ item.role.id }}" class="block-content">
+              {% if item.block1 %}
+                <ul>
+                  {% for act in item.block1 %}
+                    <li>{{ act.name }} (ID: {{ act.id }}) — {{ act.description }}</li>
                   {% endfor %}
-                </tbody>
-              </table>
-            {% else %}
-              <p>Aucune donnée pour ce bloc.</p>
-            {% endif %}
+                </ul>
+              {% else %}
+                <p>Aucune activité trouvée.</p>
+              {% endif %}
+            </div>
           </div>
-        </div>
-        <!-- Bloc 3 : Compétences associées aux activités Garant -->
-        <div class="role-block block-3">
-          <div class="block-header" onclick="toggleBlock('block3-{{ item.role.id }}', event)">
-            <span class="toggle-icon" id="block3-icon-{{ item.role.id }}">▶</span>
-            Bloc 3 : Compétences associées aux activités Garant
+
+          <!-- Bloc 2 : Activités/Tâches où ce rôle intervient (non Garant) -->
+          <div class="role-block">
+            <div class="block-header" onclick="toggleBlock('block2-{{ item.role.id }}', event)">
+              <span class="toggle-icon" id="block2-icon-{{ item.role.id }}">▶</span>
+              Activités/Tâches où ce rôle intervient (non Garant)
+            </div>
+            <div id="block2-{{ item.role.id }}" class="block-content">
+              {% if item.block2 %}
+                <table class="simple">
+                  <thead>
+                    <tr>
+                      <th>Activité</th>
+                      <th>Tâche</th>
+                      <th>Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for t in item.block2 %}
+                      <tr>
+                        <td>{{ t.activity_name }}</td>
+                        <td>{{ t.task_name }}</td>
+                        <td>{{ t.status }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              {% else %}
+                <p>Aucune donnée pour ce bloc.</p>
+              {% endif %}
+            </div>
           </div>
-          <div id="block3-{{ item.role.id }}" class="block-content">
-            {% if item.block3 %}
+
+          <!-- Bloc 3 : Compétences associées aux activités Garant -->
+          <div class="role-block">
+            <div class="block-header" onclick="toggleBlock('block3-{{ item.role.id }}', event)">
+              <span class="toggle-icon" id="block3-icon-{{ item.role.id }}">▶</span>
+              Compétences associées aux activités Garant
+            </div>
+            <div id="block3-{{ item.role.id }}" class="block-content">
+              {% if item.block3 %}
+                <ul>
+                  {% for comp in item.block3 %}
+                    <li>{{ comp.description }} (ID: {{ comp.id }})</li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                <p>Aucune compétence trouvée.</p>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Bloc 4 : Savoirs / Savoir-faire / Aptitudes / HSC -->
+          <div class="role-block">
+            <div class="block-header" onclick="toggleBlock('block4-{{ item.role.id }}', event)">
+              <span class="toggle-icon" id="block4-icon-{{ item.role.id }}">▶</span>
+              Savoirs, Savoir-faire, Aptitudes et HSC
+            </div>
+            <div id="block4-{{ item.role.id }}" class="block-content">
+              <h3>Savoirs</h3>
               <ul>
-                {% for comp in item.block3 %}
-                  <li>{{ comp.description }} (ID: {{ comp.id }})</li>
+                {% for entry in item.block4 if entry.type == 'savoir' %}
+                  <li>{{ entry.value }}</li>
                 {% endfor %}
               </ul>
-            {% else %}
-              <p>Aucune compétence trouvée.</p>
-            {% endif %}
+
+              <h3>Savoir-faire</h3>
+              <ul>
+                {% for entry in item.block4 if entry.type == 'savoir-faire' %}
+                  <li>{{ entry.value }}</li>
+                {% endfor %}
+              </ul>
+
+              <h3>Aptitudes</h3>
+              <ul>
+                {% for entry in item.block4 if entry.type == 'aptitude' %}
+                  <li>{{ entry.value }}</li>
+                {% endfor %}
+              </ul>
+
+              <h3>HSC (Habiletés Socio-Cognitives)</h3>
+              {% set hsc_entries = item.block4 | selectattr("type", "equalto", "softskill") | list %}
+              {% if hsc_entries %}
+                <ul>
+                  {% for hsc in hsc_entries %}
+                    <li>
+                      <strong>{{ hsc.value }}</strong> (Niveau: {{ hsc.niveau }})
+                      {% if hsc.justification and hsc.justification != 'Pas de justification' %}
+                        — Justification: {{ hsc.justification }}
+                      {% endif %}
+                    </li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                <p>Aucune HSC trouvée.</p>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Bloc 5 : Titulaire du rôle -->
+          <div class="role-block">
+            <div class="block-header" onclick="toggleBlock('holders-{{ item.role.id }}', event)">
+              <span class="toggle-icon" id="holders-icon-{{ item.role.id }}">▼</span>
+              Titulaire du rôle
+            </div>
+            <div id="holders-{{ item.role.id }}" class="block-content" style="display:block;">
+              {% if item.holders and item.holders|length > 0 %}
+                <div>
+                  {% for u in item.holders %}
+                    <span class="holder-badge" data-user-id="{{ u.id }}" data-role-id="{{ item.role.id }}">
+                      <span>{{ u.last_name }} {{ u.first_name }}</span>
+                      <span class="level" id="validation-{{ u.id }}-{{ item.role.id }}">–</span>
+                    </span>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <p>Aucun titulaire pour ce rôle.</p>
+              {% endif %}
+            </div>
           </div>
         </div>
-
-
-
-
-                <!-- Bloc 4 : affichage sans doublons -->
-                <div class="role-block block-4">
-                  <div class="block-header" onclick="toggleBlock('block4-{{ item.role.id }}', event)">
-                    <span class="toggle-icon" id="block4-icon-{{ item.role.id }}">▶</span>
-                    Bloc 4 : Savoirs, Savoir-faire, Aptitudes et HSC
-                  </div>
-        
-                  <div id="block4-{{ item.role.id }}" class="block-content">
-                    <h3>Savoirs</h3>
-                    <ul>
-                      {% for entry in item.block4 if entry.type == 'savoir' %}
-                        <li>{{ entry.value }}</li>
-                      {% endfor %}
-                    </ul>
-        
-                    <h3>Savoir-faire</h3>
-                    <ul>
-                      {% for entry in item.block4 if entry.type == 'savoir-faire' %}
-                        <li>{{ entry.value }}</li>
-                      {% endfor %}
-                    </ul>
-        
-                    <h3>Aptitudes</h3>
-                    <ul>
-                      {% for entry in item.block4 if entry.type == 'aptitude' %}
-                        <li>{{ entry.value }}</li>
-                      {% endfor %}
-                    </ul>
-        
-                    <h3>HSC (Habiletés Socio-Cognitives)</h3>
-                    {% set hsc_entries = item.block4 | selectattr("type", "equalto", "softskill") | list %}
-                    {% if hsc_entries %}
-                      <ul> {# Ajoutez une liste pour les HSC #}
-                        {% for hsc in hsc_entries %}
-                          <li>
-                            <strong>{{ hsc.value }}</strong> (Niveau: {{ hsc.niveau }})
-                            {% if hsc.justification and hsc.justification != 'Pas de justification' %}
-                              - Justification: {{ hsc.justification }}
-                            {% endif %}
-                          </li>
-                        {% endfor %}
-                      </ul>
-                    {% endif %}
-        
-                    {% if item.block4 | length == 0 %}
-                      <p>Aucun savoir, savoir-faire, aptitude ou HSC trouvé pour les activités de ce rôle.</p> {# Texte plus précis #}
-                    {% endif %}
-                  </div>
-                </div>
-        
-                <!-- Le reste de votre template roles_view.html -->
-
-
-
-
-
-
-
-
-        <!-- Section On-boarding -->
-        <div class="role-onboarding" style="margin-top:10px;">
-          <button class="onboarding-btn" onclick="generateOnboarding({{ item.role.id }})">Générer On-boarding</button>
-          <button class="onboarding-btn" onclick="viewOnboarding({{ item.role.id }})">Voir On-boarding</button>
-        </div>
       </div>
-    </div>
-  {% endfor %}
-
-  <!-- Modale d'onboarding -->
-  <div id="onboardingModal">
-    <span class="close-btn" onclick="closeOnboardingModal()">×</span>
-    <div id="onboardingContent"></div>
+    {% endfor %}
   </div>
 
-  <!-- Spinner Overlay (à inclure pour le spinner) -->
-  <div id="spinnerOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.3); z-index:9999;">
-    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);">
-      <div class="loader"></div>
-    </div>
+  <!-- Spinner Overlay -->
+  <div id="spinnerOverlay">
+    <div class="center"><div class="loader"></div></div>
   </div>
 
-  <!-- Inclusion du script du spinner -->
   <script src="/static/js/spinner.js"></script>
   <script>
-    // Fonctions de bascule améliorées pour éviter le double-clic
+    /* ---------- Bascule rôle / blocs ---------- */
     function toggleRoleContainer(containerId, event) {
       event.stopPropagation();
-      var container = document.getElementById(containerId);
-      var roleId = containerId.split('-')[1];
-      var icon = document.getElementById('role-icon-' + roleId);
-      if (container.style.display === "none" || container.style.display === "") {
-        container.style.display = "block";
-        icon.textContent = "▼";
-      } else {
-        container.style.display = "none";
-        icon.textContent = "▶";
+      const container = document.getElementById(containerId);
+      const roleId = containerId.split('-')[2];
+      const icon = document.getElementById('role-icon-' + roleId);
+      const visible = container.style.display === 'block';
+      container.style.display = visible ? 'none' : 'block';
+      icon.textContent = visible ? '▶' : '▼';
+      if (!visible) {
+        // Au premier déploiement, tenter de charger les niveaux de validation
+        loadValidationLevels(container);
       }
     }
 
     function toggleBlock(blockId, event) {
       event.stopPropagation();
-      var block = document.getElementById(blockId);
-      var icon = document.getElementById(blockId.replace('block', 'block-icon'));
-      if (!icon) {
-        icon = event.currentTarget.querySelector('.toggle-icon');
-      }
-      if (block.style.display === "none" || block.style.display === "") {
-        block.style.display = "block";
-        if (icon) { icon.textContent = "▼"; }
-      } else {
-        block.style.display = "none";
-        if (icon) { icon.textContent = "▶"; }
-      }
+      const block = document.getElementById(blockId);
+      const icon = document.getElementById(blockId.replace(/^(.*?)-/, '$1-icon-'));
+      const visible = block.style.display === 'block';
+      block.style.display = visible ? 'none' : 'block';
+      if (icon) icon.textContent = visible ? '▶' : '▼';
     }
 
-    // Génération du plan d'on-boarding
-    function generateOnboarding(roleId) {
+    /* ---------- Mission Générale ---------- */
+    function resetMission(roleId) {
+      // Recharge la valeur initiale depuis le DOM (stockée dans un attribut data-initial ?)
+      // Ici on choisit plus simple : ne rien faire (l'utilisateur modifie dans le textarea).
+      // Tu peux étendre si tu veux conserver une "valeur initiale" ailleurs.
+      const ta = document.getElementById('mission-text-' + roleId);
+      ta.value = ta.value; // no-op
+    }
+
+    function saveMission(roleId) {
+      const ta = document.getElementById('mission-text-' + roleId);
+      const payload = { mission_generale: (ta.value || '').trim() };
+
       showSpinner();
-      // Utilisation d'un délai pour forcer l'affichage du spinner
-      setTimeout(function() {
-        var hscBlock = document.getElementById('block4-' + roleId);
-        if (!hscBlock) {
-          alert("Aucune HSC trouvée pour ce rôle.");
-          hideSpinner();
+      fetch(`/roles_view/${roleId}/mission`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(r => r.json())
+      .then(data => {
+        hideSpinner();
+        if (!data.ok) {
+          alert("Erreur lors de l'enregistrement de la mission générale.");
           return;
         }
-        var hscItems = hscBlock.querySelectorAll('li');
-        var hscList = [];
-        hscItems.forEach(function(li) {
-          hscList.push(li.innerText.trim());
-        });
-    
-        fetch(`/roles/${roleId}/onboarding/generate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ hsc_list: hscList })
-        })
-        .then(response => response.json())
-        .then(data => {
-          hideSpinner();
-          if (data.error) {
-            alert("Erreur : " + data.error);
-          } else {
-            document.getElementById('onboardingContent').innerText = data.onboarding_plan;
-            document.getElementById('onboardingModal').style.display = 'block';
-          }
-        })
-        .catch(error => {
-          hideSpinner();
-          alert("Erreur lors de la génération : " + error.message);
-        });
-      }, 300);
+        // Optionnel : petit feedback
+        ta.style.outline = '2px solid #1f7a54';
+        setTimeout(() => ta.style.outline = 'none', 800);
+      })
+      .catch(err => {
+        hideSpinner();
+        alert("Erreur : " + err.message);
+      });
     }
 
-    function viewOnboarding(roleId) {
-      showSpinner();
-      setTimeout(function() {
-        fetch(`/roles/${roleId}/onboarding`, {
-          method: 'GET'
-        })
-        .then(response => response.json())
-        .then(data => {
-          hideSpinner();
-          if (data.error) {
-            alert("Erreur : " + data.error);
-          } else {
-            document.getElementById('onboardingContent').innerText = data.onboarding_plan;
-            document.getElementById('onboardingModal').style.display = 'block';
-          }
-        })
-        .catch(error => {
-          hideSpinner();
-          alert("Erreur lors de la récupération du plan : " + error.message);
-        });
-      }, 300);
-    }
-
-    function closeOnboardingModal() {
-      document.getElementById('onboardingModal').style.display = 'none';
-    }
-
-    // Fonction pour éditer un rôle
+    /* ---------- CRUD rapide rôle (nom) ---------- */
     function editRole(event, roleId) {
       event.stopPropagation();
-      var currentName = document.getElementById('role-name-' + roleId).textContent.trim();
-      var newName = prompt("Modifier le nom du rôle :", currentName);
-      if (newName === null || newName.trim() === "") {
-        return;
-      }
+      const span = document.getElementById('role-name-' + roleId);
+      const currentName = span.textContent.trim();
+      const newName = prompt("Modifier le nom du rôle :", currentName);
+      if (newName === null || newName.trim() === "") return;
+
       fetch(`/roles/${roleId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newName })
       })
-      .then(response => response.json())
+      .then(resp => resp.json())
       .then(data => {
         if (data.error) {
           alert("Erreur lors de la mise à jour du rôle : " + data.error);
         } else {
-          document.getElementById('role-name-' + roleId).textContent = data.role.name;
-          alert("Rôle mis à jour avec succès.");
+          span.textContent = data.role.name;
         }
       })
-      .catch(error => {
-        alert("Erreur : " + error.message);
-      });
+      .catch(err => alert("Erreur : " + err.message));
     }
 
-    // Fonction pour supprimer un rôle
     function deleteRole(event, roleId) {
       event.stopPropagation();
       if (!confirm("Confirmez-vous la suppression de ce rôle ?")) return;
-      fetch(`/roles/${roleId}`, {
-        method: "DELETE"
-      })
-      .then(response => response.json())
+      fetch(`/roles/${roleId}`, { method: "DELETE" })
+      .then(resp => resp.json())
       .then(data => {
         if (data.error) {
           alert("Erreur lors de la suppression du rôle : " + data.error);
         } else {
-          var roleContainer = document.getElementById('role-icon-' + roleId).closest('.role-container');
-          if (roleContainer) {
-            roleContainer.remove();
-          }
-          alert("Rôle supprimé avec succès.");
+          const card = document.getElementById('role-icon-' + roleId).closest('.role-container');
+          if (card) card.remove();
         }
       })
-      .catch(error => {
-        alert("Erreur : " + error.message);
+      .catch(err => alert("Erreur : " + err.message));
+    }
+
+    /* ---------- Titulaires — Niveaux de validation ---------- */
+    function loadValidationLevels(scopeEl) {
+      const badges = scopeEl.querySelectorAll('.holder-badge');
+      badges.forEach(b => {
+        const userId = b.getAttribute('data-user-id');
+        const roleId = b.getAttribute('data-role-id');
+        const target = document.getElementById(`validation-${userId}-${roleId}`);
+        if (!userId || !roleId || !target) return;
+
+        fetch(`/roles_view/validation_level/${userId}/${roleId}`)
+          .then(r => r.json())
+          .then(data => {
+            target.textContent = (data && data.level != null && data.level !== '') ? data.level : '–';
+          })
+          .catch(() => {
+            target.textContent = '–';
+          });
       });
     }
   </script>
+  <!-- NOTE : on conserve /static/js/roles.js si utilisé ailleurs dans l'app -->
+  <script src="/static/js/roles.js"></script>
 </body>
-<script src="/static/js/roles.js"></script>
 </html>
