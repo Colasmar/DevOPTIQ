@@ -1,3 +1,4 @@
+// Code/static/js/synth_competences.js
 let selectedUserId = null;
 let userStatus = 'user';
 
@@ -25,6 +26,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (collaboratorSelect) {
             collaboratorSelect.addEventListener("change", function () {
                 selectedUserId = this.value;
+                // expose global
+                globalThis.selectedUserId = Number(selectedUserId);
                 if (selectedUserId) loadRolesForCollaborator(selectedUserId);
             });
         }
@@ -41,6 +44,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 });
 
+// API util
 async function getCurrentUserInfo() {
   const response = await fetch('/auth/current_user_info');
   return await response.json();
@@ -70,7 +74,7 @@ function loadExistingEvaluations(userId) {
             const map = {};
             data.forEach(e => {
                 const key = `${e.activity_id}_${e.item_type || 'null'}_${e.item_id || 'null'}_${e.eval_number}`;
-                map[key] = { note: e.note, date: e.created_at }; // date ISO désormais
+                map[key] = { note: e.note, date: e.created_at };
             });
 
             document.querySelectorAll('.eval-cell').forEach(cell => {
@@ -90,7 +94,6 @@ function loadExistingEvaluations(userId) {
                     formattedDate = formatDateForFR(rawDate);
                 }
 
-                // applique la couleur + date
                 cell.classList.remove('red', 'orange', 'green', 'empty');
                 cell.classList.add(note);
                 cell.innerHTML = `
@@ -98,12 +101,10 @@ function loadExistingEvaluations(userId) {
                     <div class="note-date">${note !== 'empty' ? formattedDate : ''}</div>
                 `;
 
-                // ⚑ mémorise l’état d’origine pour ne sauvegarder que les changements
                 cell.dataset.original = note;
                 cell.dataset.originalDate = (note !== 'empty') ? formattedDate : '';
             });
 
-            // Sécurise les cellules qui n'avaient rien en BDD (aucune entrée dans map)
             document.querySelectorAll('.eval-cell').forEach(cell => {
                 if (!cell.dataset.original) {
                     const note = ['red','orange','green'].find(c => cell.classList.contains(c)) || 'empty';
@@ -116,6 +117,8 @@ function loadExistingEvaluations(userId) {
 }
 
 function loadRolesForCollaborator(userId) {
+    globalThis.selectedUserId = Number(userId);
+
     fetch(`/competences/get_user_roles/${userId}`)
         .then(r => r.json())
         .then(data => {
@@ -130,7 +133,7 @@ function loadRolesForCollaborator(userId) {
                         const wrapper = document.createElement('div');
                         wrapper.innerHTML = rendered;
 
-                        // Déplier/replier les rôles
+                        // Toggle rôles
                         wrapper.querySelectorAll('.toggle-role').forEach(header => {
                             header.addEventListener('click', () => {
                                 const content = header.nextElementSibling;
@@ -140,7 +143,7 @@ function loadRolesForCollaborator(userId) {
                             });
                         });
 
-                        // Déplier/replier les activités
+                        // Toggle activités
                         wrapper.querySelectorAll('.toggle-activity').forEach(header => {
                             header.addEventListener('click', () => {
                                 const content = header.nextElementSibling;
@@ -153,12 +156,18 @@ function loadRolesForCollaborator(userId) {
                         container.appendChild(wrapper);
                         loadExistingEvaluations(userId);
 
-                        // Performances personnalisées
+                        // 🔹 Performances tout en haut de .activity-content
                         wrapper.querySelectorAll('.activity-section').forEach(section => {
-                            const activityId = section.dataset.activityId;
+                            const activityId = Number(section.dataset.activityId);
+                            const contentDiv = section.querySelector('.activity-content');
+                            if (!contentDiv) return;
+
                             const perfTarget = document.createElement('div');
                             perfTarget.classList.add('perf-container');
-                            section.appendChild(perfTarget);
+                            perfTarget.style.marginBottom = '12px';
+                            // 👉 insérer en tête
+                            contentDiv.insertBefore(perfTarget, contentDiv.firstChild);
+
                             insertPerformanceBlock(activityId, perfTarget);
                         });
                     });
@@ -166,18 +175,16 @@ function loadRolesForCollaborator(userId) {
         });
 }
 
-// ⛳ n'envoie QUE les cellules modifiées
+// Sauvegarde
 function saveAllEvaluations() {
     if (!selectedUserId) return alert("Aucun utilisateur sélectionné.");
 
     const evaluations = [];
-
     document.querySelectorAll('.eval-cell').forEach(cell => {
         const colors = ['red', 'orange', 'green', 'empty'];
         const current = colors.find(c => cell.classList.contains(c)) || 'empty';
         const original = cell.dataset.original || 'empty';
-
-        if (current === original) return; // pas de changement
+        if (current === original) return;
 
         evaluations.push({
             user_id: parseInt(selectedUserId),
@@ -185,7 +192,7 @@ function saveAllEvaluations() {
             item_id: cell.dataset.id ? parseInt(cell.dataset.id) : null,
             item_type: cell.dataset.type || null,
             eval_number: cell.dataset.eval,
-            note: current // 'empty' => suppression, sinon upsert
+            note: current
         });
     });
 
@@ -198,68 +205,136 @@ function saveAllEvaluations() {
     })
     .then(r => r.json())
     .then(resp => {
-        if (resp.success) {
-            alert("Évaluations enregistrées !");
-            // On recharge depuis la BDD : date = date d'enregistrement côté serveur
-            loadExistingEvaluations(selectedUserId);
-            loadGlobalSummary();
-        } else {
-            alert("Erreur : " + resp.message);
+        if (!resp.success) {
+            alert("Erreur : " + (resp.message || ''));
+            return;
+        }
+        if (Array.isArray(resp.evaluations)) applyUpdatedDatesFromBackend(resp.evaluations);
+        clearDatesForEmptiedCells(evaluations, resp.evaluations || []);
+        refreshOriginalStateForChangedCells(evaluations);
+
+        const section = document.getElementById("global-summary-section");
+        if (section && !section.classList.contains("hidden")) loadGlobalSummary();
+
+        alert("Évaluations enregistrées !");
+    })
+    .catch(err => {
+        console.error(err);
+        alert("Erreur réseau lors de l’enregistrement.");
+    });
+}
+
+// Clic cycle
+document.addEventListener('click', e => {
+    const cell = e.target.closest('.eval-cell');
+    if (!cell) return;
+    const colors = ['red', 'orange', 'green', 'empty'];
+    const current = colors.find(c => cell.classList.contains(c)) || 'empty';
+    const next = colors[(colors.indexOf(current) + 1) % colors.length];
+    colors.forEach(c => cell.classList.remove(c));
+    cell.classList.add(next);
+    cell.classList.add('pending-change'); // on garde la date affichée jusqu'à la réponse serveur
+});
+
+// Dates backend -> UI
+function applyUpdatedDatesFromBackend(updated) {
+    updated.forEach(u => {
+        const baseSelector = `.eval-cell[data-activity="${u.activity_id}"][data-type="${u.item_type || ''}"][data-eval="${u.eval_number}"]`;
+        const candidates = document.querySelectorAll(baseSelector);
+        let target = null;
+        candidates.forEach(c => {
+            const cid = c.dataset.id ? parseInt(c.dataset.id) : null;
+            if ((u.item_id == null && (c.dataset.id === undefined || c.dataset.id === '' || c.dataset.id === null))
+                || (u.item_id != null && cid === parseInt(u.item_id))) {
+                target = c;
+            }
+        });
+        if (!target) return;
+
+        ['red','orange','green','empty'].forEach(cl => target.classList.remove(cl));
+        target.classList.add(u.note || 'empty');
+
+        const dateText = formatDateForFR(u.created_at);
+        let dateEl = target.querySelector('.note-date');
+        if (!dateEl) {
+            const container = document.createElement('div');
+            container.className = 'note-date';
+            target.appendChild(container);
+            dateEl = container;
+        }
+        dateEl.textContent = (u.note && u.note !== 'empty') ? dateText : '';
+        target.classList.remove('pending-change');
+    });
+}
+
+function clearDatesForEmptiedCells(requestEvals, backendEvals) {
+    const backendKeys = new Set(
+        backendEvals.map(u => `${u.activity_id}_${u.item_type || 'null'}_${u.item_id ?? 'null'}_${u.eval_number}`)
+    );
+    requestEvals.forEach(r => {
+        const isEmpty = r.note === 'empty';
+        const key = `${r.activity_id}_${r.item_type || 'null'}_${r.item_id ?? 'null'}_${r.eval_number}`;
+        if (isEmpty && !backendKeys.has(key)) {
+            const baseSelector = `.eval-cell[data-activity="${r.activity_id}"][data-type="${r.item_type || ''}"][data-eval="${r.eval_number}"]`;
+            const candidates = document.querySelectorAll(baseSelector);
+            candidates.forEach(c => {
+                const cid = c.dataset.id ? parseInt(c.dataset.id) : null;
+                const match =
+                    (r.item_id == null && (c.dataset.id === undefined || c.dataset.id === '' || c.dataset.id === null))
+                    || (r.item_id != null && cid === parseInt(r.item_id));
+                if (match) {
+                    const dateEl = c.querySelector('.note-date');
+                    if (dateEl) dateEl.textContent = '';
+                    c.classList.remove('pending-change');
+                }
+            });
         }
     });
 }
 
-// Cycle couleur au clic (pas d’écriture de date ici : la date affichée finale vient du serveur)
-document.addEventListener('click', e => {
-    const cell = e.target.closest('.eval-cell');
-    if (cell) {
-        const colors = ['red', 'orange', 'green', 'empty'];
-        const current = colors.find(c => cell.classList.contains(c)) || 'empty';
-        const next = colors[(colors.indexOf(current) + 1) % colors.length];
-        colors.forEach(c => cell.classList.remove(c));
-        cell.classList.add(next);
+function refreshOriginalStateForChangedCells(requestEvals) {
+    requestEvals.forEach(r => {
+        const baseSelector = `.eval-cell[data-activity="${r.activity_id}"][data-type="${r.item_type || ''}"][data-eval="${r.eval_number}"]`;
+        const candidates = document.querySelectorAll(baseSelector);
+        candidates.forEach(c => {
+            const cid = c.dataset.id ? parseInt(c.dataset.id) : null;
+            const match =
+                (r.item_id == null && (c.dataset.id === undefined || c.dataset.id === '' || c.dataset.id === null))
+                || (r.item_id != null && cid === parseInt(r.item_id));
+            if (!match) return;
 
-        // On laisse la date visuelle vide tant que ce n'est pas enregistré,
-        // pour éviter toute confusion : la "vraie" date viendra du backend.
-        cell.innerHTML = `
-            <div class="note-color"></div>
-            <div class="note-date">${''}</div>
-        `;
-    }
-});
+            const colors = ['red','orange','green','empty'];
+            const current = colors.find(x => c.classList.contains(x)) || 'empty';
+            c.dataset.original = current;
 
+            const dateTxt = c.querySelector('.note-date')?.textContent?.trim() || '';
+            c.dataset.originalDate = (current !== 'empty') ? dateTxt : '';
+        });
+    });
+}
+
+// Synthèse globale
 function toggleGlobalSynthesis() {
   const section = document.getElementById("global-summary-section");
   if (!section) return;
-
   const isVisible = !section.classList.contains("hidden");
   section.classList.toggle("hidden");
-
   const button = document.getElementById("toggle-summary");
-  if (button) {
-    button.textContent = isVisible ? "Afficher la synthèse globale" : "Masquer la synthèse globale";
-  }
-
-  if (!isVisible && section.innerHTML.trim() === "") {
-    loadGlobalSummary();
-  }
+  if (button) button.textContent = isVisible ? "Afficher la synthèse globale" : "Masquer la synthèse globale";
+  if (!isVisible && section.innerHTML.trim() === "") loadGlobalSummary();
 }
 
 function loadGlobalSummary() {
   const section = document.getElementById("global-summary-section");
   if (!selectedUserId || !section) return;
-
   fetch(`/competences/global_flat_summary/${selectedUserId}`)
     .then(res => res.text())
     .then(html => {
       section.innerHTML = html;
-
-      // Restyle (couleur + date), pas de verrouillage
-      document.querySelectorAll('.eval-cell').forEach(cell => {
+      section.querySelectorAll('.eval-cell').forEach(cell => {
         const note = ['red', 'orange', 'green'].find(c => cell.classList.contains(c)) || 'empty';
         const rawDate = cell.dataset.date || '';
         const formattedDate = formatDateForFR(rawDate);
-
         cell.classList.remove('red', 'orange', 'green', 'empty');
         cell.classList.add(note);
         cell.innerHTML = `
@@ -274,14 +349,9 @@ function loadGlobalSummary() {
     });
 }
 
-// Util : formatte ISO/texte en 'fr-FR'
+// Util
 function formatDateForFR(raw) {
   if (!raw) return '';
-  try {
-    // Privilégie l'ISO (backend renvoie isoformat)
-    const d = new Date(raw);
-    if (!isNaN(d)) return d.toLocaleDateString('fr-FR');
-  } catch (e) {}
-  // fallback si c'était déjà une chaîne lisible
+  try { const d = new Date(raw); if (!isNaN(d)) return d.toLocaleDateString('fr-FR'); } catch (e) {}
   return typeof raw === 'string' ? raw : '';
 }

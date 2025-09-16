@@ -153,15 +153,22 @@ class PerformancePersonnalisee(db.Model):
     __tablename__ = 'performance_personnalisee'
 
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
-    content = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    deleted = db.Column(db.Boolean, default=False)
+    user_id = db.Column(db.Integer, nullable=False)
+    activity_id = db.Column(db.Integer, nullable=False)
 
-    user = db.relationship('User', backref='personalized_performances')
-    activity = db.relationship('Activities', backref='personalized_performances')
+    # ⚠️ colonne existante en base : "content"
+    content = db.Column('content', db.Text, nullable=True)
+
+    # colonnes de suivi (ajoutées par ALTER TABLE ci-dessus)
+    validation_status = db.Column(db.String(20), default='non-validee')  # 'validee' | 'non-validee'
+    validation_date = db.Column(db.String(10), nullable=True)            # 'YYYY-MM-DD'
+
+    # timestamps (en base c'est TEXT, on reste souple)
+    created_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
+    updated_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
+
+    # colonne existante éventuelle (vu dans structureBDD.sql)
+    deleted = db.Column(db.Boolean, default=False)
 
 
 class Constraint(db.Model):

@@ -174,6 +174,14 @@ def create_app():
     from Code.routes.gestion_outils import bp_tools
     app.register_blueprint(bp_tools)
 
+    from Code.routes.performance_personnalisee import performance_perso_bp
+    app.register_blueprint(performance_perso_bp)
+
+    from Code.routes.competences_plan import competences_plan_bp
+    app.register_blueprint(competences_plan_bp)
+
+    from Code.routes.activity_items_api import activity_items_api_bp
+    app.register_blueprint(activity_items_api_bp)
 
 
 

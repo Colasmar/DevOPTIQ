@@ -163,10 +163,7 @@
       const validation_date = $('.perf-validation-date', editor).value || null;
       if (!content) return toast("Le texte de la performance est vide.", "error");
       try {
-        // 🔧 CORRECTION : utiliser activityId (camelCase) ici
-        await http('POST', '/performance_perso/create', {
-          user_id: userId, activity_id: activityId, content, validation_status, validation_date
-        });
+        await http('POST', '/performance_perso/create', { user_id: userId, activity_id, content, validation_status, validation_date });
         const items = await http('GET', `/performance_perso/list?user_id=${userId}&activity_id=${activityId}`);
         renderPersonalList(container, items);
         toast("Performance créée.");

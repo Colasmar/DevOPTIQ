@@ -1,153 +1,150 @@
+/* ======================================================================
+   Global
+====================================================================== */
 body {
-    font-family: Arial, sans-serif;
-    background-color: #f4f4f4;
-    margin: 0;
-    padding: 20px;
-    color: #333;
+  font-family: Arial, sans-serif;
+  background-color: #f4f4f4;
+  margin: 0;
+  padding: 20px;
+  color: #333;
 }
 
-h1, h3, h4 {
-    margin-top: 20px;
-}
+h1, h3, h4 { margin-top: 20px; }
 
+.hidden { display: none; }
+
+/* ======================================================================
+   En-têtes cliquables (Rôles / Activités)
+====================================================================== */
 h3.toggle-role,
 h4.toggle-activity {
-    cursor: pointer;
-    background-color: #007bff;
-    color: white;
-    padding: 10px;
-    margin: 0;
-    border-radius: 4px;
+  cursor: pointer;
+  background-color: #007bff;
+  color: #fff;
+  padding: 10px;
+  margin: 0;
+  border-radius: 4px;
 }
+h4.toggle-activity { background-color: #0069d9; }
 
-h4.toggle-activity {
-    background-color: #0069d9;
-}
-
+/* ======================================================================
+   Sections Rôle / Activité
+====================================================================== */
 .role-section,
 .activity-section {
-    margin-bottom: 20px;
-    border: 1px solid #ccc;
-    background-color: white;
-    border-radius: 6px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-    overflow: hidden;
+  margin-bottom: 20px;
+  border: 1px solid #ccc;
+  background-color: #fff;
+  border-radius: 6px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  overflow: hidden;
 }
-
 .role-content,
-.activity-content {
-    padding: 15px;
-}
+.activity-content { padding: 15px; }
 
-.hidden {
-    display: none;
-}
-
+/* ======================================================================
+   Tableaux (évaluations / synthèse / connaissances)
+====================================================================== */
 .eval-table, .synthesis-table, .knowledge-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
-    margin-bottom: 20px;
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  margin-bottom: 20px;
 }
 
 .eval-table caption {
-    text-align: left;
-    font-weight: bold;
-    padding: 5px;
-    font-size: 1.1em;
-    background-color: #eee;
-    border: 1px solid #ccc;
-    border-bottom: none;
+  text-align: left;
+  font-weight: bold;
+  padding: 5px;
+  font-size: 1.1em;
+  background-color: #eee;
+  border: 1px solid #ccc;
+  border-bottom: none;
 }
 
 .eval-table th, .eval-table td,
 .synthesis-table th, .synthesis-table td,
 .knowledge-table th, .knowledge-table td {
-    border: 1px solid #ccc;
-    padding: 8px;
-    text-align: center;
+  border: 1px solid #ccc;
+  padding: 8px;
+  text-align: center;
 }
 
+.synthesis-table th { background-color: #f2f2f2; }
+
+.eval-table th.green { background-color: #a3f7a3 !important; }
+
+/* ======================================================================
+   Cellules d’évaluation + dates
+====================================================================== */
+.eval-cell {
+  cursor: pointer;
+  min-width: 60px;
+  height: 30px;
+  transition: background-color 0.3s;
+  position: relative;
+}
 
 .eval-cell.red    { background-color: #ff6767; }
 .eval-cell.orange { background-color: #f8b95a; }
 .eval-cell.green  { background-color: #6aff6a; }
-
-.synthesis-table th {
-    background-color: #f2f2f2;
-}
-
-#save-competencies-button {
-    margin-top: 20px;
-    padding: 12px 24px;
-    background-color: #28a745;
-    border: none;
-    color: white;
-    border-radius: 5px;
-    font-size: 1em;
-    cursor: pointer;
-}
-
-#save-competencies-button:hover {
-    background-color: #218838;
-}
-
-select {
-    padding: 6px 10px;
-    margin-right: 10px;
-}
-
-main > div:first-of-type {
-    margin-bottom: 20px;
-}
-
-.connections-outgoing {
-    margin-top: 10px;
-    padding-left: 20px;
-    border-left: 2px solid #eee;
-    font-size: 0.9em;
-    color: #555;
-}
-
-#global-summary-section .eval-cell {
-  pointer-events: none;
-}
-
-.eval-table th.green {
-  background-color: #a3f7a3 !important;
-}
 
 .note-date {
   font-size: 0.65em;
   margin-top: 2px;
   color: #333;
   pointer-events: none;
-
 }
 
-.eval-cell {
-    cursor: pointer;
-    min-width: 60px;
-    height: 30px;
-    transition: background-color 0.3s;
+/* Synthèse globale : lecture seule */
+#global-summary-section .eval-cell { pointer-events: none; }
+
+/* ======================================================================
+   Commandes
+====================================================================== */
+#save-competencies-button {
+  margin-top: 20px;
+  padding: 12px 24px;
+  background-color: #28a745;
+  border: none;
+  color: #fff;
+  border-radius: 5px;
+  font-size: 1em;
+  cursor: pointer;
+}
+#save-competencies-button:hover { background-color: #218838; }
+
+select {
+  padding: 6px 10px;
+  margin-right: 10px;
 }
 
+main > div:first-of-type { margin-bottom: 20px; }
 
-/* --- Modal historique --- */
+.connections-outgoing {
+  margin-top: 10px;
+  padding-left: 20px;
+  border-left: 2px solid #eee;
+  font-size: 0.9em;
+  color: #555;
+}
+
+/* ======================================================================
+   Modale Historique
+====================================================================== */
 .modal {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
+  inset: 0;
   background: rgba(0,0,0,0.6);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 10;
 }
-.modal.hidden {
-  display: none;
-}
+.modal.hidden { display: none; }
+
 .modal-content {
-  background: white;
+  background: #fff;
   padding: 20px;
   width: 500px;
   max-height: 70vh;
@@ -163,159 +160,180 @@ main > div:first-of-type {
   cursor: pointer;
 }
 
-/* --- Performance générale --- */
-.perf-general {
-  background-color: #f5f5f5;
-  border-left: 6px solid #2196F3;
-  padding: 12px 20px;
-  margin: 20px 0;
-  border-radius: 4px;
-}
-.perf-general h4 {
-  margin-top: 0;
-  font-weight: bold;
-  color: #0d47a1;
-}
-.perf-fixed {
-  white-space: pre-wrap;
-  font-style: italic;
-  color: #333;
+/* ======================================================================
+   Performances – Style coloré & clair
+====================================================================== */
+
+/* Carte / conteneur */
+.perf-card {
+  border: 1px solid #e6e8eb;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #fafbff 100%);
+  box-shadow: 0 8px 20px rgba(17, 24, 39, 0.06);
+  padding: 14px;
 }
 
-/* --- Performance personnalisée --- */
-.perf-perso-container {
-  margin-top: 20px;
+/* En-tête */
+.perf-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%);
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: #fff;
+}
+.perf-title { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .2px; }
+.perf-icon { fill: #ffffff; opacity: .95; }
+.perf-actions { display: flex; gap: 8px; }
+
+/* Boutons */
+.perf-btn {
+  border: 1px solid transparent;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease, background-color .2s;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+.perf-btn:active { transform: translateY(1px); }
+
+.perf-btn-primary {
+  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+  color: #fff;
+}
+.perf-btn-primary:hover { background: linear-gradient(180deg, #1d4ed8 0%, #1e40af 100%); }
+
+.perf-btn-outline {
+  background: #ffffff;
+  color: #1f2937;
+  border-color: #d1d5db;
+}
+.perf-btn-outline:hover { background: #f3f4f6; }
+
+.perf-btn-ghost {
+  background: rgba(255,255,255,0.15);
+  color: #ffffff;
+  border-color: transparent;
+}
+.perf-btn-ghost:hover { background: rgba(255,255,255,0.25); }
+
+/* Corps */
+.perf-content { display: grid; gap: 12px; }
+
+.perf-subtitle {
+  font-weight: 700;
+  color: #374151;
+  margin: 6px 0;
+  letter-spacing: .2px;
 }
 
-.perf-perso-block {
-  background-color: #f5f5f5;
-  padding: 15px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  margin-bottom: 15px;
-  position: relative;
-  box-shadow: 1px 1px 5px rgba(0,0,0,0.05);
+.perf-box {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 12px;
+  background: #ffffff;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.04);
 }
 
-.perf-perso-block textarea.perf-text {
-  width: 100%;
-  height: 80px;
-  resize: vertical;
-  font-size: 18px;
-  padding: 8px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  font-family: inherit;
-  margin-bottom: 6px;
+/* Performance générale en encadré accentué */
+.perf-general-fragment {
+  border-left: 6px solid #3b82f6;
+  background: linear-gradient(180deg, #f0f7ff 0%, #ffffff 100%);
 }
 
-.perf-perso-block .perf-date {
+/* Liste & éléments */
+.perf-items { display: grid; gap: 12px; }
+.perf-item { display: grid; gap: 10px; }
+.perf-item-top {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-bottom: 6px; border-bottom: 1px dashed #e5e7eb;
+}
+.perf-content-read { white-space: pre-wrap; line-height: 1.5; color: #111827; }
+
+/* Badges (états) */
+.perf-badges { display: flex; gap: 8px; align-items: center; }
+.perf-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
   font-size: 12px;
-  font-style: italic;
-  color: #555;
-  margin-bottom: 6px;
+  font-weight: 700;
+  letter-spacing: .2px;
 }
+.perf-badge-success { background: #dcfce7; color: #166534; box-shadow: inset 0 0 0 1px rgba(22,101,52,.25); }
+.perf-badge-muted  { background: #e5e7eb; color: #374151; box-shadow: inset 0 0 0 1px rgba(55,65,81,.15); }
+.perf-badge-date   { background: #eef2ff; color: #3730a3; box-shadow: inset 0 0 0 1px rgba(55,48,163,.2); }
 
-.perf-buttons {
+/* Actions d’un item */
+.perf-item-actions {
   display: flex;
-  gap: 8px;
-}
-
-.perf-perso-block .btn-save-perf {
-  background-color: #c8e6c9;
-  color: #1b5e20;
-}
-.perf-perso-block .btn-delete-perf {
-  background-color: #ffcdd2;
-  color: #b71c1c;
-}
-.btn-history-perf {
-  background-color: #e1bee7;
-  color: #4a148c;
-  padding: 8px 14px;
-  border: none;
-  border-radius: 4px;
-  font-weight: bold;
-  cursor: pointer;
-}
-.perf-perso-block button {
-  padding: 6px 12px;
-  border: none;
-  border-radius: 4px;
-  font-weight: bold;
-  cursor: pointer;
-}
-.perf-perso-block button:hover,
-.btn-add-perf:hover,
-.btn-history-perf:hover {
-  opacity: 0.9;
-}
-
-/* --- Message vide --- */
-.no-perf-message {
-  color: #888;
-  font-style: italic;
-  margin: 10px 0;
-}
-
-/* --- Pied des performances : historique + ajout --- */
-.perf-footer-buttons {
-  display: flex;
-  justify-content: flex-start;
   align-items: center;
   gap: 10px;
-  margin-top: 16px;
-  padding-bottom: 20px;
+  flex-wrap: wrap;
+}
+.perf-radio { display: flex; align-items: center; gap: 6px; }
+.perf-status-date {
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  padding: 0 10px;
 }
 
-.btn-add-perf {
-  background-color: #becee7;
-  color: #143a8c;
-  padding: 8px 14px;
-  border: none;
-  border-radius: 4px;
-  font-weight: bold;
-  cursor: pointer;
+/* Éditeurs (création / édition) */
+.perf-editor textarea,
+.perf-content-edit textarea {
+  width: 100%;
+  resize: vertical;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  background: #ffffff;
+}
+.perf-edit-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px;
+}
+.perf-edit-actions {
+  display: flex; gap: 10px; margin-top: 10px;
 }
 
-/* --- Historique dans modal --- */
-.history-entry {
-  background-color: #eeeeee;
-  margin-bottom: 10px;
-  padding: 8px 10px;
-  border-left: 4px solid #9e9e9e;
-  border-radius: 4px;
-}
-.history-entry strong {
-  color: #424242;
+/* Historique (items) */
+.hist-item  { display: grid; gap: 6px; }
+.hist-head  { font-weight: 700; color: #111827; }
+.hist-meta  { font-size: 12px; color: #6b7280; }
+
+/* États vides */
+.perf-empty {
+  color: #6b7280;
+  font-style: italic;
+  background: linear-gradient(180deg, #f9fafb 0%, #ffffff 100%);
+  border: 1px dashed #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
 }
 
-/* --- Toast notification --- */
+
+/* ======================================================================
+   Toast (notification) – version unique (en bas à droite)
+====================================================================== */
 .toast {
   position: fixed;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: #323232;
-  color: white;
-  padding: 12px 24px;
-  border-radius: 6px;
-  font-weight: bold;
-  z-index: 10000;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+  bottom: 16px;
+  right: 16px;
+  background: #111827;
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.12);
   opacity: 0;
-  transition: opacity 0.4s ease, top 0.4s ease;
+  transform: translateY(8px);
+  transition: .2s;
+  z-index: 10000;
 }
-.toast.show {
-  opacity: 1;
-  top: 40px;
-}
-.toast.success {
-  background-color: #4caf50;
-}
-.toast.error {
-  background-color: #f44336;
-}
-.toast.hidden {
-  display: none;
-}
+.toast.show    { opacity: 1; transform: translateY(0); }
+.toast.error   { background: #b91c1c; }
+.toast.success { background: #065f46; }

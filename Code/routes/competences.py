@@ -43,6 +43,8 @@ def save_user_evaluations():
     if not user_id or not evaluations:
         return jsonify({'success': False, 'message': 'Données incomplètes.'}), 400
 
+    saved_evals = []
+
     try:
         for eval in evaluations:
             activity_id = eval.get('activity_id')
@@ -69,9 +71,17 @@ def save_user_evaluations():
                 else:
                     existing.note = note
                     existing.created_at = datetime.utcnow()
+                    saved_evals.append({
+                        "activity_id": activity_id,
+                        "item_id": item_id,
+                        "item_type": item_type,
+                        "eval_number": eval_number,
+                        "note": note,
+                        "created_at": existing.created_at.isoformat()
+                    })
             else:
                 if note != 'empty':
-                    db.session.add(CompetencyEvaluation(
+                    new_eval = CompetencyEvaluation(
                         user_id=user_id,
                         activity_id=activity_id,
                         item_id=item_id,
@@ -79,15 +89,25 @@ def save_user_evaluations():
                         eval_number=eval_number,
                         note=note,
                         created_at=datetime.utcnow()
-                    ))
-
+                    )
+                    db.session.add(new_eval)
+                    db.session.flush()  # pour récupérer l'id et created_at avant commit
+                    saved_evals.append({
+                        "activity_id": activity_id,
+                        "item_id": item_id,
+                        "item_type": item_type,
+                        "eval_number": eval_number,
+                        "note": note,
+                        "created_at": new_eval.created_at.isoformat()
+                    })
 
         db.session.commit()
-        return jsonify({'success': True})
+        return jsonify({'success': True, 'evaluations': saved_evals})
 
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
+
 
 
 

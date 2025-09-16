@@ -1,5 +1,6 @@
 <script type="text/template" id="template-role-block">
-  <div class="role-section">
+  <!-- on ajoute data-role-id pour que le JS récupère le rôle -->
+  <div class="role-section" data-role-id="<%= role_id %>">
     <h3 class="toggle-role">▼ <%= role_name %></h3>
     <div class="role-content hidden">
 
@@ -13,6 +14,7 @@
             <h4 class="toggle-activity">▼ <%= act.name %></h4>
             <div class="activity-content hidden">
 
+              <!-- ====== TABLEAUX EXISTANTS ====== -->
               <table class="eval-table">
                 <caption>Savoirs</caption>
                 <tr><th>Description</th><th>1</th><th>2</th><th>3</th></tr>
@@ -67,6 +69,41 @@
                 <% }); %>
               </table>
 
+              <!-- ====== NOUVEAU : Bloc Prérequis & Plan ====== -->
+              <div class="prerequis-card"
+                   data-activity-id="<%= act.id %>"
+                   data-role-id="<%= role_id %>">
+                <div class="prerequis-card__header">
+                  <h4>Prérequis & plan (<%= act.name %>)</h4>
+                  <div class="prerequis-card__actions">
+                    <button class="btn btn-light btn-lg"   data-action="load-prerequis">Afficher les items</button>
+                    <button class="btn btn-primary btn-lg" data-action="save-prerequis"  disabled>Enregistrer les commentaires</button>
+                    <button class="btn btn-emerald btn-lg" data-action="save-and-generate" disabled>Enregistrer + Générer un plan</button>
+                  </div>
+                </div>
+
+                <div class="prerequis-table-wrapper">
+                  <table class="prerequis-table">
+                    <thead>
+                      <tr>
+                        <th>Item</th>
+                        <th>Type</th>
+                        <th>Commentaire du manager (prérequis, difficultés, niveau actuel)</th>
+                      </tr>
+                    </thead>
+                    <tbody class="prerequis-body">
+                      <!-- Lignes injectées par JS -->
+                    </tbody>
+                  </table>
+                </div>
+
+                <p class="prerequis-hint">
+                  Cliquez sur le bouton afficher les items pour remplir ce tableau, vous pourrez renseigner un commentaire pour chaque item si nécessaire (prérequis manquants, difficultés, autonomie…). 
+                  Ces commentaires ne remplacent pas les notes ; ils servent à mieux calibrer la proposition de plan.
+                </p>
+              </div>
+              <!-- ====== /Bloc Prérequis & Plan ====== -->
+
             </div>
           </div>
         <% }); %>
@@ -84,7 +121,6 @@
                     <small><i>Compétences : <%= row.competencies.join(", ") %></i></small>
                   <% } %>
                 </td>
-
                 <% ['garant','manager','rh'].forEach(function(p) { %>
                   <td class="eval-cell <%= row.evals[p]?.note || '' %>"
                       data-id=""
