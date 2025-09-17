@@ -80,21 +80,35 @@ function updateSavoirsList(activityId) {
 }
 
 
-function updateSavoirs(activityId) {
-  fetch(`/savoirs/${activityId}/render`)
-    .then(response => {
-      if (!response.ok) throw new Error("Erreur lors du rafraîchissement des savoirs.");
-      return response.text();
-    })
-    .then(html => {
-      const container = document.querySelector(`#savoirs-container-${activityId}`);
-      container.innerHTML = html;
-    })
-    .catch(err => {
-      console.error("Erreur updateSavoirs :", err);
-      alert(err.message);
-    });
+// === Remplacer ENTIEREMENT la fonction updateSavoirs(...) par :
+async function updateSavoirs(activityId) {
+  // On délègue au refresh unifié
+  await refreshSavoirsEtSavoirFaires(activityId);
 }
+
+// === AJOUTER (si absent) : refresh unifié basé sur TON conteneur unique
+async function refreshSavoirsEtSavoirFaires(activityId) {
+  try {
+    const resp = await fetch(`/savoir_faires/${activityId}/render`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const html = await resp.text();
+
+    // ⚠️ Cible TON conteneur existant (unique)
+    const container = document.getElementById(`savoirs-faires-container-${activityId}`);
+    if (!container) {
+      console.warn("refreshSavoirsEtSavoirFaires: container introuvable", activityId);
+      return;
+    }
+    container.innerHTML = html;
+  } catch (e) {
+    console.error("refreshSavoirsEtSavoirFaires error:", e);
+  }
+}
+
+// Optionnel mais utile : exposer en global
+window.refreshSavoirsEtSavoirFaires = refreshSavoirsEtSavoirFaires;
+window.updateSavoirs = updateSavoirs;
+
 
 /* Édition */
 

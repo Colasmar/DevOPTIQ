@@ -38,7 +38,7 @@
         <button onclick="submitAddAptitude('{{ activity.id }}')">Enregistrer</button>
         <button onclick="hideAddAptitudeForm('{{ activity.id }}')">Annuler</button>
       </div>
-      <button onclick="fetchActivityDetailsForAptitudes('{{ activity.id }}')">Proposer Aptitudes</button>
+      <button onclick="showProposedAptitudes('{{ activity.id }}')" >Proposer Aptitudes</button>
       </div>
       <script src="{{ url_for('static', filename='js/propose_aptitudes.js') }}"></script>
 </div>

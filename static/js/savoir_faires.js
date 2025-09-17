@@ -77,21 +77,27 @@ function updateSavoirFairesList(activityId) {
     });
 }
 
-function updateSavoirFaires(activityId) {
-  fetch(`/savoir_faires/${activityId}/render`)
-    .then(response => {
-      if (!response.ok) throw new Error("Erreur lors du rafraîchissement des savoir-faires.");
-      return response.text();
-    })
-    .then(html => {
-      const container = document.querySelector(`#savoir-faires-container-${activityId}`);
-      container.innerHTML = html;
-    })
-    .catch(err => {
-      console.error("Erreur updateSavoirFaires :", err);
-      alert(err.message);
-    });
+
+async function updateSavoirFaires(activityId) {
+  try {
+    const resp = await fetch(`/savoir_faires/${activityId}/render`);
+    if (!resp.ok) throw new Error("Erreur lors du rafraîchissement des savoir-faires.");
+    const html = await resp.text();
+
+    const container = document.getElementById(`sf-sv-body--${activityId}`)
+                   || document.querySelector(`[data-sf-container="${activityId}"]`);
+
+    if (!container) {
+      console.warn("updateSavoirFaires: container introuvable pour activity", activityId);
+      return;
+    }
+    container.innerHTML = html;
+  } catch (e) {
+    console.error("Erreur updateSavoirFaires :", e);
+  }
 }
+window.updateSavoirFaires = updateSavoirFaires;
+
 
 /* Édition */
 
