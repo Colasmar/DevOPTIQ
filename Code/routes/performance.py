@@ -1,107 +1,54 @@
-from flask import Blueprint, request, jsonify, render_template
+# Code/routes/performance.py
+from flask import Blueprint, jsonify
+from sqlalchemy import or_
 from Code.extensions import db
 from Code.models.models import Performance, Link
-import traceback
 
-performance_bp = Blueprint('performance', __name__, url_prefix='/performance')
+performance_bp = Blueprint("performance", __name__, url_prefix="/performance")
 
-@performance_bp.route('/add', methods=['POST'])
-def add_performance():
-    """
-    Crée ou met à jour une Performance pour un link_id donné.
-    JSON attendu :
-      { "link_id": <int>, "name": "<str>", "description": "<str facultatif>" }
-    """
-    data = request.get_json() or {}
-    link_id = data.get("link_id")
-    name = data.get("name", "").strip()
-    description = data.get("description", "").strip()
 
-    if not link_id or not name:
-        return jsonify({"error": "link_id and name are required"}), 400
-
-    try:
-        link = Link.query.get(link_id)
-        if not link:
-            return jsonify({"error": f"Link ID {link_id} not found"}), 404
-
-        # S’il existe déjà une performance pour ce link => on met à jour
-        existing_perf = Performance.query.filter_by(link_id=link_id).first()
-        if existing_perf:
-            existing_perf.name = name
-            existing_perf.description = description
-            db.session.commit()
-            return jsonify({
-                "id": existing_perf.id,
-                "name": existing_perf.name,
-                "description": existing_perf.description,
-                "link_id": link_id
-            }), 200
-
-        # Sinon, on crée une nouvelle Performance
-        new_perf = Performance(link_id=link_id, name=name, description=description)
-        db.session.add(new_perf)
-        db.session.commit()
-        return jsonify({
-            "id": new_perf.id,
-            "name": new_perf.name,
-            "description": new_perf.description,
-            "link_id": link_id
-        }), 201
-
-    except Exception as e:
-        db.session.rollback()
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
-
-@performance_bp.route('/<int:perf_id>', methods=['PUT', 'DELETE'])
-def manage_performance(perf_id):
-    """
-    - PUT => modifie (JSON: { "name":"...", "description":"..." })
-    - DELETE => supprime
-    """
-    perf = Performance.query.get(perf_id)
+def _render_fragment(perf: Performance) -> str:
+    """Construit un petit fragment HTML stylable par CSS."""
     if not perf:
-        return jsonify({"error": "Performance not found"}), 404
+        return "<div class='perf-subtitle'>Performance générale</div>" \
+               "<div class='perf-general-fragment perf-box'><em>Aucune performance générale définie pour cette activité.</em></div>"
+    name = (perf.name or "Performance").strip()
+    desc = (perf.description or "").strip().replace("\n", "<br>")
+    return (
+        "<div class='perf-subtitle'>Performance générale</div>"
+        "<div class='perf-general-fragment perf-box'>"
+        f"  <div class='perf-general-title'><strong>{name}</strong></div>"
+        f"  <div class='perf-general-desc'>{desc}</div>"
+        "</div>"
+    )
 
-    if request.method == 'PUT':
-        data = request.get_json() or {}
-        new_name = data.get("name", "").strip()
-        new_desc = data.get("description", "").strip()
 
-        if not new_name:
-            return jsonify({"error": "name is required"}), 400
-
-        try:
-            perf.name = new_name
-            perf.description = new_desc
-            db.session.commit()
-            return jsonify({"message": "Performance updated"}), 200
-        except Exception as e:
-            db.session.rollback()
-            traceback.print_exc()
-            return jsonify({"error": str(e)}), 500
-
-    elif request.method == 'DELETE':
-        try:
-            db.session.delete(perf)
-            db.session.commit()
-            return jsonify({"message": "Performance deleted"}), 200
-        except Exception as e:
-            db.session.rollback()
-            traceback.print_exc()
-            return jsonify({"error": str(e)}), 500
-
-@performance_bp.route('/render/<int:link_id>', methods=['GET'])
-def render_performance_partial(link_id):
+@performance_bp.route("/render/<int:link_id>", methods=["GET"])
+def render_by_link(link_id):
     """
-    Retourne un fragment HTML : 
-      - si Performance existe => on affiche (nom, description, boutons)
-      - sinon => bouton "Performance"
+    Rendu HTML d'une performance à partir d'un link_id direct.
     """
-    try:
-        perf_obj = Performance.query.filter_by(link_id=link_id).first()
-        return render_template("performance_partial.html", link_id=link_id, performance=perf_obj)
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+    perf = Performance.query.filter_by(link_id=link_id).first()
+    return _render_fragment(perf)
+
+
+@performance_bp.route("/render_activity/<int:activity_id>", methods=["GET"])
+def render_by_activity(activity_id):
+    """
+    Fallback : trouve une Performance liée à l'activité via Link
+    (source_activity_id OU target_activity_id) et renvoie un fragment HTML.
+    """
+    # On récupère un Link attaché à l'activité côté source OU côté target et qui dispose d'une performance
+    link = (
+        db.session.query(Link)
+        .join(Performance, Performance.link_id == Link.id)
+        .filter(
+            or_(
+                Link.source_activity_id == activity_id,
+                Link.target_activity_id == activity_id
+            )
+        )
+        .first()
+    )
+    perf = link.performance if link and getattr(link, "performance", None) else None
+    return _render_fragment(perf)

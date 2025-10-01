@@ -41,10 +41,10 @@
   background: #fff;
   color: #333;
   border-radius: 8px;
-  padding: 10px 16px;              /* plus gros */
+  padding: 10px 16px;
   cursor: pointer;
   transition: background-color .2s, border-color .2s, transform .05s, box-shadow .2s;
-  font-size: 15px;                 /* plus gros */
+  font-size: 15px;
   line-height: 1.1;
   position: relative;
 }
@@ -52,10 +52,8 @@
 .btn:active { transform: translateY(1px); }
 .btn:disabled { opacity: .7; cursor: not-allowed; }
 
-/* Variation plus généreuse si besoin */
 .btn-lg { padding: 12px 18px; font-size: 16px; border-radius: 10px; }
 
-/* Variantes */
 .btn-primary {
   background-color: #007bff;
   border-color: #007bff;
@@ -85,19 +83,18 @@
 
 /* ===== Carte "Prérequis & plan" ===================================== */
 .prerequis-card {
-  margin-top: 12px;
-  border: 1px solid #ccc;
-  background-color: #fff;
-  border-radius: 6px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-  overflow: hidden;
+  margin-top: 12px; border: 1px solid #ccc; background-color: #fff; border-radius: 6px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05); overflow: hidden;
 }
 .prerequis-card__header {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  background-color: #0069d9; color: #fff; padding: 10px;
+  /* violet comme demandé précédemment */
+  background: linear-gradient(90deg, #8b5cf6 0%, #7c3aed 100%);
+  color: #fff; padding: 10px;
 }
-.prerequis-card__header h4 { margin: 0; font-size: 16px; font-weight: 600; }
+.prerequis-card__header h4 { margin: 0; font-size: 16px; font-weight: 700; }
 .prerequis-card__actions { display: flex; gap: 10px; }
+
 .prerequis-table-wrapper { overflow: auto; }
 .prerequis-table { width: 100%; border-collapse: collapse; margin: 0; }
 .prerequis-table th, .prerequis-table td {
@@ -110,10 +107,15 @@
   border: 1px solid #ccc; border-radius: 6px; padding: 8px 10px; font-size: 14px; box-sizing: border-box;
 }
 .prerequis-table textarea.prerequis-comment:focus {
-  outline: none; border-color: #007bff; box-shadow: 0 0 0 3px rgba(0,123,255,0.15);
+  outline: none; border-color: #7c3aed; box-shadow: 0 0 0 3px rgba(124,58,237,0.18);
 }
 .prerequis-hint { margin: 10px; color: #555; font-size: 0.9em; }
 .muted { color: #555; }
+
+/* Zone scrollable + topbar & actions bas */
+.prerequis-scrollable { max-height: 360px; overflow: auto; }
+.prerequis-topbar { display:flex; justify-content:flex-end; padding:8px 10px; background:#fafafa; border-top:1px solid #eee; }
+.prerequis-actions-bottom { display:flex; gap:10px; justify-content:flex-end; padding:10px; border-top:1px solid #eee; background:#fafafa; }
 
 /* ===== Overlay pleine page pour le chargement du plan =============== */
 .page-loader {
@@ -126,14 +128,11 @@
   width: 46px; height: 46px; border: 4px solid #e5e5e5; border-top-color: #007bff;
   border-radius: 50%; animation: spin .8s linear infinite;
 }
-.page-loader .label {
-  margin-top: 10px; color: #333; font-weight: 600; text-align: center;
-}
+.page-loader .label { margin-top: 10px; color: #333; font-weight: 600; text-align: center; }
 
-/* ===== Modale (relook) ============================================== */
+/* ===== Modale (générale) =========================================== */
 .modal.hidden { display: none; }
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-
 .modal__panel {
   background: #fff; border: 1px solid #ccc; border-radius: 8px;
   width: min(960px, calc(100vw - 40px)); max-height: 82vh; overflow: auto;
@@ -145,13 +144,11 @@
   background: linear-gradient(90deg, #007bff 0%, #0069d9 100%);
   color: #fff; border-bottom: 1px solid #ccc; position: sticky; top: 0;
 }
-.modal__head h3 { margin: 0; font-weight: 700; letter-spacing: .2px; }
 .modal__close {
   background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.3);
   border-radius: 8px; padding: 6px 10px; cursor: pointer;
 }
 .modal__close:hover { background: rgba(255,255,255,0.25); }
-
 .modal__body { padding: 14px; background: #fff; }
 .modal__foot { display: flex; justify-content: flex-end; gap: 10px; padding: 12px 14px; border-top: 1px solid #eee; background: #fafafa; }
 
@@ -175,4 +172,18 @@
   .page-competences-header { grid-template-columns: 1fr; gap: 10px; }
   .collab-select { justify-content: space-between; }
   .prerequis-card__actions { flex-wrap: wrap; }
+}
+
+/* ======================================================================
+   AJOUT : Petite modale de confirmation "Remplacer le plan"
+   - Largeur réduite
+   - Header violet pour la démarquer
+====================================================================== */
+.modal--sm .modal__panel,
+.modal__panel--sm {
+  width: min(480px, calc(100vw - 40px));
+  max-height: 70vh;
+}
+#plan-replace-modal .modal__head {
+  background: linear-gradient(90deg, #8b5cf6 0%, #7c3aed 100%);
 }

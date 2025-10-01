@@ -183,6 +183,10 @@ def create_app():
     from Code.routes.activity_items_api import activity_items_api_bp
     app.register_blueprint(activity_items_api_bp)
 
+    from Code.routes.plan_storage import plan_storage_bp
+    app.register_blueprint(plan_storage_bp)
+
+
 
 
     # Clé secrète pour session et sécurité
