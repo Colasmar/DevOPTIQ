@@ -1,5 +1,4 @@
 # Code/models/models.py
-
 from datetime import datetime
 from Code.extensions import db
 
@@ -10,7 +9,7 @@ task_tools = db.Table(
     'task_tools',
     db.Column('task_id', db.Integer, db.ForeignKey('tasks.id'), primary_key=True),
     db.Column('tool_id', db.Integer, db.ForeignKey('tools.id'), primary_key=True),
-    extend_existing=True  # évite l'erreur si le module est importé deux fois par des chemins différents
+    extend_existing=True
 )
 
 activity_roles = db.Table(
@@ -29,7 +28,6 @@ task_roles = db.Table(
     extend_existing=True
 )
 
-
 # -------------------------------------------------------------------
 # Modèles
 # -------------------------------------------------------------------
@@ -41,6 +39,10 @@ class Activities(db.Model):
     name = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=True)
     is_result = db.Column(db.Boolean, nullable=False, default=False)
+
+    # 🔹 Nouvelles colonnes (défaut / préremplissage des autres pages)
+    duration_minutes = db.Column(db.Float, default=0)  # durée moyenne (en minutes)
+    delay_minutes    = db.Column(db.Float, default=0)  # délai de production (en minutes)
 
     tasks = db.relationship(
         'Task',
@@ -76,6 +78,10 @@ class Task(db.Model):
     description = db.Column(db.Text, nullable=True)
     order = db.Column(db.Integer, nullable=True)
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
+
+    # 🔹 Nouvelles colonnes (durée/délai par tâche — utile si saisie « par tâches »)
+    duration_minutes = db.Column(db.Float, default=0)
+    delay_minutes    = db.Column(db.Float, default=0)
 
     tools = db.relationship(
         'Tool',
@@ -156,18 +162,11 @@ class PerformancePersonnalisee(db.Model):
     user_id = db.Column(db.Integer, nullable=False)
     activity_id = db.Column(db.Integer, nullable=False)
 
-    # ⚠️ colonne existante en base : "content"
     content = db.Column('content', db.Text, nullable=True)
-
-    # colonnes de suivi (ajoutées par ALTER TABLE ci-dessus)
-    validation_status = db.Column(db.String(20), default='non-validee')  # 'validee' | 'non-validee'
-    validation_date = db.Column(db.String(10), nullable=True)            # 'YYYY-MM-DD'
-
-    # timestamps (en base c'est TEXT, on reste souple)
+    validation_status = db.Column(db.String(20), default='non-validee')
+    validation_date = db.Column(db.String(10), nullable=True)
     created_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
     updated_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
-
-    # colonne existante éventuelle (vu dans structureBDD.sql)
     deleted = db.Column(db.Boolean, default=False)
 
 
@@ -236,17 +235,10 @@ class CompetencyEvaluation(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
 
-    # Pour les items rattachés à l'activité (savoirs, savoir_faires, softskills, competencies)
     item_id = db.Column(db.Integer, nullable=True)
     item_type = db.Column(db.String(50), nullable=True)
-
-    # 'garant' | 'manager' | 'rh'  OU  '1'|'2'|'3' pour les items
     eval_number = db.Column(db.String(50), nullable=False)
-
-    # 'green' | 'orange' | 'red' | 'empty'
     note = db.Column(db.String(10), nullable=False)
-
-    # Stocké en texte dans la base actuelle
     created_at = db.Column(db.Text, default=datetime.utcnow)
 
     user = db.relationship('User', back_populates='evaluations')
@@ -265,7 +257,6 @@ class TimeAnalysis(db.Model):
     frequency = db.Column(db.Integer, nullable=False)
     delay = db.Column(db.Integer, nullable=True)
 
-    # activité, rôle, utilisateur
     type = db.Column(db.String(20), nullable=False)
 
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=True)
@@ -313,3 +304,63 @@ class TimeAnalysis(db.Model):
             except ZeroDivisionError:
                 return 0
         return 0
+
+# -------------------------------------------------------------------
+# 🔽 Nouveaux modèles "Temps"
+# -------------------------------------------------------------------
+class TimeProject(db.Model):
+    __tablename__ = 'time_project'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    lines = db.relationship('TimeProjectLine', backref='project', cascade="all, delete-orphan")
+
+
+class TimeProjectLine(db.Model):
+    __tablename__ = 'time_project_line'
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('time_project.id', ondelete="CASCADE"), nullable=False)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
+    duration_minutes = db.Column(db.Float, nullable=False, default=0)
+    delay_minutes = db.Column(db.Float, nullable=False, default=0)
+    nb_people = db.Column(db.Integer, nullable=False, default=1)
+
+
+class TimeRoleAnalysis(db.Model):
+    __tablename__ = 'time_role_analysis'
+    id = db.Column(db.Integer, primary_key=True)
+    role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), nullable=False)
+    name = db.Column(db.String(120), default='Analyse rôle')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    lines = db.relationship('TimeRoleLine', backref='role_analysis', cascade="all, delete-orphan")
+
+
+class TimeRoleLine(db.Model):
+    __tablename__ = 'time_role_line'
+    id = db.Column(db.Integer, primary_key=True)
+    role_analysis_id = db.Column(db.Integer, db.ForeignKey('time_role_analysis.id', ondelete="CASCADE"), nullable=False)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
+    recurrence = db.Column(db.String(32), nullable=False)  # journalier/hebdomadaire/mensuel/annuel
+    frequency = db.Column(db.Integer, nullable=False, default=1)
+    # 🔹 Ajouts pour stocker la durée/délai/personnes à la ligne (corrige les agrégats à 0)
+    duration_minutes = db.Column(db.Float, nullable=False, default=0)
+    delay_minutes = db.Column(db.Float, nullable=False, default=0)
+    nb_people = db.Column(db.Integer, nullable=False, default=1)
+
+
+class TimeWeakness(db.Model):
+    __tablename__ = 'time_weakness'
+    id = db.Column(db.Integer, primary_key=True)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
+    task_id = db.Column(db.Integer, db.ForeignKey('tasks.id'))
+    duration_std_minutes = db.Column(db.Float, nullable=False, default=0)  # B
+    delay_std_minutes = db.Column(db.Float, nullable=False, default=0)     # C
+    recurrence = db.Column(db.String(32), nullable=False)  # J/H/M/A
+    frequency = db.Column(db.Integer, nullable=False, default=1)
+    weakness = db.Column(db.Text)
+    work_added_qty = db.Column(db.Float, nullable=False, default=0)  # L
+    work_added_unit = db.Column(db.String(16), nullable=False, default='minutes')
+    wait_added_qty = db.Column(db.Float, nullable=False, default=0)  # M
+    wait_added_unit = db.Column(db.String(16), nullable=False, default='minutes')
+    prob_denom = db.Column(db.Integer, nullable=False, default=1)    # N
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)

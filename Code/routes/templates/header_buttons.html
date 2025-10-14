@@ -1,48 +1,88 @@
-<!-- header_buttons.html -->
+<!-- Code/routes/templates/header_buttons.html -->
 <link rel="stylesheet" href="./../../../static/optiq.css">
-<!-- Bouton cartographie -->
-  <button id="update-cartography-button" class="update-btn">
-    <i class="fa-solid fa-arrows-rotate"></i> Mettre à jour la cartographie
-  </button>
-  
-  <!-- Bouton pour la page des activités -->
-  <button onclick="window.location.href='/activities/view'" class="update-btn">
-    <i class="fa-solid fa-user"></i> Afficher la liste des Activités
-  </button>
+<link rel="stylesheet" href="./../../../static/cardnav.css">
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
 
-  <!-- Bouton pour la page des rôles -->
-  <button onclick="window.location.href='/roles_view'" class="update-btn">
-    <i class="fa-solid fa-user"></i> Afficher les rôles
-  </button>
-  
-  <!-- Bouton pour la page de synthèse des compétences -->
-  <button onclick="window.location.href='/competences/view'" class="update-btn">
-    <i class="fa-solid fa-user"></i> Suivre les compétences
-  </button>
+<div class="card-nav-container">
+  <nav id="card-nav" class="card-nav" aria-label="Navigation principale">
 
-  <!-- Bouton pour la page de gestion du temps -->
-  <button onclick="window.location.href='/temps'" class="update-btn">
-    <i class="fa-solid fa-clock"></i> Gérer le temps
-  </button>
-    
-  <!-- Bouton pour la page de gestion des comptes -->
-  <button onclick="window.location.href='/comptes'" class="update-btn">
-    <i class="fa-solid fa-users-gear"></i> Gérer les comptes
-  </button>
+    <!-- Barre supérieure -->
+    <div class="card-nav-top">
+      <a class="logo-container" href="/activities/view">
+        <span class="logo-badge">◐</span>
+        <span class="logo-text">OPTIQ</span>
+      </a>
 
-  <!-- Bouton pour la page de gestion RH -->
-  <button onclick="window.location.href='/gestion_rh'" class="update-btn">
-    <i class="fa-solid fa-building-user"></i> Gestion RH
-  </button>
+      <div id="hamburger" class="hamburger-menu" role="button" aria-label="Ouvrir le menu" tabindex="0">
+        <div class="hamburger-line"></div>
+        <div class="hamburger-line"></div>
+      </div>
+    </div>
 
-  <!-- Bouton pour la page de projection métier -->
-  <button onclick="window.location.href='/projection_metier'" class="update-btn">
-    <i class="fa-solid fa-briefcase"></i> Projection Métiers (ROME)
-  </button>
+    <!-- Contenu déroulant -->
+    <div class="card-nav-content" aria-hidden="true">
+      <!-- Rail des cartes (scroll horizontal) -->
+      <div class="card-scroll">
 
-  <!-- Bouton pour la page de projection métier -->
-  <button onclick="window.location.href='/gestion_outils'" class="update-btn">
-    <i class="fa-solid fa-briefcase"></i> Gestion Outils
-  </button>
+        <!-- Cartes -->
+        <a class="nav-card" href="/activities/view"
+           style="--card-bg: linear-gradient(135deg,#D8FFE9,#88F0BB);--card-fg:#08321F">
+          <div class="nav-card-label"><i class="fa-solid fa-list-check"></i> Activités</div>
+        </a>
 
+        <a class="nav-card" href="/roles_view"
+           style="--card-bg: linear-gradient(135deg,#F2E3FF,#D0A9FF);--card-fg:#2a1057">
+          <div class="nav-card-label"><i class="fa-solid fa-users-rectangle"></i> Rôles</div>
+        </a>
 
+        <a class="nav-card" href="/competences/view"
+           style="--card-bg: linear-gradient(135deg,#E6F2FF,#A7CCFF);--card-fg:#0E2B5A">
+          <div class="nav-card-label"><i class="fa-solid fa-layer-group"></i> Compétences</div>
+        </a>
+
+        <a class="nav-card" href="/temps"
+           style="--card-bg: linear-gradient(135deg,#FFF0D5,#FFD194);--card-fg:#3A1C00">
+          <div class="nav-card-label"><i class="fa-solid fa-clock"></i> Temps</div>
+        </a>
+
+        <a class="nav-card" href="/comptes"
+           style="--card-bg: linear-gradient(135deg,#FFE0E7,#FF9FB1);--card-fg:#5A0016">
+          <div class="nav-card-label"><i class="fa-solid fa-users-gear"></i> Comptes</div>
+        </a>
+
+        <a class="nav-card" href="/gestion_rh"
+           style="--card-bg: linear-gradient(135deg,#E6FFD9,#A8F08F);--card-fg:#10350A">
+          <div class="nav-card-label"><i class="fa-solid fa-building-user"></i> Gestion RH</div>
+        </a>
+
+        <a class="nav-card" href="/projection_metier"
+           style="--card-bg: linear-gradient(135deg,#DFF2FF,#8ED6FF);--card-fg:#0A2E4A">
+          <div class="nav-card-label"><i class="fa-solid fa-briefcase"></i> Projection Métiers</div>
+        </a>
+
+        <a class="nav-card" href="/gestion_outils"
+           style="--card-bg: linear-gradient(135deg,#FFE6F1,#FFA6C9);--card-fg:#4A0C26">
+          <div class="nav-card-label"><i class="fa-solid fa-screwdriver-wrench"></i> Gestion Outils</div>
+        </a>
+      </div>
+
+      <!-- Sidebar "Navigation rapide" (hors du rail de cartes, à droite) -->
+      <aside class="side-list-card" aria-label="Navigation rapide">
+        <h4><i class="fa-solid fa-bars"></i> Navigation rapide</h4>
+        <ul>
+          <li><a href="/activities/view"><i class="fa-solid fa-list-check"></i> Activités</a></li>
+          <li><a href="/roles_view"><i class="fa-solid fa-users-rectangle"></i> Rôles</a></li>
+          <li><a href="/competences/view"><i class="fa-solid fa-layer-group"></i> Compétences</a></li>
+          <li><a href="/temps"><i class="fa-solid fa-clock"></i> Temps</a></li>
+          <li><a href="/comptes"><i class="fa-solid fa-users-gear"></i> Comptes</a></li>
+          <li><a href="/gestion_rh"><i class="fa-solid fa-building-user"></i> Gestion RH</a></li>
+          <li><a href="/projection_metier"><i class="fa-solid fa-briefcase"></i> Métiers (ROME)</a></li>
+          <li><a href="/gestion_outils"><i class="fa-solid fa-screwdriver-wrench"></i> Outils</a></li>
+          <li><a href="/activities/update-cartography"><i class="fa-solid fa-arrows-rotate"></i> Mettre à jour</a></li>
+        </ul>
+      </aside>
+    </div>
+  </nav>
+</div>
+
+<script src="./../../../static/js/cardnav.js"></script>
