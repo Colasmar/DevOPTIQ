@@ -8,3 +8,5 @@ pydotplus
 graphviz
 flask_mail
 python-dotenv
+gunicorn
+psycopg2-binary
