@@ -23,53 +23,68 @@ from flask_mail import Mail
 # Import pour modifier la connexion SMTP
 import smtplib
 
+
 # Classe personnalisée pour forcer l'encodage UTF-8
 class CustomMail(Mail):
     def connect(self):
         connection = super().connect()
-        # Si c'est une instance de smtplib.SMTP, on définit local_hostname
         if isinstance(connection, smtplib.SMTP):
-            # Forcer le local_hostname en ASCII
             connection.local_hostname = 'localhost'
         return connection
 
+
 def create_app():
+    # le dossier static est bien à la racine du projet
     static_folder = os.path.join(parent_dir, 'static')
     app = Flask(__name__, static_folder=static_folder)
 
-    # Active le mode debug et la propagation des exceptions
+    # Mode debug (on pourra le désactiver en prod via une variable plus tard)
     app.config['DEBUG'] = True
     app.config['PROPAGATE_EXCEPTIONS'] = True
 
-    # Configuration de la base de données SQLite
-    instance_path = os.path.join(os.path.dirname(__file__), 'instance')
-    if not os.path.exists(instance_path):
-        os.makedirs(instance_path)
-    db_path = os.path.join(instance_path, 'optiq.db')
-    app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{db_path}"
+    # =========================
+    # 1) CONFIGURATION BDD
+    # =========================
+    # Si on est sur Cloud Run / prod : on lit DATABASE_URL
+    database_url = os.getenv("DATABASE_URL")
+
+    if database_url:
+        # cas Cloud Run / Neon Postgres
+        app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+        # petit confort pour éviter les connexions mortes
+        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+            "pool_pre_ping": True
+        }
+    else:
+        # cas local : on reste sur ton optiq.db dans Code/instance
+        instance_path = os.path.join(os.path.dirname(__file__), 'instance')
+        if not os.path.exists(instance_path):
+            os.makedirs(instance_path)
+        db_path = os.path.join(instance_path, 'optiq.db')
+        app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{db_path}"
+
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-    # -------------- Configuration SMTP pour Flask-Mail --------------
-    # Adapte ces valeurs avec ton fournisseur SMTP
-    app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-    app.config['MAIL_PORT'] = 587
-    app.config['MAIL_USE_TLS'] = True
-    app.config['MAIL_USERNAME'] = 'afdec.enterprise.services@gmail.com'
-    app.config['MAIL_PASSWORD'] = 'awdkerghqvuwjhel'
+    # =========================
+    # 2) CONFIGURATION SMTP
+    # =========================
+    # on lit d'abord les variables d'env si jamais tu les mets sur Cloud Run
+    app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
+    app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', '587'))
+    app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS', 'true').lower() == 'true'
+    app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME', 'afdec.enterprise.services@gmail.com')
+    app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD', 'awdkerghqvuwjhel')
 
-    # Initialisation de Flask-Mail avec la classe personnalisée
+    # Initialisation des extensions
     mail.init_app(app)
     db.init_app(app)
 
-
-    # Init extensions
-    from flask_migrate import Migrate
     migrate = Migrate(app, db)
 
     # ----------------------------------------------------------------------
-    # 1) Filtre Jinja pour n'afficher que la partie numérique (1..4)
+    # Filtre Jinja pour n'afficher que la partie numérique (1..4)
     # ----------------------------------------------------------------------
-    import re  # pour le filtre extract_numeric_level
+    import re
     def extract_numeric_level(value):
         match = re.search(r"\d", value or "")
         return match.group(0) if match else "1"
@@ -77,7 +92,7 @@ def create_app():
     app.jinja_env.filters['extract_numeric_level'] = extract_numeric_level
 
     # ----------------------------------------------------------------------
-    # 2) Filtre Jinja 'escapejs' pour échapper apostrophes & backslashes en JS
+    # Filtre Jinja 'escapejs'
     # ----------------------------------------------------------------------
     def escapejs_filter(value):
         if not value:
@@ -146,7 +161,6 @@ def create_app():
     # ---------------------
     #  Nouveaux blueprints
     # ---------------------
-
     from Code.routes.propose_savoirs import bp_propose_savoirs
     app.register_blueprint(bp_propose_savoirs)
 
@@ -162,7 +176,7 @@ def create_app():
     from Code.routes.gestion_compte import gestion_compte_bp
     app.register_blueprint(gestion_compte_bp)
 
-    from Code.routes.routes_password  import auth_password_bp
+    from Code.routes.routes_password import auth_password_bp
     app.register_blueprint(auth_password_bp)
 
     from Code.routes.gestion_rh import gestion_rh_bp
@@ -186,11 +200,8 @@ def create_app():
     from Code.routes.plan_storage import plan_storage_bp
     app.register_blueprint(plan_storage_bp)
 
-
-
-
-    # Clé secrète pour session et sécurité
-    app.secret_key = 'votre_clé_secrète_unique'
+    # Clé secrète
+    app.secret_key = os.getenv('SECRET_KEY', 'votre_clé_secrète_unique')
 
     @app.route('/')
     def home():
@@ -202,7 +213,10 @@ def create_app():
 
     return app
 
+
 app = create_app()
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Si on est lancé en local : port 5000 par défaut
+    port = int(os.getenv("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
