@@ -1,6 +1,10 @@
-# routes/propose_aptitudes.py
+# Code/routes/propose_aptitudes.py
 from flask import Blueprint, request, jsonify, current_app
-import os
+from .propose_common import (
+    build_activity_context,
+    openai_client_or_none,
+    dummy_from_context,
+)
 
 bp_propose_aptitudes = Blueprint("propose_aptitudes", __name__)
 
@@ -23,55 +27,31 @@ Règles :
    Section B – Intégration de personnes en situation de handicap (3 niveaux)
 """
 
-def _build_activity_context(activity_json: dict) -> str:
-    title = activity_json.get("title") or activity_json.get("name") or ""
-    description = activity_json.get("description") or ""
-    inputs = activity_json.get("input_data") or []
-    outputs = activity_json.get("output_data") or []
-    tools = activity_json.get("tools") or activity_json.get("outils") or []
-    constraints = activity_json.get("constraints") or []
-    tasks = activity_json.get("tasks") or []
-
-    def norm_list(lst):
-        if not lst: return "-"
-        return "\n".join([f"- {str(x)}" for x in lst])
-
-    return f"""# Activité
-Titre: {title}
-Description: {description}
-
-# Données d'entrée
-{norm_list(inputs)}
-
-# Données de sortie
-{norm_list(outputs)}
-
-# Outils
-{norm_list(tools)}
-
-# Contraintes
-{norm_list(constraints)}
-
-# Tâches
-{norm_list(tasks)}
-"""
-
-def _openai_client():
-    from openai import OpenAI
-    key = os.environ.get("OPENAI_API_KEY")
-    if not key:
-        return None, "Clé OpenAI manquante (OPENAI_API_KEY)."
-    return OpenAI(api_key=key), None
 
 @bp_propose_aptitudes.route("/propose_aptitudes/propose", methods=["POST"])
 def propose_aptitudes():
+    """
+    Version tolérante :
+    - si OPENAI_API_KEY absente → on renvoie un fallback 200 avec quelques aptitudes génériques
+      construites à partir de l’activité -> pas de 500 en prod
+    - si OpenAI répond → on normalise en liste de lignes
+    """
     try:
         activity = request.get_json(force=True) or {}
-        ctx = _build_activity_context(activity)
+        ctx = build_activity_context(activity)
 
-        client, err = _openai_client()
-        if err:
-            return jsonify({"error": err}), 500
+        client, err = openai_client_or_none()
+        if client is None:
+            # ✅ pas de clé ou erreur d'init → fallback
+            return (
+                jsonify(
+                    {
+                        "proposals": dummy_from_context(ctx, "aptitude"),
+                        "source": err,
+                    }
+                ),
+                200,
+            )
 
         prompt = f"""{PROMPT_HEADER_APTITUDES}
 
@@ -81,17 +61,33 @@ def propose_aptitudes():
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "Tu es un assistant inclusion & ergonomie du travail, précis et positif."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": "Tu es un assistant inclusion & ergonomie du travail, précis et positif.",
+                },
+                {"role": "user", "content": prompt},
             ],
             temperature=0.2,
         )
         text = resp.choices[0].message.content.strip()
 
-        # On renvoie tel quel (ton JS affiche dans un modal avec checkboxes)
-        # Si besoin, on découpe en lignes pour uniformiser.
+        # On découpe en lignes pour que le JS ait toujours le même format
         lines = [l.strip("-• ").strip() for l in text.splitlines() if l.strip()]
-        return jsonify({"proposals": lines})
+        if not lines:
+            lines = ["Aptitudes non déterminées."]
+
+        return jsonify({"proposals": lines}), 200
+
     except Exception as e:
         current_app.logger.exception(e)
-        return jsonify({"error": str(e)}), 500
+        # même en cas d'erreur on renvoie 200 avec un message,
+        # pour ne pas faire planter le front
+        return (
+            jsonify(
+                {
+                    "proposals": ["Aptitudes non déterminées (erreur serveur)."],
+                    "error": str(e),
+                }
+            ),
+            200,
+        )

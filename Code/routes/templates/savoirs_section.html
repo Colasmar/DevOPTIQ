@@ -1,66 +1,17 @@
 <!-- Code/routes/templates/savoirs_section.html -->
 
-<script>
-    function fetchActivityDetailsForSavoirs(activityId) {
-        showSpinner();
-        fetch(`/activities/${activityId}/details`)
-            .then(response => {
-                if (!response.ok) {
-                    hideSpinner();
-                    throw new Error("Erreur lors de la récupération des détails de l'activité");
-                }
-                return response.json();
-            })
-            .then(activityData => {
-                hideSpinner();
-                proposeSavoirs(activityData);
-            })
-            .catch(error => {
-                hideSpinner();
-                alert("Erreur lors de la récupération des données : " + error.message);
-            });
-    }
-    
-    function proposeSavoirs(activityData) {
-        showSpinner();
-    
-        fetch("/savoirs/propose_savoirs", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                name: activityData.title,
-                input_data: activityData.input_data,
-                output_data: activityData.output_data
-            })
-        })
-        .then(response => {
-            if (!response.ok) {
-                hideSpinner();
-                return response.text().then(text => {
-                    throw new Error(`Réponse invalide de /savoirs/propose_savoirs: ${text}`);
-                });
-            }
-            return response.json();
-        })
-        .then(data => {
-            hideSpinner();
-            if (data.error) {
-                alert("Erreur IA : " + data.error);
-                return;
-            }
-    
-            const lines = data.proposals; 
-            if (!lines || !Array.isArray(lines) || lines.length === 0) {
-                alert("Aucune proposition retournée.");
-                return;
-            }
-    
-            
-            showSavoirProposalsModal(lines, activityData.id);
-        })
-        .catch(error => {
-            hideSpinner();
-            alert("Erreur lors de la proposition de savoirs : " + error.message);
-        });
-    }
-    </script>
+<div class="savoirs-section">
+    <h4>Savoirs et savoir-faire</h4>
+
+    <!-- Bouton proposer (unifié) -->
+    <button 
+        class="btn btn-primary"
+        onclick="fetchActivityDetailsForSavoirsFaires({{ activity.id }})">
+        Proposer
+    </button>
+
+    <!-- Conteneur où les savoirs/savoir-faire seront affichés -->
+    <div id="savoirs-container-{{ activity.id }}" class="savoirs-container">
+        <!-- le JS 'propose_savoirs_faires.js' viendra mettre à jour cette section -->
+    </div>
+</div>
