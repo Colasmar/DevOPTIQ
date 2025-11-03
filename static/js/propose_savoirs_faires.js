@@ -184,8 +184,8 @@
           ));
         }
 
-        if (typeof refreshSavoirsEtSavoirFaires === "function") {
-          await refreshSavoirsEtSavoirFaires(activityId);
+        if (typeof refreshActivityItems === "function") {
+          await refreshActivityItems(activityId);
         }
 
         modal.style.display = "none";
