@@ -23,38 +23,41 @@ function submitAddSavoir(activityId) {
   fetch(`/savoirs/add`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      description: desc,
-      activity_id: activityId
-    })
+    body: JSON.stringify({ description: desc, activity_id: activityId })
   })
-    .then(r => r.json())
+    .then(async r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status} sur /savoirs/add`);
+      return r.json();
+    })
     .then(async data => {
-      if (typeof hideAddSavoirForm === "function") hideAddSavoirForm(activityId);
+      hideAddSavoirForm(activityId);
       if (data.error) {
         alert("Erreur : " + data.error);
       } else {
-        // ✅ on rafraîchit TOUT
         await refreshActivityItems(activityId);
       }
     })
     .catch(err => {
       console.error("Erreur ajout savoir :", err);
+      alert(err.message);
     })
-    .finally(() => {
-      if (typeof hideSpinner === "function") hideSpinner();
-    });
+    .finally(() => { if (typeof hideSpinner === "function") hideSpinner(); });
 }
 
 function editSavoir(savoirId, activityId) {
   const descElem = document.getElementById(`savoir-desc-${savoirId}`);
   const editInput = document.getElementById(`edit-savoir-input-${savoirId}`);
-  const editBtn = document.getElementById(`submit-edit-savoir-${savoirId}`);
+  const editBtn   = document.getElementById(`submit-edit-savoir-${savoirId}`);
 
+  if (!descElem || !editInput || !editBtn) {
+    console.warn("editSavoir: éléments manquants", savoirId);
+    return;
+  }
   descElem.style.display = "none";
   editInput.style.display = "inline-block";
   editBtn.style.display = "inline-block";
-  editInput.value = descElem.innerText.trim();
+  editInput.value = (descElem.innerText || "").trim();
+  editInput.focus();
 }
 
 function submitEditSavoir(activityId, savoirId) {
@@ -71,7 +74,13 @@ function submitEditSavoir(activityId, savoirId) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ description: newDesc })
   })
-    .then(r => r.json())
+    .then(async r => {
+      if (!r.ok) {
+        const t = await r.text();
+        throw new Error(`HTTP ${r.status} sur /savoirs/${activityId}/${savoirId} → ${t.slice(0,120)}…`);
+      }
+      return r.json();
+    })
     .then(async data => {
       if (data.error) {
         alert("Erreur édition Savoir : " + data.error);
@@ -101,3 +110,11 @@ function deleteSavoir(activityId, savoirId) {
       console.error("Erreur suppression savoir :", err);
     });
 }
+
+// Expose global (si utilisé par des onclick inline)
+window.showAddSavoirForm   = showAddSavoirForm;
+window.hideAddSavoirForm   = hideAddSavoirForm;
+window.submitAddSavoir     = submitAddSavoir;
+window.editSavoir          = editSavoir;
+window.submitEditSavoir    = submitEditSavoir;
+window.deleteSavoir        = deleteSavoir;
