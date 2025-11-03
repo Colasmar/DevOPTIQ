@@ -1,5 +1,27 @@
 // static/js/savoir_faires.js
 
+// affichage du petit formulaire d'édition inline
+function showEditSavoirFairesForm(savoirFairesId) {
+  const textEl = document.getElementById(`savoir-faires-desc-${savoirFairesId}`);
+  const inputEl = document.getElementById(`edit-savoir-faires-input-${savoirFairesId}`);
+  const btnEl   = document.getElementById(`submit-edit-savoir-faires-${savoirFairesId}`);
+
+  if (!textEl || !inputEl || !btnEl) {
+    console.warn("showEditSavoirFairesForm: éléments manquants pour", savoirFairesId);
+    return;
+  }
+
+  // on masque le texte et on montre le champ
+  textEl.style.display = "none";
+  inputEl.style.display = "inline-block";
+  btnEl.style.display   = "inline-block";
+
+  // on pré-remplit
+  inputEl.value = textEl.innerText.trim();
+  inputEl.focus();
+}
+
+// ajout
 function submitAddSavoirFaires(activityId) {
   const inputElem = document.getElementById("add-savoir-faires-input-" + activityId);
   if (!inputElem) return;
@@ -22,14 +44,21 @@ function submitAddSavoirFaires(activityId) {
       if (data.error) {
         alert("Erreur : " + data.error);
       } else {
-        await refreshActivityItems(activityId);
+        // on vide le champ
+        inputElem.value = "";
+        // on rafraîchit tout
+        if (typeof refreshActivityItems === "function") {
+          await refreshActivityItems(activityId);
+        }
       }
     })
     .catch(err => {
       console.error("Erreur ajout savoir-faires :", err);
+      alert("Erreur ajout savoir-faires (voir console).");
     });
 }
 
+// édition
 function submitEditSavoirFaires(activityId, savoirFairesId) {
   const inputEl = document.getElementById("edit-savoir-faires-input-" + savoirFairesId);
   if (!inputEl) return;
@@ -49,7 +78,9 @@ function submitEditSavoirFaires(activityId, savoirFairesId) {
       if (data.error) {
         alert("Erreur édition Savoir-Faire : " + data.error);
       } else {
-        await refreshActivityItems(activityId);
+        if (typeof refreshActivityItems === "function") {
+          await refreshActivityItems(activityId);
+        }
       }
     })
     .catch(err => {
@@ -58,6 +89,7 @@ function submitEditSavoirFaires(activityId, savoirFairesId) {
     });
 }
 
+// suppression
 function deleteSavoirFaires(activityId, savoirFairesId) {
   if (!confirm("Supprimer ce savoir-faires ?")) return;
 
@@ -67,10 +99,19 @@ function deleteSavoirFaires(activityId, savoirFairesId) {
       if (data.error) {
         alert("Erreur : " + data.error);
       } else {
-        await refreshActivityItems(activityId);
+        if (typeof refreshActivityItems === "function") {
+          await refreshActivityItems(activityId);
+        }
       }
     })
     .catch(err => {
       console.error("Erreur suppression savoir-faires :", err);
+      alert("Erreur suppression savoir-faires (voir console).");
     });
 }
+
+// on expose en global (si ton HTML inline les appelle)
+window.showEditSavoirFairesForm = showEditSavoirFairesForm;
+window.submitAddSavoirFaires = submitAddSavoirFaires;
+window.submitEditSavoirFaires = submitEditSavoirFaires;
+window.deleteSavoirFaires = deleteSavoirFaires;
