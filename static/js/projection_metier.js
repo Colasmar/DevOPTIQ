@@ -1,19 +1,18 @@
-// Front ROME 4.0 — pagination serveur + mini spinners (global + dans les boutons)
 (() => {
-  const select = document.getElementById('user-select');
-  const fullList = document.getElementById('full-list');
-  const partialList = document.getElementById('partial-list');
-  const alertBox = document.getElementById('alert');
-  const spinner = document.getElementById('spinner');
-  const baseUrl = document.getElementById('base-url');
+  const select = document.getElementById("user-select");
+  const fullList = document.getElementById("full-list");
+  const partialList = document.getElementById("partial-list");
+  const alertBox = document.getElementById("alert");
+  const spinner = document.getElementById("spinner");
+  const filterInput = document.getElementById("job-filter");
+  const detailPanel = document.getElementById("job-detail-panel");
 
-  const fullCount = document.getElementById('full-count');
-  const partialCount = document.getElementById('partial-count');
+  const fullCount = document.getElementById("full-count");
+  const partialCount = document.getElementById("partial-count");
 
-  const fullMoreBtn = document.getElementById('full-more');
-  const partialMoreBtn = document.getElementById('partial-more');
+  const fullMoreBtn = document.getElementById("full-more");
+  const partialMoreBtn = document.getElementById("partial-more");
 
-  // Chargement initial 30, puis +20
   const INITIAL_LIMIT = 30;
   const MORE_CHUNK = 20;
 
@@ -25,122 +24,201 @@
 
   function showAlert(msg) {
     if (!alertBox) return;
-    alertBox.textContent = msg || '';
-    alertBox.style.display = msg ? 'block' : 'none';
+    alertBox.textContent = msg || "";
+    alertBox.style.display = msg ? "block" : "none";
   }
 
-  // Spinner global (haut de page)
   function setLoading(isLoading) {
-    if (spinner) spinner.classList.toggle('show', isLoading);
+    if (spinner) spinner.classList.toggle("show", isLoading);
   }
 
-  // Spinner sur un bouton donné (ajoute une roue dans le bouton)
   function setButtonLoading(btn, loading) {
     if (!btn) return;
     if (loading) {
-      btn.classList.add('is-loading');
-      btn.setAttribute('disabled', 'disabled');
+      btn.classList.add("is-loading");
+      btn.setAttribute("disabled", "disabled");
     } else {
-      btn.classList.remove('is-loading');
-      btn.removeAttribute('disabled');
+      btn.classList.remove("is-loading");
+      btn.removeAttribute("disabled");
     }
   }
 
   function clearLists() {
-    if (fullList) fullList.innerHTML = '';
-    if (partialList) partialList.innerHTML = '';
-    if (fullCount) fullCount.textContent = '0/0';
-    if (partialCount) partialCount.textContent = '0/0';
-    fullOffset = 0; partialOffset = 0;
-    fullTotal = 0; partialTotal = 0;
-    if (fullMoreBtn) fullMoreBtn.style.display = 'none';
-    if (partialMoreBtn) partialMoreBtn.style.display = 'none';
+    if (fullList) fullList.innerHTML = "";
+    if (partialList) partialList.innerHTML = "";
+    if (fullCount) fullCount.textContent = "0/0";
+    if (partialCount) partialCount.textContent = "0/0";
+    fullOffset = 0;
+    partialOffset = 0;
+    fullTotal = 0;
+    partialTotal = 0;
+
+    if (fullMoreBtn) fullMoreBtn.style.display = "none";
+    if (partialMoreBtn) partialMoreBtn.style.display = "none";
+
+    if (detailPanel) {
+      detailPanel.innerHTML = `
+        <div class="pm-detail-empty">
+          <h2>3. Détail d’un métier</h2>
+          <p>Sélectionne un métier dans les listes à gauche pour voir :</p>
+          <ul>
+            <li>Le score global de correspondance</li>
+            <li>Les compétences ROME déjà couvertes</li>
+            <li>Les compétences à développer pour viser ce métier</li>
+          </ul>
+        </div>`;
+    }
   }
 
   function scoreClass(p) {
-    if (p >= 100) return 'badge-green';
-    if (p >= 60) return 'badge-lime';
-    if (p >= 30) return 'badge-amber';
-    if (p > 0)   return 'badge-orange';
-    return 'badge-gray';
+    if (p >= 100) return "badge-green";
+    if (p >= 60) return "badge-lime";
+    if (p >= 30) return "badge-amber";
+    if (p > 0) return "badge-orange";
+    return "badge-gray";
+  }
+
+  function renderJobDetail(item, kind) {
+    if (!detailPanel || !item) return;
+    const ownedCount = item.owned_count ?? (Array.isArray(item.owned) ? item.owned.length : 0);
+    const missingCount = item.missing_count ?? (Array.isArray(item.missing) ? item.missing.length : 0);
+    const total = item.total ?? ownedCount + missingCount;
+
+    detailPanel.innerHTML = `
+      <div class="pm-detail">
+        <div class="pm-detail-head">
+          <div>
+            <div class="pm-detail-title">${item.label || "Métier ROME"}</div>
+            <div class="pm-detail-code">${item.code ? `Code ROME : ${item.code}` : ""}</div>
+          </div>
+          <div class="pm-score-circle">
+            <div class="pm-score-value">${item.score != null ? item.score : 0}%</div>
+            <div class="pm-score-label">${
+              kind === "full" ? "Métiers maîtrisables" : "Métiers envisageables"
+            }</div>
+          </div>
+        </div>
+
+        <div class="pm-detail-metrics">
+          <span class="met ok">Compétences couvertes : <b>${ownedCount}</b></span>
+          <span class="met miss">À développer : <b>${missingCount}</b></span>
+          <span class="met tot">Total ROME : <b>${total}</b></span>
+        </div>
+
+        <div class="pm-detail-blocks">
+          <div class="pm-detail-section">
+            <h3>Compétences déjà couvertes</h3>
+            ${
+              Array.isArray(item.owned) && item.owned.length
+                ? `<ul class="pm-detail-list">
+                    ${item.owned.map((v) => `<li>${v}</li>`).join("")}
+                  </ul>`
+                : `<p class="pm-detail-empty-text">Aucune compétence ROME n’a été reconnue comme couverte pour ce métier.</p>`
+            }
+          </div>
+          <div class="pm-detail-section">
+            <h3>Compétences à développer</h3>
+            ${
+              Array.isArray(item.missing) && item.missing.length
+                ? `<ul class="pm-detail-list">
+                    ${item.missing.map((v) => `<li>${v}</li>`).join("")}
+                   </ul>`
+                : `<p class="pm-detail-empty-text">Aucune compétence manquante détectée : ce métier est pleinement maîtrisé.</p>`
+            }
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   function makeList(items, kind) {
     const frag = document.createDocumentFragment();
 
-    items.forEach(item => {
-      const li = document.createElement('li');
-      li.className = 'job-card';
+    items.forEach((item) => {
+      const li = document.createElement("li");
+      li.className = "job-card";
+      if (kind === "partial") li.classList.add("is-partial");
 
-      const header = document.createElement('div');
-      header.className = 'job-row';
+      li.dataset.label = (item.label || "").toLowerCase();
+      li.dataset.code = (item.code || "").toLowerCase();
+      li.dataset.kind = kind;
 
-      const title = document.createElement('strong');
-      title.className = 'job-title';
-      title.textContent = `${item.label || 'Métier'}${item.code ? ' (' + item.code + ')' : ''}`;
+      const header = document.createElement("div");
+      header.className = "job-row";
 
-      const score = document.createElement('span');
+      const title = document.createElement("strong");
+      title.className = "job-title";
+      title.textContent = `${item.label || "Métier"}${item.code ? " (" + item.code + ")" : ""}`;
+
+      const score = document.createElement("span");
       score.className = `badge ${scoreClass(item.score)}`;
       score.textContent = `${item.score}%`;
 
       header.appendChild(title);
       header.appendChild(score);
-
       li.appendChild(header);
 
-      // Bandeau métriques
-      const metrics = document.createElement('div');
-      metrics.className = 'metrics';
-      metrics.innerHTML = `<span class="met ok">En commun: <b>${item.owned_count ?? (item.owned?.length || 0)}</b></span>
-                           <span class="met miss">À développer: <b>${item.missing_count ?? (item.missing?.length || 0)}</b></span>
-                           <span class="met tot">Total: <b>${item.total ?? ((item.owned?.length||0)+(item.missing?.length||0))}</b></span>`;
+      const metrics = document.createElement("div");
+      metrics.className = "metrics";
+      metrics.innerHTML = `
+        <span class="met ok">En commun : <b>${
+          item.owned_count ?? (Array.isArray(item.owned) ? item.owned.length : 0)
+        }</b></span>
+        <span class="met miss">À développer : <b>${
+          item.missing_count ?? (Array.isArray(item.missing) ? item.missing.length : 0)
+        }</b></span>
+        <span class="met tot">Total : <b>${
+          item.total ?? (
+            (Array.isArray(item.owned) ? item.owned.length : 0) +
+            (Array.isArray(item.missing) ? item.missing.length : 0)
+          )
+        }</b></span>`;
       li.appendChild(metrics);
 
-      // Détails (en commun / à développer)
-      const details = document.createElement('div');
-      details.className = 'lists-wrap';
+      const details = document.createElement("div");
+      details.className = "lists-wrap";
 
       if (Array.isArray(item.owned) && item.owned.length) {
-        const d1 = document.createElement('details');
-        d1.className = 'job-details owned';
-        const s1 = document.createElement('summary');
-        s1.textContent = `En commun (${item.owned.length})`;
+        const d1 = document.createElement("details");
+        d1.className = "job-details owned";
+        const s1 = document.createElement("summary");
+        s1.textContent = `Compétences en commun (${item.owned.length})`;
         d1.appendChild(s1);
 
-        const ul1 = document.createElement('ul');
-        ul1.className = 'owned-list';
-        item.owned.slice(0, 10).forEach(v => {
-          const li1 = document.createElement('li');
+        const ul1 = document.createElement("ul");
+        ul1.className = "owned-list";
+        item.owned.slice(0, 10).forEach((v) => {
+          const li1 = document.createElement("li");
           li1.textContent = v;
           ul1.appendChild(li1);
         });
         if (item.owned.length > 10) {
-          const more = document.createElement('em');
+          const more = document.createElement("em");
           more.textContent = `… et ${item.owned.length - 10} autres`;
-          d1.appendChild(more);
+          ul1.appendChild(more);
         }
         d1.appendChild(ul1);
         details.appendChild(d1);
       }
 
       if (Array.isArray(item.missing) && item.missing.length) {
-        const d2 = document.createElement('details');
-        d2.className = 'job-details missing';
-        const s2 = document.createElement('summary');
-        s2.textContent = `À développer (${item.missing.length})`;
+        const d2 = document.createElement("details");
+        d2.className = "job-details missing";
+        const s2 = document.createElement("summary");
+        s2.textContent = `Compétences à développer (${item.missing.length})`;
         d2.appendChild(s2);
 
-        const ul2 = document.createElement('ul');
-        ul2.className = 'missing-list';
-        item.missing.slice(0, 10).forEach(v => {
-          const li2 = document.createElement('li');
+        const ul2 = document.createElement("ul");
+        ul2.className = "missing-list";
+        item.missing.slice(0, 10).forEach((v) => {
+          const li2 = document.createElement("li");
           li2.textContent = v;
           ul2.appendChild(li2);
         });
         if (item.missing.length > 10) {
-          const more = document.createElement('em');
+          const more = document.createElement("em");
           more.textContent = `… et ${item.missing.length - 10} autres`;
-          d2.appendChild(more);
+          ul2.appendChild(more);
         }
         d2.appendChild(ul2);
         details.appendChild(d2);
@@ -148,9 +226,12 @@
 
       li.appendChild(details);
 
-      if (kind === 'partial') {
-        li.classList.add('is-partial');
-      }
+      li.addEventListener("click", (evt) => {
+        if (evt.target.closest("details")) return;
+        document.querySelectorAll(".job-card.selected").forEach((c) => c.classList.remove("selected"));
+        li.classList.add("selected");
+        renderJobDetail(item, kind);
+      });
 
       frag.appendChild(li);
     });
@@ -159,133 +240,156 @@
   }
 
   function updateCounters() {
-    if (fullCount)   fullCount.textContent   = `${Math.min(fullOffset, fullTotal)}/${fullTotal}`;
+    if (fullCount) fullCount.textContent = `${Math.min(fullOffset, fullTotal)}/${fullTotal}`;
     if (partialCount) partialCount.textContent = `${Math.min(partialOffset, partialTotal)}/${partialTotal}`;
   }
 
   async function fetchPage({ userId, fullLim = 0, fullOff = 0, partialLim = 0, partialOff = 0 }) {
-    const url = new URL(window.location.origin + `/projection_metier/analyze_user/${encodeURIComponent(userId)}`);
-    if (fullLim !== null)    url.searchParams.set('full_limit', fullLim);
-    if (fullOff !== null)    url.searchParams.set('full_offset', fullOff);
-    if (partialLim !== null) url.searchParams.set('partial_limit', partialLim);
-    if (partialOff !== null) url.searchParams.set('partial_offset', partialOff);
+    const url = new URL(
+      window.location.origin + `/projection_metier/analyze/${encodeURIComponent(userId)}`
+    );
+    if (fullLim !== null) url.searchParams.set("full_limit", fullLim);
+    if (fullOff !== null) url.searchParams.set("full_offset", fullOff);
+    if (partialLim !== null) url.searchParams.set("partial_limit", partialLim);
+    if (partialOff !== null) url.searchParams.set("partial_offset", partialOff);
 
-    const res = await fetch(url.toString(), { headers: { 'Accept': 'application/json' } });
+    const res = await fetch(url.toString(), { headers: { Accept: "application/json" } });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
   }
 
   async function initialLoad(userId) {
-    setLoading(true);         // spinner global ON
-    showAlert('');
+    setLoading(true);
+    showAlert("");
     clearLists();
     try {
       const data = await fetchPage({
         userId,
-        fullLim: INITIAL_LIMIT, fullOff: 0,
-        partialLim: INITIAL_LIMIT, partialOff: 0
+        fullLim: INITIAL_LIMIT,
+        fullOff: 0,
+        partialLim: INITIAL_LIMIT,
+        partialOff: 0,
       });
 
-      // Full
       const full = Array.isArray(data.full) ? data.full : [];
+      const partial = Array.isArray(data.partial) ? data.partial : [];
+
       fullTotal = data?.page?.full?.total || full.length;
       fullOffset = (data?.page?.full?.offset || 0) + full.length;
 
-      if (full.length) {
-        fullList.appendChild(makeList(full, 'full'));
-      }
-      if (data?.page?.full?.has_more && fullMoreBtn) {
-        fullMoreBtn.style.display = 'inline-flex';
-      } else if (fullMoreBtn) {
-        fullMoreBtn.style.display = 'none';
-      }
-
-      // Partial
-      const partial = Array.isArray(data.partial) ? data.partial : [];
       partialTotal = data?.page?.partial?.total || partial.length;
       partialOffset = (data?.page?.partial?.offset || 0) + partial.length;
 
-      if (partial.length) {
-        partialList.appendChild(makeList(partial, 'partial'));
+      if (full.length && fullList) {
+        fullList.appendChild(makeList(full, "full"));
       }
+      if (partial.length && partialList) {
+        partialList.appendChild(makeList(partial, "partial"));
+      }
+
+      if (data?.page?.full?.has_more && fullMoreBtn) {
+        fullMoreBtn.style.display = "inline-flex";
+      } else if (fullMoreBtn) {
+        fullMoreBtn.style.display = "none";
+      }
+
       if (data?.page?.partial?.has_more && partialMoreBtn) {
-        partialMoreBtn.style.display = 'inline-flex';
+        partialMoreBtn.style.display = "inline-flex";
       } else if (partialMoreBtn) {
-        partialMoreBtn.style.display = 'none';
+        partialMoreBtn.style.display = "none";
       }
 
       if (fullTotal === 0 && partialTotal === 0) {
         showAlert("Aucun métier trouvé avec les données actuelles.");
       }
+
       updateCounters();
+      applyFilter();
     } catch (e) {
       console.error(e);
-      showAlert("Une erreur est survenue lors de l'analyse.");
+      showAlert("Une erreur est survenue lors de l'analyse (connexion ou serveur).");
     } finally {
-      setLoading(false);      // spinner global OFF
+      setLoading(false);
     }
   }
 
   async function loadMore(kind) {
     if (!currentUserId) return;
-    // Spinner bouton ON
-    if (kind === 'full') setButtonLoading(fullMoreBtn, true);
+    if (kind === "full") setButtonLoading(fullMoreBtn, true);
     else setButtonLoading(partialMoreBtn, true);
 
     try {
       let params;
-      if (kind === 'full') {
+      if (kind === "full") {
         params = {
           userId: currentUserId,
-          fullLim: MORE_CHUNK, fullOff: fullOffset,
-          partialLim: 0, partialOff: 0
+          fullLim: MORE_CHUNK,
+          fullOff: fullOffset,
+          partialLim: 0,
+          partialOff: 0,
         };
       } else {
         params = {
           userId: currentUserId,
-          fullLim: 0, fullOff: 0,
-          partialLim: MORE_CHUNK, partialOff: partialOffset
+          fullLim: 0,
+          fullOff: 0,
+          partialLim: MORE_CHUNK,
+          partialOff: partialOffset,
         };
       }
       const data = await fetchPage(params);
 
-      if (kind === 'full') {
+      if (kind === "full") {
         const arr = Array.isArray(data.full) ? data.full : [];
-        if (arr.length) {
-          fullList.appendChild(makeList(arr, 'full'));
+        if (arr.length && fullList) {
+          fullList.appendChild(makeList(arr, "full"));
           fullOffset += arr.length;
         }
-        if (!(data?.page?.full?.has_more) && fullMoreBtn) fullMoreBtn.style.display = 'none';
+        if (!(data?.page?.full?.has_more) && fullMoreBtn) fullMoreBtn.style.display = "none";
       } else {
         const arr = Array.isArray(data.partial) ? data.partial : [];
-        if (arr.length) {
-          partialList.appendChild(makeList(arr, 'partial'));
+        if (arr.length && partialList) {
+          partialList.appendChild(makeList(arr, "partial"));
           partialOffset += arr.length;
         }
-        if (!(data?.page?.partial?.has_more) && partialMoreBtn) partialMoreBtn.style.display = 'none';
+        if (!(data?.page?.partial?.has_more) && partialMoreBtn) partialMoreBtn.style.display = "none";
       }
 
       updateCounters();
+      applyFilter();
     } catch (e) {
       console.error(e);
       showAlert("Impossible de charger plus d'éléments.");
     } finally {
-      // Spinner bouton OFF
-      if (kind === 'full') setButtonLoading(fullMoreBtn, false);
+      if (kind === "full") setButtonLoading(fullMoreBtn, false);
       else setButtonLoading(partialMoreBtn, false);
     }
   }
 
-  if (fullMoreBtn) fullMoreBtn.addEventListener('click', () => loadMore('full'));
-  if (partialMoreBtn) partialMoreBtn.addEventListener('click', () => loadMore('partial'));
+  function applyFilter() {
+    const q = (filterInput?.value || "").trim().toLowerCase();
+    const cards = document.querySelectorAll(".job-card");
+    if (!q) {
+      cards.forEach((c) => (c.style.display = ""));
+      return;
+    }
+    cards.forEach((c) => {
+      const label = c.dataset.label || "";
+      const code = c.dataset.code || "";
+      c.style.display = label.includes(q) || code.includes(q) ? "" : "none";
+    });
+  }
+
+  if (fullMoreBtn) fullMoreBtn.addEventListener("click", () => loadMore("full"));
+  if (partialMoreBtn) partialMoreBtn.addEventListener("click", () => loadMore("partial"));
 
   if (select) {
-    select.addEventListener('change', (e) => {
+    select.addEventListener("change", (e) => {
       const val = e.target.value;
-      if (!val || val === '0') {
+      if (!val || val === "0") {
         currentUserId = null;
         clearLists();
-        showAlert('');
+        showAlert("");
         return;
       }
       currentUserId = val;
@@ -293,14 +397,9 @@
     });
   }
 
-  // Optionnel: affiche la base URL (si serveur l’expose via /_config)
-  (async () => {
-    try {
-      const r = await fetch('/projection_metier/_config');
-      if (r.ok) {
-        const j = await r.json();
-        if (baseUrl) baseUrl.textContent = j.ROME_BASE_URL || '';
-      }
-    } catch {}
-  })();
+  if (filterInput) {
+    filterInput.addEventListener("input", () => {
+      applyFilter();
+    });
+  }
 })();

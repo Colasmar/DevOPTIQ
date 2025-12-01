@@ -182,6 +182,11 @@ def create_app():
     from Code.routes.plan_storage import plan_storage_bp
     app.register_blueprint(plan_storage_bp)
 
+    from Code.routes.activities_map import activities_map_bp
+    app.register_blueprint(activities_map_bp)
+
+
+
     # secret key
     app.secret_key = os.getenv("SECRET_KEY", "devoptiq-secret")
 

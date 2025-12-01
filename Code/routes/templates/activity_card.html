@@ -1,6 +1,6 @@
 <!-- activity_card.html -->
 
-<div class="activity-container">
+<div class="activity-container" data-activity-id="{{ item.activity.id }}">
     <div class="activity-header" onclick="toggleDetails('details-{{ item.activity.id }}', this)">
       <span class="toggle-icon" id="icon-{{ item.activity.id }}">▶</span>
       <h2>{{ item.activity.name }}</h2>
