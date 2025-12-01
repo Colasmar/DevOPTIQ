@@ -114,8 +114,9 @@ function submitEditPerf(perfId) {
     alert("Impossible de localiser la performance dans le DOM.");
     return;
   }
-  const perfContainer = displayDiv.closest(".perf-container");
-  const linkId = perfContainer ? perfContainer.getAttribute("data-linkid") : null;
+ const perfContainer = displayDiv.closest("[data-linkid]");
+ const linkId = perfContainer?.dataset.linkid;
+
 
   fetch(`/performance/${perfId}`, {
     method: "PUT",
@@ -142,28 +143,25 @@ function submitEditPerf(perfId) {
  * puis rafraîchit la zone correspondante.
  */
 function deletePerformance(perfId) {
-  if (!confirm("Confirmez-vous la suppression de cette performance ?")) return;
+    if (!confirm("Confirmez-vous la suppression de cette performance ?")) return;
 
-  // Récup linkId
-  const displayDiv = document.getElementById(`perf-display-${perfId}`);
-  if (!displayDiv) {
-    alert("Impossible de localiser la performance dans le DOM.");
-    return;
-  }
-  const perfContainer = displayDiv.closest(".perf-container");
-  const linkId = perfContainer ? perfContainer.getAttribute("data-linkid") : null;
-
-  fetch(`/performance/${perfId}`, { method: "DELETE" })
-    .then(resp => resp.json())
-    .then(data => {
-      if (data.error) {
-        alert("Erreur suppression performance: " + data.error);
-      } else {
-        if (linkId) refreshPerformanceDOM(linkId);
-      }
-    })
-    .catch(err => {
-      console.error("Erreur DELETE /performance/<id>:", err);
-      alert("Impossible de supprimer la performance (voir console).");
-    });
+    fetch(`/performance/${perfId}`, { method: "DELETE" })
+        .then(resp => resp.json())
+        .then(data => {
+            if (data.error) {
+                alert("Erreur suppression: " + data.error);
+            } else {
+                refreshParentPerformance(perfId);
+            }
+        })
+        .catch(err => console.error(err));
 }
+
+function refreshParentPerformance(perfId) {
+    const displayDiv = document.getElementById(`perf-display-${perfId}`);
+    const container = displayDiv?.closest("[data-linkid]");
+    const linkId = container?.dataset.linkid;
+
+    if (linkId) refreshPerformanceDOM(linkId);
+}
+

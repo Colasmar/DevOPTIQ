@@ -62,7 +62,7 @@ def propose_skills():
     tools_list = [x for x in tools_list if x]
     tools_str = ", ".join(tools_list) if tools_list else "Aucun outil"
 
-    # Prompt
+    # --- PROMPT ---
     prompt = f"""
 Vous êtes un expert en gestion des compétences selon la norme NF X50-124.
 Rédigez exactement 3 propositions de compétences, 
@@ -78,13 +78,18 @@ Connexions sortantes : {outgoing_str}
 Outils : {tools_str}
 """
 
+    # --- OpenAI API KEY ---
     openai.api_key = os.getenv("OPENAI_API_KEY")
     if not openai.api_key:
         return jsonify({"error": "Clé OpenAI manquante (OPENAI_API_KEY)."}), 500
 
+    # --- NOUVEAU CLIENT OPENAI ---
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
+        from openai import OpenAI
+        client = OpenAI(api_key=openai.api_key)
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",    # modèle compatible nouvelle API
             messages=[
                 {"role": "system", "content": "Vous êtes un assistant spécialisé en compétences NF X50-124."},
                 {"role": "user", "content": prompt}
@@ -92,26 +97,27 @@ Outils : {tools_str}
             temperature=0.3,
             max_tokens=600
         )
-        raw_text = response['choices'][0]['message']['content'].strip()
 
-        # On sépare sur le saut de ligne
+        raw_text = response.choices[0].message.content.strip()
+
+        # Séparation simple
         lines = [l.strip() for l in raw_text.split("\n") if l.strip()]
 
-        # FALLBACK : si < 3 lignes => tenter un split sur '. '
+        # Fallback
         if len(lines) < 3:
             splitted = re.split(r'\.\s+', raw_text)
             splitted = [s.strip() for s in splitted if s.strip()]
             if len(splitted) > len(lines):
                 lines = splitted
         
-        # On peut forcer lines à 3 maximum si l'IA en renvoie plus
-        if len(lines) > 3:
-            lines = lines[:3]
+        # Max 3 lignes
+        lines = lines[:3]
 
         return jsonify({"proposals": lines}), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 
 @skills_bp.route('/add', methods=['POST'])

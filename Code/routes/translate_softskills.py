@@ -1,9 +1,53 @@
+# Code/routes/translate_softskills.py
 import os
 import json
-import openai
-from flask import Blueprint, request, jsonify
+import re
+from flask import Blueprint, request, jsonify, current_app
 
 translate_softskills_bp = Blueprint('translate_softskills_bp', __name__, url_prefix='/translate_softskills')
+
+
+def get_openai_client():
+    """
+    Retourne un client OpenAI (nouvelle API >= 1.0) ou None si pas de clé.
+    """
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return None, "Clé OpenAI manquante (OPENAI_API_KEY)."
+    
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+        return client, None
+    except Exception as e:
+        return None, str(e)
+
+
+def clean_json_response(text):
+    """
+    Nettoie la réponse de l'IA pour extraire le JSON pur.
+    Supprime les backticks markdown, le texte avant/après le JSON.
+    """
+    # Supprimer les blocs de code markdown ```json ... ``` ou ``` ... ```
+    text = re.sub(r'^```(?:json)?\s*', '', text.strip())
+    text = re.sub(r'\s*```$', '', text.strip())
+    
+    # Chercher le premier [ et le dernier ]
+    start = text.find('[')
+    end = text.rfind(']')
+    
+    if start != -1 and end != -1 and end > start:
+        return text[start:end+1]
+    
+    # Sinon chercher { et }
+    start = text.find('{')
+    end = text.rfind('}')
+    
+    if start != -1 and end != -1 and end > start:
+        return text[start:end+1]
+    
+    return text
+
 
 @translate_softskills_bp.route('/translate', methods=['POST'])
 def translate_softskills():
@@ -38,6 +82,7 @@ def translate_softskills():
 
     tasks_text = make_enumeration("T", tasks_list)
     constraints_text = make_enumeration("C", constraints_list)
+    
     # Pour les performances
     perf_lines = []
     perf_idx = 1
@@ -63,7 +108,7 @@ Liste officielle X50-766 :
 - Raisonnement logique
 - Planification
 - Arbitrage
-- Traitement de l’information
+- Traitement de l'information
 - Synthèse
 - Conceptualisation
 - Flexibilité mentale
@@ -91,7 +136,7 @@ Voici la liste COMPLETE des habiletés X50-766 (n'utilise QUE ces termes) :
 {x50_766_hsc}
 
 Exigences :
-1) Génère 3..5 habiletés, sous forme d'un tableau JSON brut (pas de texte hors JSON).
+1) Génère 3 à 5 habiletés, sous forme d'un tableau JSON brut (pas de texte hors JSON, pas de backticks markdown).
 2) Chaque entrée = {{
     "habilete": <str parmi la liste ci-dessus>,
     "niveau": "X (Label)",  (ex: "2 (Acquisition)")
@@ -99,31 +144,59 @@ Exigences :
 }}
 3) "justification" doit mentionner explicitement "{user_input}" et faire référence aux T(i), C(i) ou P(i) si pertinent.
 4) N'UTILISE PAS d'autres habiletés que celles de la liste X50-766.
+5) RÉPONDS UNIQUEMENT AVEC LE TABLEAU JSON, sans aucun texte avant ou après.
 """
 
-    openai.api_key = os.getenv("OPENAI_API_KEY")
-    if not openai.api_key:
-        return jsonify({"error": "Clé OpenAI manquante (OPENAI_API_KEY)."}), 500
+    # 🔥 Utiliser la nouvelle API OpenAI
+    client, err = get_openai_client()
+    if client is None:
+        return jsonify({"error": err}), 500
 
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",  # ou "gpt-4" si disponible
             messages=[
-                {"role": "system", "content": "Tu es un assistant spécialisé en habiletés socio-cognitives X50-766."},
+                {"role": "system", "content": "Tu es un assistant spécialisé en habiletés socio-cognitives X50-766. Tu réponds UNIQUEMENT en JSON valide, sans markdown ni texte supplémentaire."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.4,
             max_tokens=1200
         )
-        ai_text = response.choices[0].message['content'].strip()
+        ai_text = response.choices[0].message.content.strip()
+        
+        # 🔥 Nettoyer la réponse
+        cleaned_text = clean_json_response(ai_text)
 
         # On parse le JSON renvoyé
-        proposals = json.loads(ai_text)
+        try:
+            proposals = json.loads(cleaned_text)
+        except json.JSONDecodeError as e:
+            current_app.logger.error(f"JSON parse error: {e}. Raw text: {ai_text[:500]}")
+            return jsonify({"error": f"Erreur de parsing JSON: {str(e)}"}), 400
+            
         if not isinstance(proposals, list):
-            return jsonify({"error": "Le JSON renvoyé n'est pas un tableau d'objets."}), 400
+            # Si c'est un objet unique, le mettre dans une liste
+            if isinstance(proposals, dict):
+                proposals = [proposals]
+            else:
+                return jsonify({"error": "Le JSON renvoyé n'est pas un tableau d'objets."}), 400
+
+        # Normaliser les niveaux
+        niveau_map = {
+            "1": "1 (Aptitude)",
+            "2": "2 (Acquisition)", 
+            "3": "3 (Maîtrise)",
+            "4": "4 (Excellence)"
+        }
+        
+        for p in proposals:
+            niveau = p.get("niveau", "2")
+            if isinstance(niveau, int) or (isinstance(niveau, str) and niveau.isdigit()):
+                p["niveau"] = niveau_map.get(str(niveau), "2 (Acquisition)")
 
         # On renvoie le tout
         return jsonify({"proposals": proposals}), 200
 
     except Exception as e:
+        current_app.logger.exception(e)
         return jsonify({"error": str(e)}), 500
