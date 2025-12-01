@@ -280,3 +280,39 @@ select {
   min-width: 300px !important; 
   box-sizing: border-box;
 }
+
+
+/* ================================================
+   PATCH À AJOUTER À LA FIN DE optiq.css
+   Fix pour le z-index du spinner
+================================================ */
+
+/* 🔥 FIX CRITIQUE : SPINNER AU-DESSUS DE TOUT */
+#spinner,
+.spinner,
+.spinner-overlay,
+.loading-overlay,
+#loading-overlay,
+#loadingSpinner,
+.loading-spinner,
+.spinner-container,
+#spinner-container {
+    z-index: 99999 !important;
+    position: fixed !important;
+}
+
+/* Overlay sombre derrière le spinner */
+.spinner-overlay::before,
+.loading-overlay::before {
+    z-index: 99998 !important;
+}
+
+/* S'assurer que les modales sont en dessous du spinner */
+#translateSoftskillsModal,
+#proposeSoftskillsModal,
+#proposeSavoirsModal,
+#savoirModal,
+.modal,
+.popup {
+    z-index: 9999;
+}

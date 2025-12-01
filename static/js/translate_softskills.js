@@ -8,6 +8,10 @@ function openTranslateSoftskillsModal(activityId) {
 function closeTranslateSoftskillsModal() {
   document.getElementById('translateSoftskillsModal').style.display = 'none';
   window.translateSoftskillsActivityId = null;
+  
+  // Vider le champ de saisie
+  const inputElem = document.getElementById('translateSoftskillsInput');
+  if (inputElem) inputElem.value = '';
 }
 
 function submitSoftskillsTranslation() {
@@ -16,6 +20,7 @@ function submitSoftskillsTranslation() {
     alert("Erreur : activityId introuvable.");
     return;
   }
+  
   // Récupère le texte saisi par l'utilisateur
   const userInputElem = document.getElementById('translateSoftskillsInput');
   const userInput = (userInputElem?.value || "").trim();
@@ -24,10 +29,17 @@ function submitSoftskillsTranslation() {
     return;
   }
 
+  // 🔥 CORRECTION : Fermer la modale AVANT d'afficher le spinner
+  // Ainsi le spinner est visible au-dessus de tout
+  closeTranslateSoftskillsModal();
+  
+  // Sauvegarder l'activityId car closeTranslateSoftskillsModal() le met à null
+  const savedActivityId = activityId;
+  
   showSpinner();
 
   // (1) Récupère le contexte de l'activité
-  fetch(`/activities/${activityId}/details`)
+  fetch(`/activities/${savedActivityId}/details`)
     .then(resp => {
       if (!resp.ok) {
         throw new Error("Erreur lors de la récupération du contexte (details).");
@@ -41,7 +53,7 @@ function submitSoftskillsTranslation() {
 
       // (2) Prépare les données pour la traduction (l'IA)
       const payload = {
-        user_input: userInput,        // <--- on envoie la variable userInput en JSON
+        user_input: userInput,
         activity_data: {
           name: activityData.name,
           tasks: activityData.tasks || [],
@@ -71,16 +83,13 @@ function submitSoftskillsTranslation() {
         throw new Error("L'IA n'a renvoyé aucune HSC.");
       }
 
-      // Ferme la modale d'input
-      closeTranslateSoftskillsModal();
-
       // (3) Insère les HSC en base, via /softskills/add
       const addPromises = proposals.map(p => {
         return fetch('/softskills/add', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            activity_id: activityId,
+            activity_id: savedActivityId,
             habilete: p.habilete || "Habilete ?",
             niveau: p.niveau || "2 (Acquisition)",
             justification: p.justification || ""
@@ -102,7 +111,7 @@ function submitSoftskillsTranslation() {
     .then(() => {
       // (4) On rafraîchit partiellement la liste HSC
       hideSpinner();
-      updateSoftskillsList(activityId);
+      updateSoftskillsList(savedActivityId);
     })
     .catch(err => {
       hideSpinner();

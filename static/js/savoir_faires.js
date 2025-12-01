@@ -49,31 +49,16 @@ function submitAddSavoirFaires(activityId) {
 }
 
 /************* EDIT INLINE *************/
-function showEditSavoirFairesForm(savoirFairesId) {
-  const textEl = document.getElementById(`savoir-faires-desc-${savoirFairesId}`);
-  const inputEl = document.getElementById(`edit-savoir-faires-input-${savoirFairesId}`);
-  const btnEl   = document.getElementById(`submit-edit-savoir-faires-${savoirFairesId}`);
-
-  if (!textEl || !inputEl || !btnEl) {
-    console.warn("showEditSavoirFairesForm: éléments manquants pour", savoirFairesId);
-    return;
-  }
-  textEl.style.display = "none";
-  inputEl.style.display = "inline-block";
-  btnEl.style.display   = "inline-block";
-  inputEl.value = (textEl.innerText || "").trim();
-  inputEl.focus();
+function showEditSavoirFairesForm(id) {
+    document.getElementById("sf-display-" + id).style.display = "none";
+    document.getElementById("sf-edit-area-" + id).style.display = "block";
 }
 
-function hideEditSavoirFairesForm(savoirFairesId) {
-  const textEl = document.getElementById(`savoir-faires-desc-${savoirFairesId}`);
-  const inputEl = document.getElementById(`edit-savoir-faires-input-${savoirFairesId}`);
-  const btnEl   = document.getElementById(`submit-edit-savoir-faires-${savoirFairesId}`);
-  if (!textEl || !inputEl || !btnEl) return;
-  textEl.style.display = "inline";
-  inputEl.style.display = "none";
-  btnEl.style.display   = "none";
+function hideEditSavoirFairesForm(id) {
+    document.getElementById("sf-display-" + id).style.display = "flex";
+    document.getElementById("sf-edit-area-" + id).style.display = "none";
 }
+
 
 function submitEditSavoirFaires(activityId, savoirFairesId) {
   const inputEl = document.getElementById("edit-savoir-faires-input-" + savoirFairesId);
