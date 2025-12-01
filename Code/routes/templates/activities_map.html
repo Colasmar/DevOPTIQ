@@ -1,0 +1,113 @@
+{% include "header_buttons.html" %}
+<link rel="stylesheet" href="{{ url_for('static', filename='cartography.css') }}">
+
+<script>
+  window.CARTO_SHAPE_MAP = {{ shape_activity_map | tojson | safe }};
+  window.CARTO_HISTORY = {{ carto_history | tojson | safe }};
+  window.SVG_EXISTS = {{ svg_exists | tojson | safe }};
+</script>
+
+<script defer src="{{ url_for('static', filename='js/activities_map.js') }}"></script>
+
+<div class="carto-page">
+
+  <div class="carto-header">
+    <h1>Cartographie des activités</h1>
+
+    <button id="carto-actions-btn" class="carto-actions-btn">
+        ⚙️ Actions cartographie
+    </button>
+  </div>
+
+  <!-- MESSAGE D'INFO NAVIGATION -->
+  <div class="carto-info-message">
+    <span>
+      <strong>Navigation :</strong> 
+      Clic gauche maintenu pour se déplacer • 
+      Molette pour zoomer • 
+      Clic sur une activité pour y accéder
+    </span>
+  </div>
+
+  <!-- POPUP -->
+  <div id="carto-actions-popup" class="popup hidden">
+    <div class="popup-content">
+
+      <h2>Actions sur la cartographie</h2>
+
+      <div class="popup-buttons-center">
+        <button id="reload-carto-btn" class="btn-blue">
+          🔄 Recharger la cartographie
+        </button>
+      </div>
+
+      <hr>
+
+      <h3>Importer une nouvelle cartographie</h3>
+      <div id="dropzone" class="dropzone">
+        <div class="dropzone-icon">📁</div>
+        <div class="dropzone-text">Déposez un fichier <strong>.SVG</strong> ou <strong>.VSDX</strong></div>
+        <div class="dropzone-hint">(SVG recommandé - depuis Visio: Fichier → Exporter → SVG)</div>
+      </div>
+      <div id="dropzone-status"></div>
+
+      <hr>
+
+      <h3>Cartographies récentes</h3>
+      <ul class="history-list">
+        {% for item in carto_history %}
+          <li class="history-item" data-file="{{ item.filename }}">
+            <span class="history-type">{{ item.type }}</span>
+            <span class="history-name">{{ item.original_name }}</span>
+            <span class="history-date">{{ item.date }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+
+      <div class="popup-buttons-center">
+        <button id="close-popup" class="btn-red">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTENU PRINCIPAL -->
+  <div class="carto-container">
+
+    <!-- SVG -->
+    <div class="carto-left">
+
+      <div class="carto-toolbar">
+        <button id="carto-zoom-out">−</button>
+        <button id="carto-zoom-reset">50%</button>
+        <button id="carto-zoom-in">+</button>
+      </div>
+
+      <!-- Zone pan/zoom avec SVG inline -->
+      <div id="carto-pan-wrapper" class="carto-pan-wrapper">
+        <div id="pan-inner">
+          <!-- Le SVG sera chargé ici dynamiquement -->
+          <div id="svg-container" class="svg-container">
+            <div class="svg-loading">Chargement de la cartographie...</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- LISTE ACTIVITÉS -->
+    <div class="carto-right">
+      <h2>Liste des activités</h2>
+
+      <ul class="activities-list">
+        {% for a in activities %}
+          <li class="activity-item" data-id="{{ a.id }}">
+            <span class="num">{{ a.id }}</span>
+            <span class="label">{{ a.name }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+  </div>
+
+</div>

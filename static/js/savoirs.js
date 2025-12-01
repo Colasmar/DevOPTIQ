@@ -1,12 +1,5 @@
-// Code/static/js/savoirs.js
+// static/js/savoirs.js
 
-/**
- * Récupère les détails d'une activité (via /activities/<id>/details),
- * puis enchaîne sur la proposition de savoirs IA.
- */
-
-
-/* Ajout direct d'un savoir */
 function showAddSavoirForm(activityId) {
   document.getElementById("add-savoir-form-" + activityId).style.display = "block";
 }
@@ -26,101 +19,45 @@ function submitAddSavoir(activityId) {
     return;
   }
 
+  if (typeof showSpinner === "function") showSpinner();
   fetch(`/savoirs/add`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ 
-        description: desc, 
-        activity_id: activityId  // Assurez-vous de passer l'activity_id
+    body: JSON.stringify({ description: desc, activity_id: activityId })
+  })
+    .then(async r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status} sur /savoirs/add`);
+      return r.json();
     })
-  })
-  .then(resp => {
-      if (!resp.ok) {
-          throw new Error(`Erreur lors de la soumission : ${resp.statusText}`);
-      }
-      return resp.json();
-  })
-  .then(data => {
+    .then(async data => {
+      hideAddSavoirForm(activityId);
       if (data.error) {
         alert("Erreur : " + data.error);
       } else {
-        updateSavoirs(activityId);
-      }
-  })
-  .catch(err => {
-      console.error("Erreur ajout savoirs :", err);
-  });
-}
-
-
-
-
-/**************************************
- * RAFFRAICHIR LA LISTE PARTIELLEMENT
- **************************************/
-function updateSavoirsList(activityId) {
-  showSpinner();
-  fetch(`/savoirs/${activityId}/render`)
-    .then(resp => {
-      if (!resp.ok) throw new Error("Erreur lors du rafraîchissement des savoirs");
-      return resp.text();
-    })
-    .then(html => {
-      hideSpinner();
-      const container = document.getElementById("savoirs-list-" + activityId);
-      if (container) {
-        container.innerHTML = html;
+        await refreshActivityItems(activityId);
       }
     })
     .catch(err => {
-      hideSpinner();
-      console.error("Erreur updateSavoirsList:", err);
-      alert("Erreur updateSavoirsList : " + err.message);
-    });
+      console.error("Erreur ajout savoir :", err);
+      alert(err.message);
+    })
+    .finally(() => { if (typeof hideSpinner === "function") hideSpinner(); });
 }
-
-
-// === Remplacer ENTIEREMENT la fonction updateSavoirs(...) par :
-async function updateSavoirs(activityId) {
-  // On délègue au refresh unifié
-  await refreshSavoirsEtSavoirFaires(activityId);
-}
-
-// === AJOUTER (si absent) : refresh unifié basé sur TON conteneur unique
-async function refreshSavoirsEtSavoirFaires(activityId) {
-  try {
-    const resp = await fetch(`/savoir_faires/${activityId}/render`);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const html = await resp.text();
-
-    // ⚠️ Cible TON conteneur existant (unique)
-    const container = document.getElementById(`savoirs-faires-container-${activityId}`);
-    if (!container) {
-      console.warn("refreshSavoirsEtSavoirFaires: container introuvable", activityId);
-      return;
-    }
-    container.innerHTML = html;
-  } catch (e) {
-    console.error("refreshSavoirsEtSavoirFaires error:", e);
-  }
-}
-
-// Optionnel mais utile : exposer en global
-window.refreshSavoirsEtSavoirFaires = refreshSavoirsEtSavoirFaires;
-window.updateSavoirs = updateSavoirs;
-
-
-/* Édition */
 
 function editSavoir(savoirId, activityId) {
   const descElem = document.getElementById(`savoir-desc-${savoirId}`);
   const editInput = document.getElementById(`edit-savoir-input-${savoirId}`);
-  const editBtn = document.getElementById(`submit-edit-savoir-${savoirId}`);
+  const editBtn   = document.getElementById(`submit-edit-savoir-${savoirId}`);
 
+  if (!descElem || !editInput || !editBtn) {
+    console.warn("editSavoir: éléments manquants", savoirId);
+    return;
+  }
   descElem.style.display = "none";
   editInput.style.display = "inline-block";
   editBtn.style.display = "inline-block";
-  editInput.value = descElem.innerText.trim();
+  editInput.value = (descElem.innerText || "").trim();
+  editInput.focus();
 }
 
 function submitEditSavoir(activityId, savoirId) {
@@ -137,12 +74,18 @@ function submitEditSavoir(activityId, savoirId) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ description: newDesc })
   })
-    .then(resp => resp.json())
-    .then(data => {
+    .then(async r => {
+      if (!r.ok) {
+        const t = await r.text();
+        throw new Error(`HTTP ${r.status} sur /savoirs/${activityId}/${savoirId} → ${t.slice(0,120)}…`);
+      }
+      return r.json();
+    })
+    .then(async data => {
       if (data.error) {
         alert("Erreur édition Savoir : " + data.error);
       } else {
-        updateSavoirs(activityId);
+        await refreshActivityItems(activityId);
       }
     })
     .catch(err => {
@@ -151,45 +94,16 @@ function submitEditSavoir(activityId, savoirId) {
     });
 }
 
-
-function showEditSavoirForm(btnElem) {
-  const savoirStr = btnElem.getAttribute("data-savoir");
-  let savoirObj;
-  try {
-    savoirObj = JSON.parse(savoirStr);
-  } catch (e) {
-    console.error("Erreur parse JSON:", e, savoirStr);
-    alert("Impossible de lire le savoir.");
-    return;
-  }
-  
-  const formDiv = document.getElementById("edit-savoir-form-" + savoirObj.id);
-  const inputEl = document.getElementById("edit-savoir-input-" + savoirObj.id);
-
-  if (formDiv && inputEl) {
-    formDiv.style.display = "block";
-    inputEl.value = savoirObj.description || "";
-  }
-}
-
-function hideEditSavoirForm(savoirId) {
-  const formDiv = document.getElementById("edit-savoir-form-" + savoirId);
-  if (formDiv) {
-    formDiv.style.display = "none";
-  }
-}
-
-
 function deleteSavoir(activityId, savoirId) {
   if (!confirm("Supprimer ce savoir ?")) return;
 
   fetch(`/savoirs/${activityId}/${savoirId}`, { method: "DELETE" })
-    .then(resp => resp.json())
-    .then(data => {
+    .then(r => r.json())
+    .then(async data => {
       if (data.error) {
         alert("Erreur : " + data.error);
       } else {
-        updateSavoirs(activityId);
+        await refreshActivityItems(activityId);
       }
     })
     .catch(err => {
@@ -197,3 +111,10 @@ function deleteSavoir(activityId, savoirId) {
     });
 }
 
+// Expose global (si utilisé par des onclick inline)
+window.showAddSavoirForm   = showAddSavoirForm;
+window.hideAddSavoirForm   = hideAddSavoirForm;
+window.submitAddSavoir     = submitAddSavoir;
+window.editSavoir          = editSavoir;
+window.submitEditSavoir    = submitEditSavoir;
+window.deleteSavoir        = deleteSavoir;

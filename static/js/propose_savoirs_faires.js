@@ -1,5 +1,4 @@
 // static/js/propose_savoirs_faires.js
-
 (function () {
   const safeShowSpinner = () => (typeof showSpinner === "function" ? showSpinner() : void 0);
   const safeHideSpinner  = () => (typeof hideSpinner === "function" ? hideSpinner()  : void 0);
@@ -37,9 +36,12 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(activityData)
       });
-      if (!resSF.ok) throw new Error(await resSF.text());
-      const sfData = await resSF.json();
-      if (sfData.error) throw new Error(sfData.error);
+
+      const sfData = await resSF.json().catch(() => ({}));
+      if (!resSF.ok) {
+        // on ne jette plus → on continue avec un fallback vide
+        console.warn("Réponse non OK /propose_savoir_faires/propose:", sfData);
+      }
       const savoirFaires = Array.isArray(sfData.proposals) ? sfData.proposals : [];
 
       // 2) proposer S en tenant compte des SF proposés
@@ -48,9 +50,11 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...activityData, savoir_faires: savoirFaires })
       });
-      if (!resS.ok) throw new Error(await resS.text());
-      const sData = await resS.json();
-      if (sData.error) throw new Error(sData.error);
+
+      const sData = await resS.json().catch(() => ({}));
+      if (!resS.ok) {
+        console.warn("Réponse non OK /propose_savoirs/propose:", sData);
+      }
       const savoirs = Array.isArray(sData.proposals) ? sData.proposals : [];
 
       safeHideSpinner();
@@ -62,27 +66,42 @@
     }
   }
 
-  function showProposedSavoirsFairesModal(sfList, sList, activityId) {
+  function ensureModal() {
     let modal = document.getElementById("proposeSavoirsFairesModal");
     if (!modal) {
       modal = document.createElement("div");
       modal.id = "proposeSavoirsFairesModal";
       Object.assign(modal.style, {
-        position: "fixed", left: "10%", top: "10%", width: "80%", maxHeight: "80vh",
-        overflow: "auto", background: "#fff", border: "1px solid #aaa",
-        padding: "16px", zIndex: "9999", boxShadow: "0 10px 25px rgba(0,0,0,0.15)", borderRadius: "10px",
+        position: "fixed",
+        left: "10%",
+        top: "10%",
+        width: "80%",
+        maxHeight: "80vh",
+        overflow: "auto",
+        background: "#fff",
+        border: "1px solid #aaa",
+        padding: "16px",
+        zIndex: "9999",
+        boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
+        borderRadius: "10px",
       });
       document.body.appendChild(modal);
     }
+    return modal;
+  }
+
+  function showProposedSavoirsFairesModal(sfList, sList, activityId) {
+    const modal = ensureModal();
 
     modal.innerHTML = `
       <h3 style="margin-top:0">Propositions Savoir-Faire & Savoirs</h3>
-      <div style="display:flex; gap:30px; align-items:flex-start;">
-        <div style="flex:1;">
+      <p style="color:#888;font-size:0.85rem;">(Si vous voyez des propositions “génériques”, c’est que la clé OpenAI n’est pas définie côté serveur.)</p>
+      <div style="display:flex; gap:30px; align-items:flex-start; flex-wrap:wrap;">
+        <div style="flex:1; min-width:280px;">
           <h4 style="margin:6px 0 10px;">Savoir-Faire</h4>
           <ul id="sfList" style="list-style:none; padding-left:0; margin:0;"></ul>
         </div>
-        <div style="flex:1;">
+        <div style="flex:1; min-width:280px;">
           <h4 style="margin:6px 0 10px;">Savoirs</h4>
           <ul id="sList" style="list-style:none; padding-left:0; margin:0;"></ul>
         </div>
@@ -96,24 +115,27 @@
     const sfEl = modal.querySelector("#sfList");
     const sEl  = modal.querySelector("#sList");
 
-    sfEl.innerHTML = "";
-    sEl.innerHTML  = "";
+    const fill = (container, items, type) => {
+      if (!items || !items.length) {
+        container.innerHTML = `<li style="color:#999;">Aucune proposition</li>`;
+        return;
+      }
+      container.innerHTML = items.map(desc => `
+        <li style="margin-bottom:4px;">
+          <label style="display:flex; gap:6px; align-items:flex-start;">
+            <input type="checkbox" data-type="${type}" data-desc="${escapeHtml(desc)}" checked />
+            <span>${escapeHtml(desc)}</span>
+          </label>
+        </li>
+      `).join("");
+    };
 
-    sfList.forEach(p => {
-      const li = document.createElement("li");
-      li.style.marginBottom = "6px";
-      li.innerHTML = `<label><input type="checkbox" data-type="sf" data-desc="${escapeHtml(p)}"> ${escapeHtml(p)}</label>`;
-      sfEl.appendChild(li);
-    });
+    fill(sfEl, sfList, "sf");
+    fill(sEl, sList, "s");
 
-    sList.forEach(p => {
-      const li = document.createElement("li");
-      li.style.marginBottom = "6px";
-      li.innerHTML = `<label><input type="checkbox" data-type="s" data-desc="${escapeHtml(p)}"> ${escapeHtml(p)}</label>`;
-      sEl.appendChild(li);
-    });
-
-    modal.querySelector("#cancelBtn").onclick = () => { modal.style.display = "none"; };
+    modal.querySelector("#cancelBtn").onclick = () => {
+      modal.style.display = "none";
+    };
 
     modal.querySelector("#validateBtn").onclick = async () => {
       const checked = modal.querySelectorAll('input[type="checkbox"]:checked');
@@ -133,41 +155,37 @@
 
       safeShowSpinner();
       try {
-        // 1) SF : batch -> fallback unitaire si nécessaire
         if (selectedSF.length > 0) {
-          try {
-            const r = await fetch("/savoir_faires/add", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ activity_id: activityId, savoir_faires: selectedSF }),
-            });
-            if (!r.ok) throw new Error(await r.text());
-          } catch (e) {
-            // Fallback unitaire
+          // essai batch
+          const r = await fetch("/savoir_faires/add", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ activity_id: activityId, savoir_faires: selectedSF }),
+          });
+          if (!r.ok) {
+            // fallback unitaire
             await Promise.all(selectedSF.map(desc =>
               fetch("/savoir_faires/add", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ activity_id: activityId, description: desc }),
-              }).then(rr => { if (!rr.ok) return rr.text().then(t => { throw new Error(t); }); })
+              })
             ));
           }
         }
 
-        // 2) Savoirs : unitaire (à batcher si tu ajoutes la route)
         if (selectedS.length > 0) {
           await Promise.all(selectedS.map(desc =>
             fetch("/savoirs/add", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ activity_id: activityId, description: desc }),
-            }).then(rr => { if (!rr.ok) return rr.text().then(t => { throw new Error(t); }); })
+            })
           ));
         }
 
-        // ⤵️ Rafraîchit le fragment unique
-        if (typeof refreshSavoirsEtSavoirFaires === "function") {
-          await refreshSavoirsEtSavoirFaires(activityId);
+        if (typeof refreshActivityItems === "function") {
+          await refreshActivityItems(activityId);
         }
 
         modal.style.display = "none";

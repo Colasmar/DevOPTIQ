@@ -1,6 +1,10 @@
 # Code/routes/propose_softskills.py
 from flask import Blueprint, request, jsonify, current_app
-import os
+from .propose_common import (
+    build_activity_context,
+    openai_client_or_none,
+    dummy_from_context,
+)
 
 bp_propose_softskills = Blueprint("propose_softskills", __name__)
 
@@ -13,83 +17,112 @@ Habiletés Socio-Cognitives (HSC) structurées sous forme d’objets JSON avec :
 Réponds uniquement avec des items (pas de texte hors liste).
 """
 
-def _build_activity_context(activity_json: dict) -> str:
-    title = activity_json.get("title") or activity_json.get("name") or ""
-    description = activity_json.get("description") or ""
-    inputs = activity_json.get("input_data") or []
-    outputs = activity_json.get("output_data") or []
-    tools = activity_json.get("tools") or activity_json.get("outils") or []
-    constraints = activity_json.get("constraints") or []
-    tasks = activity_json.get("tasks") or []
-
-    def norm_list(lst):
-        if not lst: return "-"
-        return "\n".join([f"- {str(x)}" for x in lst])
-
-    return f"""# Activité
-Titre: {title}
-Description: {description}
-
-# Données d'entrée
-{norm_list(inputs)}
-
-# Données de sortie
-{norm_list(outputs)}
-
-# Outils
-{norm_list(tools)}
-
-# Contraintes
-{norm_list(constraints)}
-
-# Tâches
-{norm_list(tasks)}
-"""
-
-def _openai_client():
-    from openai import OpenAI
-    key = os.environ.get("OPENAI_API_KEY")
-    if not key:
-        return None, "Clé OpenAI manquante (OPENAI_API_KEY)."
-    return OpenAI(api_key=key), None
 
 @bp_propose_softskills.route("/propose_softskills/propose", methods=["POST"])
 def propose_softskills():
+    """
+    Version tolérante :
+    - si pas de clé OpenAI → on renvoie 3 HSC génériques en fonction de l’activité
+    - si OpenAI renvoie juste du texte → on retransforme en tableau d’objets
+    -> de cette façon, ton JS a toujours un tableau d’objets {habilete, niveau, justification}
+    """
     try:
         activity = request.get_json(force=True) or {}
-        ctx = _build_activity_context(activity)
+        ctx = build_activity_context(activity)
 
-        client, err = _openai_client()
-        if err:
-            return jsonify({"error": err}), 500
+        client, err = openai_client_or_none()
+        if client is None:
+            # ✅ fallback sans IA
+            base = dummy_from_context(ctx, "hsc")
+            proposals = [
+                {
+                    "habilete": item,
+                    "niveau": "2",
+                    "justification": "Proposition générée sans IA (clé OpenAI absente).",
+                }
+                for item in base
+            ]
+            return jsonify({"proposals": proposals, "source": err}), 200
 
         prompt = f"""{PROMPT_HEADER_HSC}
 
 === CONTEXTE ===
 {ctx}
 """
+
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "Tu es un assistant RH/formation, précis et concis."},
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": prompt},
             ],
             temperature=0.2,
         )
         text = resp.choices[0].message.content.strip()
 
-        # Parsing simple : si ton frontend attend un tableau d'objets {habilete, niveau, justification}
-        # et que le modèle a renvoyé des puces, tu peux fallback :
-        items = []
-        for line in [l for l in text.splitlines() if l.strip()]:
-            items.append({
-                "habilete": line.strip("-• ").strip(),
-                "niveau": "2 (Acquisition)",
-                "justification": ""
-            })
+        # le modèle peut renvoyer soit du vrai JSON, soit une liste à puces
+        # => on tente un parse JSON d'abord
+        proposals = []
+        parsed_ok = False
 
-        return jsonify({"proposals": items})
+        # 1) tentative JSON brut
+        if text.startswith("[") or text.startswith("{"):
+            try:
+                import json
+
+                data = json.loads(text)
+                if isinstance(data, dict):
+                    data = [data]
+                for item in data:
+                    proposals.append(
+                        {
+                            "habilete": item.get("habilete") or item.get("label") or "Habilete",
+                            "niveau": str(item.get("niveau") or "2"),
+                            "justification": item.get("justification") or "",
+                        }
+                    )
+                parsed_ok = True
+            except Exception:
+                parsed_ok = False
+
+        # 2) fallback texte → on découpe en lignes
+        if not parsed_ok:
+            lines = [l.strip("-• ").strip() for l in text.splitlines() if l.strip()]
+            for line in lines:
+                proposals.append(
+                    {
+                        "habilete": line,
+                        "niveau": "2",
+                        "justification": "",
+                    }
+                )
+
+        if not proposals:
+            proposals = [
+                {
+                    "habilete": "Communication professionnelle",
+                    "niveau": "2",
+                    "justification": "",
+                }
+            ]
+
+        return jsonify({"proposals": proposals}), 200
 
     except Exception as e:
         current_app.logger.exception(e)
-        return jsonify({"error": str(e)}), 500
+        # on ne casse pas le front
+        return (
+            jsonify(
+                {
+                    "proposals": [
+                        {
+                            "habilete": "Habileté non déterminée (erreur serveur).",
+                            "niveau": "2",
+                            "justification": "",
+                        }
+                    ],
+                    "error": str(e),
+                }
+            ),
+            200,
+        )

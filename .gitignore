@@ -10,5 +10,6 @@ Code/instance/
 .DS_StorPyt
 Z-Dev bis/
 .env
+.venv/
 /Archives/
 export_code.docx

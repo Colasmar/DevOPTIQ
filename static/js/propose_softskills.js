@@ -84,6 +84,11 @@ function showProposedSoftskills(hscProposals, activityId) {
     });
   });
 
+  if (typeof refreshActivityItems === "function") {
+    refreshActivityItems(activityId);
+  }
+
+
   Promise.all(addPromises)
     .then(() => {
       hideSpinner();

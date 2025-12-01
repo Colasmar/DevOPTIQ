@@ -72,6 +72,23 @@ select {
   overflow: hidden;
 }
 
+/* Mise en évidence d'une activité ciblée depuis la cartographie */
+.activity-container.highlighted-activity {
+  border: 2px solid #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.35);
+  animation: highlight-pulse 1.2s ease-out 1;
+}
+
+@keyframes highlight-pulse {
+  from {
+    transform: scale(1.01);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+
 /* En-tête de l'activité */
 .activity-header {
   background-color: #add8e6;

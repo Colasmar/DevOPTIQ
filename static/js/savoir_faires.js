@@ -1,123 +1,87 @@
-// Code/static/js/savoirfaires.js
+// static/js/savoir_faires.js
 
-/**
- * Récupère les détails d'une activité (via /activities/<id>/details),
- * puis enchaîne sur la proposition de savoir-faire IA.
- */
-
-/* Ajout direct d'un savoir-faire */
+/************* ADD *************/
 function showAddSavoirFairesForm(activityId) {
-  document.getElementById("add-savoir-faires-form-" + activityId).style.display = "block";
+  const zone = document.getElementById("add-savoir-faires-form-" + activityId);
+  if (zone) zone.style.display = "block";
 }
 
 function hideAddSavoirFairesForm(activityId) {
-  document.getElementById("add-savoir-faires-form-" + activityId).style.display = "none";
-  const inputElem = document.getElementById("add-savoir-faires-input-" + activityId);
-  if (inputElem) inputElem.value = "";
+  const zone = document.getElementById("add-savoir-faires-form-" + activityId);
+  if (zone) zone.style.display = "none";
+  const input = document.getElementById("add-savoir-faires-input-" + activityId);
+  if (input) input.value = "";
 }
 
 function submitAddSavoirFaires(activityId) {
   const inputElem = document.getElementById("add-savoir-faires-input-" + activityId);
   if (!inputElem) return;
+
   const desc = inputElem.value.trim();
   if (!desc) {
-    alert("Veuillez saisir une description pour le savoir-faires.");
+    alert("Veuillez saisir une description pour le savoir-faire.");
     return;
   }
 
   fetch(`/savoir_faires/add`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ 
-        description: desc, 
-        activity_id: activityId  
+    body: JSON.stringify({ description: desc, activity_id: activityId })
+  })
+    .then(async r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status} sur /savoir_faires/add`);
+      return r.json();
     })
-  })
-  .then(resp => {
-      if (!resp.ok) {
-          throw new Error(`Erreur lors de la soumission : ${resp.statusText}`);
-      }
-      return resp.json();
-  })
-  .then(data => {
+    .then(async data => {
       if (data.error) {
         alert("Erreur : " + data.error);
       } else {
-        updateSavoirFaires(activityId);
-      }
-  })
-  .catch(err => {
-      console.error("Erreur ajout savoir-faires :", err);
-  });
-}
-
-
-
-/**************************************
- * RAFFRAICHIR LA LISTE PARTIELLEMENT
- **************************************/
-function updateSavoirFairesList(activityId) {
-  showSpinner();
-  fetch(`/savoir_faires/${activityId}/render`)
-    .then(resp => {
-      if (!resp.ok) throw new Error("Erreur lors du rafraîchissement des savoir-faires");
-      return resp.text();
-    })
-    .then(html => {
-      hideSpinner();
-      const container = document.getElementById("savoir-faires-list-" + activityId);
-      if (container) {
-        container.innerHTML = html;
+        inputElem.value = "";
+        if (typeof refreshActivityItems === "function") {
+          await refreshActivityItems(activityId);
+        }
       }
     })
     .catch(err => {
-      hideSpinner();
-      console.error("Erreur updateSavoirFairesList:", err);
-      alert("Erreur updateSavoirFairesList : " + err.message);
+      console.error("Erreur ajout savoir-faire :", err);
+      alert(err.message);
     });
 }
 
+/************* EDIT INLINE *************/
+function showEditSavoirFairesForm(savoirFairesId) {
+  const textEl = document.getElementById(`savoir-faires-desc-${savoirFairesId}`);
+  const inputEl = document.getElementById(`edit-savoir-faires-input-${savoirFairesId}`);
+  const btnEl   = document.getElementById(`submit-edit-savoir-faires-${savoirFairesId}`);
 
-async function updateSavoirFaires(activityId) {
-  try {
-    const resp = await fetch(`/savoir_faires/${activityId}/render`);
-    if (!resp.ok) throw new Error("Erreur lors du rafraîchissement des savoir-faires.");
-    const html = await resp.text();
-
-    const container = document.getElementById(`sf-sv-body--${activityId}`)
-                   || document.querySelector(`[data-sf-container="${activityId}"]`);
-
-    if (!container) {
-      console.warn("updateSavoirFaires: container introuvable pour activity", activityId);
-      return;
-    }
-    container.innerHTML = html;
-  } catch (e) {
-    console.error("Erreur updateSavoirFaires :", e);
+  if (!textEl || !inputEl || !btnEl) {
+    console.warn("showEditSavoirFairesForm: éléments manquants pour", savoirFairesId);
+    return;
   }
+  textEl.style.display = "none";
+  inputEl.style.display = "inline-block";
+  btnEl.style.display   = "inline-block";
+  inputEl.value = (textEl.innerText || "").trim();
+  inputEl.focus();
 }
-window.updateSavoirFaires = updateSavoirFaires;
 
-
-/* Édition */
-
-function editSavoirFaires(savoirFairesId, activityId) {
-  const descElem = document.getElementById(`savoir-faires-desc-${savoirFairesId}`);
-  const editInput = document.getElementById(`edit-savoir-faires-input-${savoirFairesId}`);
-  const editBtn = document.getElementById(`submit-edit-savoir-faires-${savoirFairesId}`);
-
-  descElem.style.display = "none";
-  editInput.style.display = "inline-block";
-  editBtn.style.display = "inline-block";
-  editInput.value = descElem.innerText.trim();
+function hideEditSavoirFairesForm(savoirFairesId) {
+  const textEl = document.getElementById(`savoir-faires-desc-${savoirFairesId}`);
+  const inputEl = document.getElementById(`edit-savoir-faires-input-${savoirFairesId}`);
+  const btnEl   = document.getElementById(`submit-edit-savoir-faires-${savoirFairesId}`);
+  if (!textEl || !inputEl || !btnEl) return;
+  textEl.style.display = "inline";
+  inputEl.style.display = "none";
+  btnEl.style.display   = "none";
 }
 
 function submitEditSavoirFaires(activityId, savoirFairesId) {
-  const inputElem = document.getElementById("edit-savoir-faires-input-" + savoirFairesId);
-  if (!inputElem) return;
-  const newDesc = inputElem.value.trim();
+  const inputEl = document.getElementById("edit-savoir-faires-input-" + savoirFairesId);
+  if (!inputEl) return;
+
+  const newDesc = inputEl.value.trim();
   if (!newDesc) {
-    alert("Veuillez saisir la description du savoir-faires.");
+    alert("Veuillez saisir la description du savoir-faire.");
     return;
   }
 
@@ -126,60 +90,51 @@ function submitEditSavoirFaires(activityId, savoirFairesId) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ description: newDesc })
   })
-    .then(resp => resp.json())
-    .then(data => {
+    .then(async r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status} sur /savoir_faires/${activityId}/${savoirFairesId}`);
+      return r.json();
+    })
+    .then(async data => {
       if (data.error) {
-        alert("Erreur édition savoir-faires : " + data.error);
+        alert("Erreur édition savoir-faire : " + data.error);
       } else {
-        updateSavoirFaires(activityId);
+        if (typeof refreshActivityItems === "function") {
+          await refreshActivityItems(activityId);
+        }
       }
     })
     .catch(err => {
-      console.error("Erreur modification savoir-faires:", err);
+      console.error("Erreur edit savoir-faire :", err);
       alert(err.message);
     });
 }
 
-function showEditSavoirFairesForm(btnElem) {
-  const savoirFairesStr = btnElem.getAttribute("data-savoir-faires");
-  let savoirFairesObj;
-  try {
-    savoirFairesObj = JSON.parse(savoirFairesStr);
-  } catch (e) {
-    console.error("Erreur parse JSON:", e, savoirFairesStr);
-    alert("Impossible de lire le savoir-faire.");
-    return;
-  }
-  
-  const formDiv = document.getElementById("edit-savoir-faires-form-" + savoirFairesObj.id);
-  const inputEl = document.getElementById("edit-savoir-faires-input-" + savoirFairesObj.id);
-
-  if (formDiv && inputEl) {
-    formDiv.style.display = "block";
-    inputEl.value = savoirFairesObj.description || "";
-  }
-}
-
-function hideEditSavoirFairesForm(savoirFairesId) {
-  const formDiv = document.getElementById("edit-savoir-faires-form-" + savoirFairesId);
-  if (formDiv) {
-    formDiv.style.display = "none";
-  }
-}
-
+/************* DELETE *************/
 function deleteSavoirFaires(activityId, savoirFairesId) {
-  if (!confirm("Supprimer ce savoir-faires ?")) return;
+  if (!confirm("Supprimer ce savoir-faire ?")) return;
 
   fetch(`/savoir_faires/${activityId}/${savoirFairesId}`, { method: "DELETE" })
-    .then(resp => resp.json())
-    .then(data => {
+    .then(r => r.json())
+    .then(async data => {
       if (data.error) {
         alert("Erreur : " + data.error);
       } else {
-        updateSavoirFaires(activityId);
+        if (typeof refreshActivityItems === "function") {
+          await refreshActivityItems(activityId);
+        }
       }
     })
     .catch(err => {
-      console.error("Erreur suppression savoir-faires :", err);
+      console.error("Erreur suppression savoir-faire :", err);
+      alert("Erreur suppression savoir-faire (voir console).");
     });
 }
+
+// Expose global
+window.showAddSavoirFairesForm  = showAddSavoirFairesForm;
+window.hideAddSavoirFairesForm  = hideAddSavoirFairesForm;
+window.submitAddSavoirFaires    = submitAddSavoirFaires;
+window.showEditSavoirFairesForm = showEditSavoirFairesForm;
+window.hideEditSavoirFairesForm = hideEditSavoirFairesForm;
+window.submitEditSavoirFaires   = submitEditSavoirFaires;
+window.deleteSavoirFaires       = deleteSavoirFaires;

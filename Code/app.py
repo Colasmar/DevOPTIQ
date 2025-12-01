@@ -17,68 +17,68 @@ from flask import Flask, redirect, url_for
 from flask_migrate import Migrate
 from Code.extensions import db, mail
 
-# Import pour Flask-Mail
+import smtplib
 from flask_mail import Mail
 
-# Import pour modifier la connexion SMTP
-import smtplib
 
-# Classe personnalisée pour forcer l'encodage UTF-8
 class CustomMail(Mail):
     def connect(self):
         connection = super().connect()
-        # Si c'est une instance de smtplib.SMTP, on définit local_hostname
         if isinstance(connection, smtplib.SMTP):
-            # Forcer le local_hostname en ASCII
-            connection.local_hostname = 'localhost'
+            connection.local_hostname = "localhost"
         return connection
 
+
 def create_app():
-    static_folder = os.path.join(parent_dir, 'static')
+    static_folder = os.path.join(parent_dir, "static")
     app = Flask(__name__, static_folder=static_folder)
 
-    # Active le mode debug et la propagation des exceptions
-    app.config['DEBUG'] = True
-    app.config['PROPAGATE_EXCEPTIONS'] = True
+    app.config["DEBUG"] = True
+    app.config["PROPAGATE_EXCEPTIONS"] = True
 
-    # Configuration de la base de données SQLite
-    instance_path = os.path.join(os.path.dirname(__file__), 'instance')
-    if not os.path.exists(instance_path):
-        os.makedirs(instance_path)
-    db_path = os.path.join(instance_path, 'optiq.db')
-    app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{db_path}"
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    # -----------------------------
+    # 1) Base de données
+    # -----------------------------
+    db_url = os.getenv("DATABASE_URL")
 
-    # -------------- Configuration SMTP pour Flask-Mail --------------
-    # Adapte ces valeurs avec ton fournisseur SMTP
-    app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-    app.config['MAIL_PORT'] = 587
-    app.config['MAIL_USE_TLS'] = True
-    app.config['MAIL_USERNAME'] = 'afdec.enterprise.services@gmail.com'
-    app.config['MAIL_PASSWORD'] = 'awdkerghqvuwjhel'
+    if db_url:
+        # ex: postgres://... ou postgresql://...
+        # pour être sûr avec SQLAlchemy :
+        if db_url.startswith("postgres://"):
+            db_url = db_url.replace("postgres://", "postgresql://", 1)
+        app.config["SQLALCHEMY_DATABASE_URI"] = db_url
+    else:
+        # fallback local, comme avant
+        instance_path = os.path.join(os.path.dirname(__file__), "instance")
+        os.makedirs(instance_path, exist_ok=True)
+        db_path = os.path.join(instance_path, "optiq.db")
+        app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
 
-    # Initialisation de Flask-Mail avec la classe personnalisée
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+    # -----------------------------
+    # 2) Mail
+    # -----------------------------
+    app.config["MAIL_SERVER"] = os.getenv("MAIL_SERVER", "smtp.gmail.com")
+    app.config["MAIL_PORT"] = int(os.getenv("MAIL_PORT", 587))
+    app.config["MAIL_USE_TLS"] = True
+    app.config["MAIL_USERNAME"] = os.getenv("MAIL_USERNAME", "afdec.enterprise.services@gmail.com")
+    app.config["MAIL_PASSWORD"] = os.getenv("MAIL_PASSWORD", "awdkerghqvuwjhel")
+
     mail.init_app(app)
     db.init_app(app)
 
-
-    # Init extensions
-    from flask_migrate import Migrate
     migrate = Migrate(app, db)
 
-    # ----------------------------------------------------------------------
-    # 1) Filtre Jinja pour n'afficher que la partie numérique (1..4)
-    # ----------------------------------------------------------------------
-    import re  # pour le filtre extract_numeric_level
+    # --------- filtres jinja (ton code) ----------
+    import re
+
     def extract_numeric_level(value):
         match = re.search(r"\d", value or "")
         return match.group(0) if match else "1"
 
-    app.jinja_env.filters['extract_numeric_level'] = extract_numeric_level
+    app.jinja_env.filters["extract_numeric_level"] = extract_numeric_level
 
-    # ----------------------------------------------------------------------
-    # 2) Filtre Jinja 'escapejs' pour échapper apostrophes & backslashes en JS
-    # ----------------------------------------------------------------------
     def escapejs_filter(value):
         if not value:
             return ""
@@ -87,11 +87,11 @@ def create_app():
         out = out.replace('"', '\\"')
         return out
 
-    app.jinja_env.filters['escapejs'] = escapejs_filter
+    app.jinja_env.filters["escapejs"] = escapejs_filter
 
-    # ----------------------------------------------------------------------
-    # Blueprints
-    # ----------------------------------------------------------------------
+    # -----------------------------
+    # Blueprints (ton code)
+    # -----------------------------
     from Code.routes.activities import activities_bp
     app.register_blueprint(activities_bp)
 
@@ -143,10 +143,6 @@ def create_app():
     from Code.routes.competences import competences_bp
     app.register_blueprint(competences_bp)
 
-    # ---------------------
-    #  Nouveaux blueprints
-    # ---------------------
-
     from Code.routes.propose_savoirs import bp_propose_savoirs
     app.register_blueprint(bp_propose_savoirs)
 
@@ -162,7 +158,7 @@ def create_app():
     from Code.routes.gestion_compte import gestion_compte_bp
     app.register_blueprint(gestion_compte_bp)
 
-    from Code.routes.routes_password  import auth_password_bp
+    from Code.routes.routes_password import auth_password_bp
     app.register_blueprint(auth_password_bp)
 
     from Code.routes.gestion_rh import gestion_rh_bp
@@ -186,23 +182,27 @@ def create_app():
     from Code.routes.plan_storage import plan_storage_bp
     app.register_blueprint(plan_storage_bp)
 
+    from Code.routes.activities_map import activities_map_bp
+    app.register_blueprint(activities_map_bp)
 
 
 
-    # Clé secrète pour session et sécurité
-    app.secret_key = 'votre_clé_secrète_unique'
+    # secret key
+    app.secret_key = os.getenv("SECRET_KEY", "devoptiq-secret")
 
-    @app.route('/')
+    # petit endpoint de santé pour Cloud Run
+    @app.route("/healthz")
+    def healthz():
+        return "ok", 200
+
+    @app.route("/")
     def home():
-        return redirect(url_for('auth.login'))
-
-    @app.route('/test_skills')
-    def test_skills():
-        return app.send_static_file('test_skills.html')
+        return redirect(url_for("auth.login"))
 
     return app
 
+
 app = create_app()
 
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
