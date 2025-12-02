@@ -11,16 +11,37 @@ performance_bp = Blueprint("performance", __name__, url_prefix="/performance")
 # =====================================================
 #  UTILITAIRE : construit le fragment HTML
 # =====================================================
-def _render_fragment(perf: Performance) -> str:
-    """Construit un fragment HTML stylable et fonctionnel."""
+def _render_fragment(perf: Performance, link_id: int = None) -> str:
+    """
+    Construit un fragment HTML stylable et fonctionnel.
+    CORRIGÉ : Ajoute le bouton d'ajout quand perf est None.
+    """
     if not perf:
-        return (
-            "<div class='perf-general-fragment perf-box'>"
-            "<em>Aucune performance générale définie pour cette activité.</em>"
-            "</div>"
-        )
+        # Si pas de performance, afficher le bouton d'ajout
+        if link_id:
+            return f"""
+            <div class='perf-general-fragment perf-box'>
+                <em>Aucune performance générale définie pour cette activité.</em>
+                <div style="margin-top: 8px;">
+                    <button onclick="showAddPerfForm('{link_id}')">Performance</button>
+                    <div id="perf-add-form-{link_id}" style="display:none; margin-top:5px;">
+                        <input type="text" id="perf-add-input-{link_id}" style="width:350px;" placeholder="Nom de la performance" />
+                        <button onclick="submitAddPerf('{link_id}')">Enregistrer</button>
+                        <button onclick="hideAddPerfForm('{link_id}')">Annuler</button>
+                    </div>
+                </div>
+            </div>
+            """
+        else:
+            return (
+                "<div class='perf-general-fragment perf-box'>"
+                "<em>Aucune performance générale définie pour cette activité.</em>"
+                "</div>"
+            )
 
     name = perf.name or ""
+    # Échapper les backticks et apostrophes pour JavaScript
+    name_escaped = name.replace("`", "\\`").replace("'", "\\'")
     desc = (perf.description or "").replace("\n", "<br>")
 
     html = f"""
@@ -32,7 +53,7 @@ def _render_fragment(perf: Performance) -> str:
 
             <div class='perf-actions' style="margin-top:8px;">
                 <button class="perf-btn perf-btn-edit"
-                        onclick="showEditPerfForm({perf.id}, `{name}`)">
+                        onclick="showEditPerfForm({perf.id}, `{name_escaped}`)">
                     <i class="fa-solid fa-pencil"></i>
                 </button>
                 <button class="perf-btn perf-btn-delete"
@@ -63,7 +84,8 @@ def _render_fragment(perf: Performance) -> str:
 def render_by_link(link_id):
     """Retourne la performance associée à un link_id."""
     perf = Performance.query.filter_by(link_id=link_id).first()
-    return _render_fragment(perf)
+    # CORRIGÉ : Passer link_id pour afficher le bouton d'ajout si pas de perf
+    return _render_fragment(perf, link_id=link_id)
 
 
 @performance_bp.route("/render_activity/<int:activity_id>", methods=["GET"])
@@ -85,7 +107,8 @@ def render_by_activity(activity_id):
     )
 
     perf = getattr(link, "performance", None) if link else None
-    return _render_fragment(perf)
+    link_id = link.id if link else None
+    return _render_fragment(perf, link_id=link_id)
 
 
 # =====================================================

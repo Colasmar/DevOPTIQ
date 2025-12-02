@@ -10,36 +10,62 @@ from .propose_common import (
 
 bp_propose_softskills = Blueprint("propose_softskills", __name__)
 
+# --------------------------------------------------------------------
+# 🔥 SUPER PROMPT – VERSION OPTIMISÉE POUR GPT, 100% JSON
+# --------------------------------------------------------------------
 PROMPT_HEADER_HSC = """
-Analyse l'activité (tâches, contraintes, outils, données, performances) et propose 3 à 8
-Habiletés Socio-Cognitives (HSC) structurées sous forme d'objets JSON avec :
-- habilete: libellé court (ex: "Attention soutenue", "Analyse critique")
-- niveau: "1 (Aptitude)", "2 (Acquisition)", "3 (Maîtrise)" ou "4 (Excellence)"
-- justification: 1 à 2 phrases sur le lien avec l'activité
+Tu es un expert en analyse du travail, en sciences cognitives et en ingénierie des compétences.
 
-IMPORTANT: Réponds UNIQUEMENT avec un tableau JSON valide, sans texte avant ou après, sans backticks markdown.
-Exemple de format attendu:
-[{"habilete": "Analyse critique", "niveau": "2 (Acquisition)", "justification": "..."}]
+🎯 Objectif : Générer 3 à 8 Habiletés Sociocognitives (HSC) pertinentes pour l’activité fournie.
+
+Pour CHAQUE HSC, tu dois générer un objet JSON contenant STRICTEMENT :
+
+{
+  "habilete": "<nom court de l'HSC>",
+  "niveau": "<1,2,3 ou 4> (texte inclus)",
+  "justification": "<1 ou 2 phrases>"
+}
+
+📌 Les niveaux doivent être formulés EXACTEMENT ainsi :
+- "1 (Aptitude)"
+- "2 (Acquisition)"
+- "3 (Maîtrise)"
+- "4 (Excellence)"
+
+📌 Les HSC doivent appartenir aux catégories officielles :
+- Auto-organisation
+- Planification
+- Traitement de l'information
+- Coopération
+- Flexibilité mentale
+- Arbitrage
+- Conceptualisation
+- Approche globale
+- Adaptation relationnelle
+
+📌 Format IMPÉRATIF :
+Tu réponds UNIQUEMENT par un TABLEAU JSON VALIDE :
+[
+  {"habilete": "...", "niveau": "...", "justification": "..."},
+  {...}
+]
+
+AUCUN texte avant, AUCUN texte après, AUCUN backtick Markdown.
 """
 
-
+# --------------------------------------------------------------------
+# OUTILS : extraction JSON propre
+# --------------------------------------------------------------------
 def clean_json_response(text):
-    """
-    Nettoie la réponse de l'IA pour extraire le JSON pur.
-    Supprime les backticks markdown, le texte avant/après le JSON.
-    """
-    # Supprimer les blocs de code markdown ```json ... ``` ou ``` ... ```
     text = re.sub(r'^```(?:json)?\s*', '', text.strip())
     text = re.sub(r'\s*```$', '', text.strip())
     
-    # Chercher le premier [ ou { et le dernier ] ou }
     start_bracket = text.find('[')
     start_brace = text.find('{')
     
     if start_bracket == -1 and start_brace == -1:
-        return text  # Pas de JSON trouvé
+        return text
     
-    # Prendre le premier qui apparaît
     if start_bracket == -1:
         start = start_brace
     elif start_brace == -1:
@@ -47,7 +73,6 @@ def clean_json_response(text):
     else:
         start = min(start_bracket, start_brace)
     
-    # Trouver la fin correspondante
     if text[start] == '[':
         end = text.rfind(']')
     else:
@@ -59,13 +84,16 @@ def clean_json_response(text):
     return text[start:end+1]
 
 
+# --------------------------------------------------------------------
+# ROUTE PRINCIPALE
+# --------------------------------------------------------------------
 @bp_propose_softskills.route("/propose_softskills/propose", methods=["POST"])
 def propose_softskills():
     """
-    Version tolérante :
-    - si pas de clé OpenAI → on renvoie 3 HSC génériques en fonction de l'activité
-    - si OpenAI renvoie juste du texte → on retransforme en tableau d'objets
-    -> de cette façon, ton JS a toujours un tableau d'objets {habilete, niveau, justification}
+    Retourne TOUJOURS un tableau JSON d'HSC {habilete, niveau, justification}.
+    Gère :
+    - Absence de clé API → fallback local simple
+    - Réponse OpenAI imparfaite → nettoyage + fallback
     """
     try:
         activity = request.get_json(force=True) or {}
@@ -73,7 +101,7 @@ def propose_softskills():
 
         client, err = openai_client_or_none()
         if client is None:
-            # ✅ fallback sans IA
+            # Fallback sans IA
             base = dummy_from_context(ctx, "hsc")
             proposals = [
                 {
@@ -85,6 +113,7 @@ def propose_softskills():
             ]
             return jsonify({"proposals": proposals, "source": err}), 200
 
+        # --- Construction du prompt IA ---
         prompt = f"""{PROMPT_HEADER_HSC}
 
 === CONTEXTE DE L'ACTIVITÉ ===
@@ -94,69 +123,81 @@ def propose_softskills():
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "Tu es un assistant RH/formation expert en habiletés socio-cognitives. Tu réponds UNIQUEMENT en JSON valide, sans markdown ni texte supplémentaire."},
+                {
+                    "role": "system",
+                    "content": (
+                        "Tu es un assistant RH expert. "
+                        "Tu DOIS répondre uniquement en JSON valide. "
+                        "Jamais de texte extérieur, jamais de markdown."
+                    )
+                },
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.2,
+            temperature=0.15,
         )
+
         text = resp.choices[0].message.content.strip()
-        
-        # 🔥 Nettoyer la réponse (supprimer backticks, etc.)
         cleaned_text = clean_json_response(text)
 
         proposals = []
         parsed_ok = False
 
-        # 1) Tentative JSON
+        # --- Tentative de parsing JSON ---
         try:
             data = json.loads(cleaned_text)
             if isinstance(data, dict):
                 data = [data]
-            for item in data:
-                habilete = item.get("habilete") or item.get("label") or item.get("name") or "Habileté"
-                niveau = item.get("niveau") or item.get("level") or "2 (Acquisition)"
-                
-                # S'assurer que le niveau a le bon format
-                if isinstance(niveau, int) or (isinstance(niveau, str) and niveau.isdigit()):
-                    niveau_map = {
-                        "1": "1 (Aptitude)",
-                        "2": "2 (Acquisition)", 
-                        "3": "3 (Maîtrise)",
-                        "4": "4 (Excellence)"
-                    }
-                    niveau = niveau_map.get(str(niveau), "2 (Acquisition)")
-                
-                proposals.append({
-                    "habilete": habilete,
-                    "niveau": niveau,
-                    "justification": item.get("justification") or "",
-                })
-            parsed_ok = True
-        except json.JSONDecodeError as e:
-            current_app.logger.warning(f"JSON parse failed: {e}. Text was: {cleaned_text[:200]}")
-            parsed_ok = False
 
-        # 2) Fallback texte → on découpe en lignes (dernier recours)
+            niveau_map = {
+                "1": "1 (Aptitude)",
+                "2": "2 (Acquisition)",
+                "3": "3 (Maîtrise)",
+                "4": "4 (Excellence)"
+            }
+
+            for item in data:
+                raw_niveau = item.get("niveau", "2")
+                if isinstance(raw_niveau, str):
+                    num = re.findall(r"\d", raw_niveau)
+                    raw_niveau = num[0] if num else "2"
+                elif isinstance(raw_niveau, int):
+                    raw_niveau = str(raw_niveau)
+
+                level = niveau_map.get(raw_niveau, "2 (Acquisition)")
+
+                proposals.append({
+                    "habilete": item.get("habilete", "Habileté"),
+                    "niveau": level,
+                    "justification": item.get("justification", ""),
+                })
+
+            parsed_ok = True
+
+        except Exception as e:
+            current_app.logger.warning(f"[HSC JSON FAIL] {e} | TEXT={cleaned_text[:200]}")
+
+        # --- Fallback texte si JSON illisible ---
         if not parsed_ok or not proposals:
-            lines = [l.strip("-•* ").strip() for l in text.splitlines() if l.strip() and not l.strip().startswith("```")]
+            lines = [
+                l.strip("-•* ").strip()
+                for l in text.splitlines()
+                if l.strip() and not l.strip().startswith("```")
+            ]
             for line in lines:
-                # Ignorer les lignes qui ressemblent à du JSON partiel
-                if line.startswith('{') or line.startswith('[') or line.startswith('"') or line.startswith('}') or line.startswith(']'):
-                    continue
-                if len(line) > 3:  # Ignorer les lignes trop courtes
+                if len(line) > 3:
                     proposals.append({
-                        "habilete": line[:100],  # Limiter la longueur
+                        "habilete": line[:100],
                         "niveau": "2 (Acquisition)",
                         "justification": "",
                     })
 
-        # 3) Fallback ultime si toujours vide
+        # --- Fallback ultime ---
         if not proposals:
             proposals = [
                 {
                     "habilete": "Communication professionnelle",
                     "niveau": "2 (Acquisition)",
-                    "justification": "Habileté de base requise pour cette activité.",
+                    "justification": "Habileté de base requise pour l'activité.",
                 }
             ]
 
@@ -164,17 +205,13 @@ def propose_softskills():
 
     except Exception as e:
         current_app.logger.exception(e)
-        # On ne casse pas le front
-        return (
-            jsonify({
-                "proposals": [
-                    {
-                        "habilete": "Habileté non déterminée (erreur serveur).",
-                        "niveau": "2 (Acquisition)",
-                        "justification": "",
-                    }
-                ],
-                "error": str(e),
-            }),
-            200,
-        )
+        return jsonify({
+            "proposals": [
+                {
+                    "habilete": "Habileté non déterminée (erreur serveur).",
+                    "niveau": "2 (Acquisition)",
+                    "justification": "",
+                }
+            ],
+            "error": str(e),
+        }), 200

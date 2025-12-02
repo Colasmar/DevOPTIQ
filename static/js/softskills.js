@@ -165,6 +165,7 @@ function submitEditSoftskill(activityId, ssId) {
     });
 }
 
+
 /*******************************************
  * SUPPRESSION 
  * 🔥 CORRECTION MAJEURE : activityId passé en paramètre
