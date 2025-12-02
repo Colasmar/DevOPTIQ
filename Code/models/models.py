@@ -29,12 +29,12 @@ task_roles = db.Table(
 )
 
 # -------------------------------------------------------------------
-# Modèles
+# Modèles - CORRIGÉ avec autoincrement=True pour PostgreSQL
 # -------------------------------------------------------------------
 class Activities(db.Model):
     __tablename__ = 'activities'
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     shape_id = db.Column(db.String(50), unique=True, index=True, nullable=True)
     name = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=True)
@@ -62,7 +62,7 @@ class Activities(db.Model):
 class Data(db.Model):
     __tablename__ = 'data'
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     shape_id = db.Column(db.String(50), unique=True, index=True, nullable=True)
     name = db.Column(db.String(255), nullable=False)
     type = db.Column(db.String(50), nullable=False)
@@ -73,7 +73,7 @@ class Data(db.Model):
 class Task(db.Model):
     __tablename__ = 'tasks'
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text, nullable=True)
     order = db.Column(db.Integer, nullable=True)
@@ -94,7 +94,7 @@ class Task(db.Model):
 class Tool(db.Model):
     __tablename__ = 'tools'
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(255), nullable=False, unique=True)
     description = db.Column(db.Text, nullable=True)
 
@@ -102,7 +102,7 @@ class Tool(db.Model):
 class Competency(db.Model):
     __tablename__ = 'competencies'
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     description = db.Column(db.Text, nullable=False)
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
 
@@ -110,7 +110,7 @@ class Competency(db.Model):
 class Softskill(db.Model):
     __tablename__ = 'softskills'
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     habilete = db.Column(db.String(255), nullable=False)
     niveau = db.Column(db.String(10), nullable=False)
     justification = db.Column(db.Text, nullable=True)
@@ -120,7 +120,7 @@ class Softskill(db.Model):
 class Role(db.Model):
     __tablename__ = 'roles'
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     onboarding_plan = db.Column(db.Text, nullable=True)
 
@@ -128,7 +128,7 @@ class Role(db.Model):
 class Link(db.Model):
     __tablename__ = 'links'
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     source_activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=True)
     source_data_id = db.Column(db.Integer, db.ForeignKey('data.id'), nullable=True)
     target_activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=True)
@@ -148,7 +148,7 @@ class Link(db.Model):
 class Performance(db.Model):
     __tablename__ = 'performances'
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text, nullable=True)
     link_id = db.Column(db.Integer, db.ForeignKey('links.id', ondelete='CASCADE'), unique=True)
@@ -158,7 +158,7 @@ class Performance(db.Model):
 class PerformancePersonnalisee(db.Model):
     __tablename__ = 'performance_personnalisee'
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.Integer, nullable=False)
     activity_id = db.Column(db.Integer, nullable=False)
 
@@ -173,7 +173,7 @@ class PerformancePersonnalisee(db.Model):
 class Constraint(db.Model):
     __tablename__ = 'constraints'
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     description = db.Column(db.Text, nullable=False)
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
 
@@ -181,7 +181,7 @@ class Constraint(db.Model):
 class Savoir(db.Model):
     __tablename__ = 'savoirs'
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     description = db.Column(db.Text, nullable=False)
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
 
@@ -189,7 +189,7 @@ class Savoir(db.Model):
 class SavoirFaire(db.Model):
     __tablename__ = 'savoir_faires'
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     description = db.Column(db.Text, nullable=False)
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
 
@@ -197,7 +197,7 @@ class SavoirFaire(db.Model):
 class Aptitude(db.Model):
     __tablename__ = 'aptitudes'
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     description = db.Column(db.Text, nullable=False)
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
 
@@ -205,7 +205,7 @@ class Aptitude(db.Model):
 class User(db.Model):
     __tablename__ = 'users'
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
     age = db.Column(db.Integer, nullable=True)
@@ -251,7 +251,7 @@ class CompetencyEvaluation(db.Model):
 class TimeAnalysis(db.Model):
     __tablename__ = 'time_analysis'
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     duration = db.Column(db.Integer, nullable=False)
     recurrence = db.Column(db.String(20), nullable=False)
     frequency = db.Column(db.Integer, nullable=False)
@@ -310,7 +310,7 @@ class TimeAnalysis(db.Model):
 # -------------------------------------------------------------------
 class TimeProject(db.Model):
     __tablename__ = 'time_project'
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(120))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     lines = db.relationship('TimeProjectLine', backref='project', cascade="all, delete-orphan")
@@ -318,7 +318,7 @@ class TimeProject(db.Model):
 
 class TimeProjectLine(db.Model):
     __tablename__ = 'time_project_line'
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     project_id = db.Column(db.Integer, db.ForeignKey('time_project.id', ondelete="CASCADE"), nullable=False)
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
     duration_minutes = db.Column(db.Float, nullable=False, default=0)
@@ -328,7 +328,7 @@ class TimeProjectLine(db.Model):
 
 class TimeRoleAnalysis(db.Model):
     __tablename__ = 'time_role_analysis'
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), nullable=False)
     name = db.Column(db.String(120), default='Analyse rôle')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -337,7 +337,7 @@ class TimeRoleAnalysis(db.Model):
 
 class TimeRoleLine(db.Model):
     __tablename__ = 'time_role_line'
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     role_analysis_id = db.Column(db.Integer, db.ForeignKey('time_role_analysis.id', ondelete="CASCADE"), nullable=False)
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
     recurrence = db.Column(db.String(32), nullable=False)  # journalier/hebdomadaire/mensuel/annuel
@@ -350,7 +350,7 @@ class TimeRoleLine(db.Model):
 
 class TimeWeakness(db.Model):
     __tablename__ = 'time_weakness'
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
     task_id = db.Column(db.Integer, db.ForeignKey('tasks.id'))
     duration_std_minutes = db.Column(db.Float, nullable=False, default=0)  # B
