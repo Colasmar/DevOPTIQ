@@ -13,12 +13,12 @@ competences_plan_bp = Blueprint(
 # ==================== PROMPT ====================
 
 PROMPT_HEADER_PLAN_ROLE = """
-Analyse les informations du RÔLE et de l’ACTIVITÉ ci-dessous (performances standard et spécifiques, Savoirs, Savoir-faire, HSC, évaluations et commentaires du manager).
+Analyse les informations du RÔLE et de l'ACTIVITÉ ci-dessous (performances standard et spécifiques, Savoirs, Savoir-faire, HSC, évaluations et commentaires du manager).
 
 Décide et produis UN SEUL livrable :
 
-1) S’il existe un ou des écarts sur Savoirs / Savoir-faire / HSC ⇒ PLAN_DE_FORMATION.
-2) Si S/SF/HSC OK (verts) mais la compétence (manager) n’est pas verte ⇒ PLAN_D_ACCOMPAGNEMENT_COMPETENCE.
+1) S'il existe un ou des écarts sur Savoirs / Savoir-faire / HSC ⇒ PLAN_DE_FORMATION.
+2) Si S/SF/HSC OK (verts) mais la compétence (manager) n'est pas verte ⇒ PLAN_D_ACCOMPAGNEMENT_COMPETENCE.
 3) Si tout est vert ⇒ FEEDBACK_DE_MAINTIEN.
 
 Règles :
@@ -32,8 +32,100 @@ Règles :
 
 # ==================== Helpers ====================
 
+def _ensure_tables_exist():
+    """
+    S'assure que les tables nécessaires existent.
+    Crée les tables si elles n'existent pas.
+    """
+    try:
+        # Vérifier si la table training_plan existe
+        result = db.session.execute(text("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'training_plan'
+            )
+        """)).scalar()
+        
+        if not result:
+            # Créer la table training_plan pour PostgreSQL
+            db.session.execute(text("""
+                CREATE TABLE IF NOT EXISTS training_plan (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    role_id INTEGER NOT NULL,
+                    activity_id INTEGER NOT NULL,
+                    plan_type VARCHAR(100),
+                    plan_json TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+            db.session.commit()
+            
+    except Exception as e:
+        db.session.rollback()
+        # Essayer la syntaxe SQLite si PostgreSQL échoue
+        try:
+            db.session.execute(text("""
+                CREATE TABLE IF NOT EXISTS training_plan (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    role_id INTEGER NOT NULL,
+                    activity_id INTEGER NOT NULL,
+                    plan_type TEXT,
+                    plan_json TEXT,
+                    created_at TEXT DEFAULT (datetime('now'))
+                )
+            """))
+            db.session.commit()
+        except Exception as e2:
+            db.session.rollback()
+            print(f"Erreur création table training_plan: {e2}")
+    
+    try:
+        # Vérifier si la table prerequis_comment existe
+        result = db.session.execute(text("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'prerequis_comment'
+            )
+        """)).scalar()
+        
+        if not result:
+            db.session.execute(text("""
+                CREATE TABLE IF NOT EXISTS prerequis_comment (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    activity_id INTEGER NOT NULL,
+                    item_type VARCHAR(100),
+                    item_id INTEGER,
+                    comment TEXT,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+            db.session.commit()
+            
+    except Exception as e:
+        db.session.rollback()
+        try:
+            db.session.execute(text("""
+                CREATE TABLE IF NOT EXISTS prerequis_comment (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    activity_id INTEGER NOT NULL,
+                    item_type TEXT,
+                    item_id INTEGER,
+                    comment TEXT,
+                    updated_at TEXT DEFAULT (datetime('now'))
+                )
+            """))
+            db.session.commit()
+        except Exception as e2:
+            db.session.rollback()
+            print(f"Erreur création table prerequis_comment: {e2}")
+
+
 def _dummy_plan():
-    """Plan de secours pour dev/test sans clé API ou en cas d’erreur SDK."""
+    """Plan de secours pour dev/test sans clé API ou en cas d'erreur SDK."""
     return {
         "type": "PLAN_DE_FORMATION",
         "contexte_synthetique": {
@@ -49,7 +141,7 @@ def _dummy_plan():
                 "parcours": [{
                     "option": "Judicieuse",
                     "methodes": ["micro-learning", "atelier pratique"],
-                    "contenus_recommandes": ["Module interne A", "Cas d’exercice"],
+                    "contenus_recommandes": ["Module interne A", "Cas d'exercice"],
                     "prerequis": [],
                     "duree_estimee_heures": 6,
                     "livrables_attendus": ["Checklist appliquée"],
@@ -97,7 +189,7 @@ def _call_llm_or_dummy(prompt: str):
         try:
             return json.loads(content)
         except json.JSONDecodeError:
-            # Si le modèle a rajouté du texte, on essaie d’extraire le JSON
+            # Si le modèle a rajouté du texte, on essaie d'extraire le JSON
             import re
             m = re.search(r"\{[\s\S]*\}\s*$", content)
             if m:
@@ -122,6 +214,8 @@ def save_prerequis():
     { user_id, activity_id, comments: [{item_type, item_id, comment}] }
     Stratégie 'upsert simple' : on efface l'existant de (user, activity) puis on réinsère.
     """
+    _ensure_tables_exist()
+    
     data = request.get_json(force=True)
     user_id = int(data["user_id"])
     activity_id = int(data["activity_id"])
@@ -156,6 +250,8 @@ def get_prerequis(user_id: int, activity_id: int):
     Renvoie la liste des commentaires existants pour (user, activity):
     [{item_type, item_id, comment}]
     """
+    _ensure_tables_exist()
+    
     rows = db.session.execute(
         text("""
             SELECT item_type, item_id, comment
@@ -177,32 +273,42 @@ def generate_plan():
     }
     Sauvegarde le plan (réel ou dummy) et renvoie {ok:True, plan}
     """
-    data = request.get_json(force=True)
-    user_id = int(data["user_id"])
-    role_id = int(data["role_id"])
-    activity_id = int(data["activity_id"])
-    payload = data["payload_contexte"]
+    _ensure_tables_exist()
+    
+    try:
+        data = request.get_json(force=True)
+        user_id = int(data["user_id"])
+        role_id = int(data["role_id"])
+        activity_id = int(data["activity_id"])
+        payload = data.get("payload_contexte", {})
 
-    prompt = f"{PROMPT_HEADER_PLAN_ROLE}\n\n=== CONTEXTE STRUCTURÉ ===\n{json.dumps(payload, ensure_ascii=False, indent=2)}\n=== FIN CONTEXTE ==="
+        prompt = f"{PROMPT_HEADER_PLAN_ROLE}\n\n=== CONTEXTE STRUCTURÉ ===\n{json.dumps(payload, ensure_ascii=False, indent=2)}\n=== FIN CONTEXTE ==="
 
-    # Appel LLM (ou fallback)
-    plan = _call_llm_or_dummy(prompt)
+        # Appel LLM (ou fallback)
+        plan = _call_llm_or_dummy(prompt)
 
-    # Sauvegarde
-    plan_type = plan.get("type", "PLAN")
-    db.session.execute(
-        text("""
-            INSERT INTO training_plan(user_id, role_id, activity_id, plan_type, plan_json)
-            VALUES(:u, :r, :a, :pt, :pj)
-        """),
-        {
-            "u": user_id,
-            "r": role_id,
-            "a": activity_id,
-            "pt": plan_type,
-            "pj": json.dumps(plan, ensure_ascii=False)
-        }
-    )
-    db.session.commit()
+        # Sauvegarde
+        plan_type = plan.get("type", "PLAN")
+        db.session.execute(
+            text("""
+                INSERT INTO training_plan(user_id, role_id, activity_id, plan_type, plan_json)
+                VALUES(:u, :r, :a, :pt, :pj)
+            """),
+            {
+                "u": user_id,
+                "r": role_id,
+                "a": activity_id,
+                "pt": plan_type,
+                "pj": json.dumps(plan, ensure_ascii=False)
+            }
+        )
+        db.session.commit()
 
-    return jsonify({"ok": True, "plan": plan})
+        return jsonify({"ok": True, "plan": plan})
+        
+    except Exception as e:
+        db.session.rollback()
+        # Retourner un plan dummy même en cas d'erreur pour éviter le 500
+        fallback = _dummy_plan()
+        fallback["meta"] = {"source": "error_fallback", "error": str(e)}
+        return jsonify({"ok": True, "plan": fallback, "warning": str(e)})

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Gestion RH</title>
-  <link rel="stylesheet" href="./../../../static/gestion_rh.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='gestion_rh.css') }}">
   <script src="{{ url_for('static', filename='js/gestion_rh.js') }}" defer></script>
 </head>
 <header>
@@ -102,7 +102,7 @@
     </section>
 
     <!-- JS du tableau -->
-    <script src="./../../../static/js/global_users_summary.js"></script>
+    <script src="{{ url_for('static', filename='js/global_users_summary.js') }}"></script>
     <script>
       // Charge dynamiquement le tableau via AJAX
       fetch("/competences/users/global_summary")

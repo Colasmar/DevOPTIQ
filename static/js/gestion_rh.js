@@ -162,9 +162,22 @@ document.addEventListener("DOMContentLoaded", () => {
       const div = document.createElement("div");
       div.className = "collab-item";
 
+      // Nom du collaborateur (cliquable pour éditer)
       const label = document.createElement("div");
       label.className = "collab-name";
       label.textContent = user.name;
+      
+      // Icône d'édition du nom
+      const editNameIcon = document.createElement("span");
+      editNameIcon.innerHTML = " ✏️";
+      editNameIcon.style.cursor = "pointer";
+      editNameIcon.style.fontSize = "0.8em";
+      editNameIcon.title = "Modifier le nom";
+      editNameIcon.addEventListener("click", (e) => {
+        e.stopPropagation();
+        editCollaboratorName(user.id, user.name, label);
+      });
+      label.appendChild(editNameIcon);
 
       const summary = document.createElement("div");
       summary.className = "collab-summary";
@@ -204,7 +217,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       const saveBtn = document.createElement("button");
-      saveBtn.textContent = "Enregistrer";
+      saveBtn.textContent = "Enregistrer les rôles";
       saveBtn.addEventListener("click", async () => {
         const selectedRoles = Array.from(roleContainer.querySelectorAll("input:checked")).map(c => c.value);
         const formData = new FormData();
@@ -232,7 +245,9 @@ document.addEventListener("DOMContentLoaded", () => {
       editZone.appendChild(roleContainer);
       editZone.appendChild(saveBtn);
 
-      label.addEventListener("click", () => {
+      label.addEventListener("click", (e) => {
+        // Ne pas expand si on clique sur l'icône d'édition
+        if (e.target.tagName === 'SPAN') return;
         div.classList.toggle("expanded");
       });
 
@@ -247,6 +262,31 @@ document.addEventListener("DOMContentLoaded", () => {
       toggleBtn.textContent = showAll ? "Réduire la liste" : "Afficher tous les collaborateurs";
       toggleBtn.onclick = () => renderPartialCollaborators(!showAll);
     }
+  }
+
+  // Fonction pour éditer le nom d'un collaborateur
+  function editCollaboratorName(userId, currentName, labelElement) {
+    const newName = prompt("Modifier le nom du collaborateur :", currentName);
+    if (newName === null || newName.trim() === "" || newName.trim() === currentName) return;
+
+    fetch(`/gestion_rh/update_collaborator_name`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, name: newName.trim() })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        showToast("Nom mis à jour");
+        loadCollaborateurs();
+      } else {
+        alert("Erreur lors de la mise à jour du nom");
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      alert("Erreur réseau");
+    });
   }
 
   document.getElementById("search-collab").addEventListener("input", loadCollaborateurs);
