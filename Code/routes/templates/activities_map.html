@@ -3,8 +3,9 @@
 
 <script>
   window.CARTO_SHAPE_MAP = {{ shape_activity_map | tojson | safe }};
-  window.CARTO_HISTORY = {{ carto_history | tojson | safe }};
   window.SVG_EXISTS = {{ svg_exists | tojson | safe }};
+  window.ACTIVE_ENTITY = {{ active_entity_dict | tojson | safe }};
+  window.ALL_ENTITIES = {{ all_entities_list | tojson | safe }};
 </script>
 
 <script defer src="{{ url_for('static', filename='js/activities_map.js') }}"></script>
@@ -12,14 +13,28 @@
 <div class="carto-page">
 
   <div class="carto-header">
-    <h1>Cartographie des activités</h1>
+    <div class="carto-header-left">
+      <h1>Cartographie des activités</h1>
+      {% if active_entity %}
+        <span class="active-entity-badge">
+          <span class="badge-icon">🏢</span>
+          <span class="badge-name">{{ active_entity.name }}</span>
+        </span>
+      {% else %}
+        <span class="no-entity-badge">
+          <span class="badge-icon">⚠️</span>
+          <span class="badge-name">Aucune entité sélectionnée</span>
+        </span>
+      {% endif %}
+    </div>
 
-    <button id="carto-actions-btn" class="carto-actions-btn">
-        ⚙️ Actions cartographie
+    <button id="entity-manager-btn" class="carto-actions-btn">
+        🏢 Gestionnaire d'entités
     </button>
   </div>
 
   <!-- MESSAGE D'INFO NAVIGATION -->
+  {% if active_entity and svg_exists %}
   <div class="carto-info-message">
     <span>
       <strong>Navigation :</strong> 
@@ -28,45 +43,114 @@
       Clic sur une activité pour y accéder
     </span>
   </div>
+  {% elif not active_entity %}
+  <div class="carto-info-message carto-info-warning">
+    <span>
+      <strong>Démarrage :</strong> 
+      Cliquez sur "Gestionnaire d'entités" pour créer votre première organisation et importer une cartographie.
+    </span>
+  </div>
+  {% elif not svg_exists %}
+  <div class="carto-info-message carto-info-warning">
+    <span>
+      <strong>Cartographie manquante :</strong> 
+      L'entité "{{ active_entity.name }}" n'a pas encore de cartographie. Importez un fichier SVG ou VSDX.
+    </span>
+  </div>
+  {% endif %}
 
-  <!-- POPUP -->
-  <div id="carto-actions-popup" class="popup hidden">
-    <div class="popup-content">
+  <!-- POPUP GESTIONNAIRE D'ENTITÉS -->
+  <div id="entity-manager-popup" class="popup hidden">
+    <div class="popup-content entity-manager-content">
 
-      <h2>Actions sur la cartographie</h2>
+      <div class="popup-header">
+        <h2>🏢 Gestionnaire d'entités</h2>
+        <button id="close-popup" class="popup-close-btn">✕</button>
+      </div>
 
-      <div class="popup-buttons-center">
-        <button id="reload-carto-btn" class="btn-blue">
-          🔄 Recharger la cartographie
-        </button>
+      <p class="popup-subtitle">
+        Une entité représente une organisation avec sa cartographie et ses données associées.
+      </p>
+
+      <!-- SECTION: Créer une nouvelle entité -->
+      <div class="entity-section">
+        <h3>➕ Créer une nouvelle entité</h3>
+        <div class="create-entity-form">
+          <input type="text" id="new-entity-name" placeholder="Nom de l'organisation..." class="entity-input">
+          <input type="text" id="new-entity-description" placeholder="Description (optionnel)" class="entity-input">
+          <button id="create-entity-btn" class="btn-green">
+            Créer l'entité
+          </button>
+        </div>
+        <div id="create-entity-status" class="status-message"></div>
       </div>
 
       <hr>
 
-      <h3>Importer une nouvelle cartographie</h3>
-      <div id="dropzone" class="dropzone">
-        <div class="dropzone-icon">📁</div>
-        <div class="dropzone-text">Déposez un fichier <strong>.SVG</strong> ou <strong>.VSDX</strong></div>
-        <div class="dropzone-hint">(SVG recommandé - depuis Visio: Fichier → Exporter → SVG)</div>
+      <!-- SECTION: Liste des entités -->
+      <div class="entity-section">
+        <h3>📋 Entités existantes</h3>
+        
+        <div id="entities-list" class="entities-list">
+          <!-- Chargé dynamiquement -->
+          <div class="entities-loading">Chargement...</div>
+        </div>
       </div>
-      <div id="dropzone-status"></div>
 
-      <hr>
+      <!-- SECTION: Détails de l'entité sélectionnée -->
+      <div id="entity-details" class="entity-details hidden">
+        <hr>
+        <h3>⚙️ Gestion de l'entité : <span id="selected-entity-name"></span></h3>
+        
+        <div class="entity-actions-grid">
+          <!-- Upload cartographie -->
+          <div class="entity-action-card">
+            <h4>📄 Cartographie</h4>
+            <div id="dropzone" class="dropzone">
+              <div class="dropzone-icon">📁</div>
+              <div class="dropzone-text">Déposez un fichier <strong>.SVG</strong> ou <strong>.VSDX</strong></div>
+              <div class="dropzone-hint">(SVG recommandé)</div>
+            </div>
+            <div id="dropzone-status"></div>
+            <button id="sync-carto-btn" class="btn-blue btn-small">
+              🔄 Synchroniser les activités
+            </button>
+          </div>
 
-      <h3>Cartographies récentes</h3>
-      <ul class="history-list">
-        {% for item in carto_history %}
-          <li class="history-item" data-file="{{ item.filename }}">
-            <span class="history-type">{{ item.type }}</span>
-            <span class="history-name">{{ item.original_name }}</span>
-            <span class="history-date">{{ item.date }}</span>
-          </li>
-        {% endfor %}
-      </ul>
+          <!-- Actions entité -->
+          <div class="entity-action-card">
+            <h4>🔧 Actions</h4>
+            <div class="entity-buttons">
+              <button id="rename-entity-btn" class="btn-outline">
+                ✏️ Renommer
+              </button>
+              <button id="activate-entity-btn" class="btn-green">
+                ✅ Activer cette entité
+              </button>
+              <button id="delete-entity-btn" class="btn-red-outline">
+                🗑️ Supprimer
+              </button>
+            </div>
+          </div>
+        </div>
 
-      <div class="popup-buttons-center">
-        <button id="close-popup" class="btn-red">Fermer</button>
+        <!-- Stats entité -->
+        <div class="entity-stats">
+          <div class="stat-item">
+            <span class="stat-value" id="stat-activities">0</span>
+            <span class="stat-label">Activités</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value" id="stat-svg">—</span>
+            <span class="stat-label">Cartographie</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value" id="stat-updated">—</span>
+            <span class="stat-label">Dernière MAJ</span>
+          </div>
+        </div>
       </div>
+
     </div>
   </div>
 
@@ -85,9 +169,28 @@
       <!-- Zone pan/zoom avec SVG inline -->
       <div id="carto-pan-wrapper" class="carto-pan-wrapper">
         <div id="pan-inner">
-          <!-- Le SVG sera chargé ici dynamiquement -->
           <div id="svg-container" class="svg-container">
-            <div class="svg-loading">Chargement de la cartographie...</div>
+            {% if not active_entity %}
+              <div class="svg-placeholder">
+                <div class="placeholder-icon">🏢</div>
+                <h3>Bienvenue !</h3>
+                <p>Créez ou sélectionnez une entité pour commencer.</p>
+                <button onclick="document.getElementById('entity-manager-popup').classList.remove('hidden')" class="btn-green">
+                  Ouvrir le gestionnaire d'entités
+                </button>
+              </div>
+            {% elif not svg_exists %}
+              <div class="svg-placeholder">
+                <div class="placeholder-icon">📄</div>
+                <h3>Cartographie manquante</h3>
+                <p>Importez un fichier SVG ou VSDX pour l'entité "{{ active_entity.name }}".</p>
+                <button onclick="document.getElementById('entity-manager-popup').classList.remove('hidden')" class="btn-green">
+                  Importer une cartographie
+                </button>
+              </div>
+            {% else %}
+              <div class="svg-loading">Chargement de la cartographie...</div>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -98,16 +201,50 @@
     <div class="carto-right">
       <h2>Liste des activités</h2>
 
-      <ul class="activities-list">
-        {% for a in activities %}
-          <li class="activity-item" data-id="{{ a.id }}">
-            <span class="num">{{ a.id }}</span>
-            <span class="label">{{ a.name }}</span>
-          </li>
-        {% endfor %}
-      </ul>
+      {% if activities %}
+        <ul class="activities-list">
+          {% for a in activities %}
+            <li class="activity-item" data-id="{{ a.id }}">
+              <span class="num">{{ a.id }}</span>
+              <span class="label">{{ a.name }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="no-activities">
+          <p>Aucune activité pour le moment.</p>
+          {% if active_entity %}
+            <p class="hint">Importez une cartographie pour charger les activités.</p>
+          {% endif %}
+        </div>
+      {% endif %}
     </div>
 
   </div>
 
+</div>
+
+<!-- Modal de confirmation de suppression -->
+<div id="delete-confirm-modal" class="modal hidden">
+  <div class="modal-content">
+    <h3>⚠️ Confirmer la suppression</h3>
+    <p>Êtes-vous sûr de vouloir supprimer l'entité "<span id="delete-entity-name"></span>" ?</p>
+    <p class="warning-text">Cette action supprimera définitivement toutes les données associées (activités, compétences, analyses de temps, etc.)</p>
+    <div class="modal-buttons">
+      <button id="cancel-delete-btn" class="btn-outline">Annuler</button>
+      <button id="confirm-delete-btn" class="btn-red">Supprimer définitivement</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de renommage -->
+<div id="rename-modal" class="modal hidden">
+  <div class="modal-content">
+    <h3>✏️ Renommer l'entité</h3>
+    <input type="text" id="rename-entity-input" class="entity-input" placeholder="Nouveau nom...">
+    <div class="modal-buttons">
+      <button id="cancel-rename-btn" class="btn-outline">Annuler</button>
+      <button id="confirm-rename-btn" class="btn-green">Renommer</button>
+    </div>
+  </div>
 </div>
