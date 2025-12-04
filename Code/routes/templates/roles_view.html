@@ -143,6 +143,41 @@
       text-align: center;
     }
 
+    /* Liens vers activités */
+    .activity-link {
+      color: #1f7a54;
+      text-decoration: none;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+    .activity-link:hover {
+      color: #0d5a3a;
+      text-decoration: underline;
+    }
+
+    /* Liste activités */
+    .activity-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .activity-list li {
+      padding: 8px 12px;
+      margin: 4px 0;
+      background: #f9fafb;
+      border-radius: 6px;
+      border-left: 3px solid #1f7a54;
+      transition: background 0.2s;
+    }
+    .activity-list li:hover {
+      background: #e9f8ee;
+    }
+    .activity-description {
+      font-size: 0.9em;
+      color: #666;
+      margin-top: 4px;
+    }
+
     /* Spinner overlay */
     #spinnerOverlay {
       display:none;
@@ -197,9 +232,16 @@
             </div>
             <div id="block1-{{ item.role.id }}" class="block-content">
               {% if item.block1 %}
-                <ul>
+                <ul class="activity-list">
                   {% for act in item.block1 %}
-                    <li>{{ act.name }} (ID: {{ act.id }}) — {{ act.description }}</li>
+                    <li>
+                      <a href="/activities/view?activity_id={{ act.id }}" class="activity-link">
+                        {{ act.name }}
+                      </a>
+                      {% if act.description %}
+                        <div class="activity-description">{{ act.description }}</div>
+                      {% endif %}
+                    </li>
                   {% endfor %}
                 </ul>
               {% else %}
@@ -227,7 +269,11 @@
                   <tbody>
                     {% for t in item.block2 %}
                       <tr>
-                        <td>{{ t.activity_name }}</td>
+                        <td>
+                          <a href="/activities/view?activity_id={{ t.activity_id }}" class="activity-link">
+                            {{ t.activity_name }}
+                          </a>
+                        </td>
                         <td>{{ t.task_name }}</td>
                         <td>{{ t.status }}</td>
                       </tr>
@@ -235,7 +281,7 @@
                   </tbody>
                 </table>
               {% else %}
-                <p>Aucune donnée pour ce bloc.</p>
+                <p>Aucune tâche trouvée.</p>
               {% endif %}
             </div>
           </div>
@@ -248,9 +294,9 @@
             </div>
             <div id="block3-{{ item.role.id }}" class="block-content">
               {% if item.block3 %}
-                <ul>
+                <ul class="activity-list">
                   {% for comp in item.block3 %}
-                    <li>{{ comp.description }} (ID: {{ comp.id }})</li>
+                    <li>{{ comp.description }}</li>
                   {% endfor %}
                 </ul>
               {% else %}

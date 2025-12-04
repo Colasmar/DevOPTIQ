@@ -165,6 +165,37 @@ def update_collaborateur_roles():
     return jsonify(success=True)
 
 
+@gestion_rh_bp.route('/update_collaborator_name', methods=['POST'])
+def update_collaborator_name():
+    """
+    Met à jour le nom d'un collaborateur.
+    Body JSON: { "user_id": int, "name": "Prénom Nom" }
+    """
+    data = request.get_json()
+    user_id = data.get('user_id')
+    full_name = data.get('name', '').strip()
+    
+    if not user_id or not full_name:
+        return jsonify(success=False, error="Données manquantes"), 400
+    
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify(success=False, error="Utilisateur non trouvé"), 404
+    
+    # Séparer prénom et nom (prend le premier mot comme prénom, le reste comme nom)
+    parts = full_name.split(' ', 1)
+    if len(parts) == 2:
+        user.first_name = parts[0]
+        user.last_name = parts[1]
+    else:
+        # Si un seul mot, on le met en prénom
+        user.first_name = full_name
+        user.last_name = ''
+    
+    db.session.commit()
+    return jsonify(success=True, first_name=user.first_name, last_name=user.last_name)
+
+
 @gestion_rh_bp.route('/assign_manager', methods=['POST'])
 def assign_manager():
     data = request.get_json()

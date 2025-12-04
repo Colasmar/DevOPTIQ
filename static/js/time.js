@@ -26,6 +26,11 @@
       const which = b.dataset.subtab;
       $$('.subtab-panel').forEach(p=>p.classList.remove('active'));
       $('#subtab-' + which).classList.add('active');
+      
+      // CORRECTION: Recharger les defaults quand on clique sur l'onglet faiblesse
+      if (which === 'faiblesse') {
+        setTimeout(() => refreshWeaknessDefaults(), 100);
+      }
     }
   });
 
@@ -58,7 +63,9 @@
   const fwTaskSum = $('#fw-task-sum');
 
   function toggleFwMode() {
-    const mode = $$('input[name="fw-mode"]:checked')[0].value;
+    const modeEl = $$('input[name="fw-mode"]:checked')[0];
+    if (!modeEl) return;
+    const mode = modeEl.value;
     if (mode === 'tasks') {
       fwGlobal?.classList.remove('hidden');
       fwTasks?.classList.remove('hidden');
@@ -78,42 +85,116 @@
     return s;
   }
 
+  // CORRECTION: Fonction refreshWeaknessDefaults améliorée avec parseFloat
   async function refreshWeaknessDefaults() {
     const actSel = $('#fw-activity');
-    if (!actSel) return;
+    if (!actSel) {
+      console.log('refreshWeaknessDefaults: select #fw-activity non trouvé');
+      return;
+    }
+    
     const act = actSel.value;
-    const r = await fetch(`/temps/api/activity_defaults/${act}`);
-    const j = await r.json();
-    $('#fw-dur').value = j.duration_minutes ?? 0;
-    $('#fw-dur-unit').value = 'minutes';
-    $('#fw-del').value = j.delay_minutes ?? 0;
-    $('#fw-del-unit').value = 'minutes';
-    fwTaskBody.innerHTML = (j.tasks||[]).map(t=>{
-      return `<tr data-task="${t.id}">
-        <td>${t.name}</td>
-        <td><input type="number" class="input t-dur" step="0.1" min="0" value="${t.duration_minutes??0}" /></td>
-        <td class="td-unit"></td>
-        <td><input type="number" class="input t-del" step="0.1" min="0" value="${t.delay_minutes??0}" /></td>
-        <td class="td-dunit"></td>
-      </tr>`;
-    }).join('');
-    $$('#fw-task-rows tr').forEach(tr=>{
-      const u1 = unitSelect(); tr.querySelector('.td-unit').appendChild(u1); u1.value='minutes';
-      const u2 = unitSelect(); tr.querySelector('.td-dunit').appendChild(u2); u2.value='minutes';
-    });
-    recalcTaskSum();
+    if (!act) {
+      console.log('refreshWeaknessDefaults: aucune activité sélectionnée');
+      return;
+    }
+    
+    console.log('refreshWeaknessDefaults: chargement pour activité ID', act);
+    
+    try {
+      const r = await fetch(`/temps/api/activity_defaults/${act}`);
+      const j = await r.json();
+      
+      console.log('Données reçues de l\'API:', j);
+      
+      // CORRECTION: Utiliser parseFloat || 0 au lieu de ?? 0
+      const durationMin = parseFloat(j.duration_minutes) || 0;
+      const delayMin = parseFloat(j.delay_minutes) || 0;
+      
+      console.log('Durée parsée:', durationMin, '- Délai parsé:', delayMin);
+      
+      const durInput = $('#fw-dur');
+      const delInput = $('#fw-del');
+      
+      if (durInput) {
+        durInput.value = durationMin;
+        console.log('Champ #fw-dur défini à:', durationMin);
+      } else {
+        console.log('Champ #fw-dur non trouvé');
+      }
+      
+      if ($('#fw-dur-unit')) {
+        $('#fw-dur-unit').value = 'minutes';
+      }
+      
+      if (delInput) {
+        delInput.value = delayMin;
+        console.log('Champ #fw-del défini à:', delayMin);
+      } else {
+        console.log('Champ #fw-del non trouvé');
+      }
+      
+      if ($('#fw-del-unit')) {
+        $('#fw-del-unit').value = 'minutes';
+      }
+      
+      // Remplir les tâches
+      if (fwTaskBody) {
+        fwTaskBody.innerHTML = (j.tasks||[]).map(t=>{
+          const taskDur = parseFloat(t.duration_minutes) || 0;
+          const taskDel = parseFloat(t.delay_minutes) || 0;
+          return `<tr data-task="${t.id}">
+            <td>${t.name}</td>
+            <td><input type="number" class="input t-dur" step="0.1" min="0" value="${taskDur}" /></td>
+            <td class="td-unit"></td>
+            <td><input type="number" class="input t-del" step="0.1" min="0" value="${taskDel}" /></td>
+            <td class="td-dunit"></td>
+          </tr>`;
+        }).join('');
+        
+        $$('#fw-task-rows tr').forEach(tr=>{
+          const u1 = unitSelect(); 
+          const tdUnit = tr.querySelector('.td-unit');
+          if (tdUnit) {
+            tdUnit.appendChild(u1); 
+            u1.value='minutes';
+          }
+          const u2 = unitSelect(); 
+          const tdDunit = tr.querySelector('.td-dunit');
+          if (tdDunit) {
+            tdDunit.appendChild(u2); 
+            u2.value='minutes';
+          }
+        });
+      }
+      
+      recalcTaskSum();
+      
+    } catch (err) {
+      console.error('Erreur refreshWeaknessDefaults:', err);
+    }
   }
 
   function recalcTaskSum() {
     if (!fwTaskBody) return;
     let sum = 0;
     $$('#fw-task-rows tr').forEach(tr=>{
-      const d = parseFloat(tr.querySelector('.t-dur').value || '0');
-      const u = tr.querySelector('.td-unit select').value;
-      sum += toMinutes(d, u);
+      const durInput = tr.querySelector('.t-dur');
+      const unitSel = tr.querySelector('.td-unit select');
+      if (durInput && unitSel) {
+        const d = parseFloat(durInput.value || '0');
+        const u = unitSel.value;
+        sum += toMinutes(d, u);
+      }
     });
     if (fwTaskSum) fwTaskSum.textContent = Math.round(sum);
-    if ($('#fw-dur')) { $('#fw-dur').value = Math.round(sum); $('#fw-dur-unit').value = 'minutes'; }
+    
+    // En mode tâches, la durée globale est la somme des tâches
+    const modeEl = $$('input[name="fw-mode"]:checked')[0];
+    if (modeEl && modeEl.value === 'tasks' && $('#fw-dur')) { 
+      $('#fw-dur').value = Math.round(sum); 
+      if ($('#fw-dur-unit')) $('#fw-dur-unit').value = 'minutes'; 
+    }
   }
 
   $('#fw-activity')?.addEventListener('change', refreshWeaknessDefaults);
@@ -123,30 +204,33 @@
   toggleFwMode();
 
   async function sendWeakness(save=false){
-    const mode = $$('input[name="fw-mode"]:checked')[0].value;
+    const modeEl = $$('input[name="fw-mode"]:checked')[0];
+    if (!modeEl) return alert('Sélectionnez un mode');
+    const mode = modeEl.value;
+    
     const payload = {
       mode,
-      activity_id: parseInt($('#fw-activity').value,10),
-      recurrence: $('#fw-rec').value,
-      frequency: parseInt($('#fw-freq').value || '1', 10),
-      weakness: $('#fw-k').value,
-      L_work_added: n('#fw-l'), L_unit: v('#fw-l-unit'),
-      M_wait_added: n('#fw-m'), M_unit: v('#fw-m-unit'),
+      activity_id: parseInt($('#fw-activity')?.value || '0', 10),
+      recurrence: $('#fw-rec')?.value || 'journalier',
+      frequency: parseInt($('#fw-freq')?.value || '1', 10),
+      weakness: $('#fw-k')?.value || '',
+      L_work_added: n('#fw-l'), L_unit: v('#fw-l-unit') || 'minutes',
+      M_wait_added: n('#fw-m'), M_unit: v('#fw-m-unit') || 'minutes',
       N_prob_denom: parseInt(n('#fw-n') || 1, 10),
-      delay_std: n('#fw-del'), delay_unit: v('#fw-del-unit'),
+      delay_std: n('#fw-del'), delay_unit: v('#fw-del-unit') || 'minutes',
       save
     };
     if (mode === 'tasks') {
       payload.tasks = $$('#fw-task-rows tr').map(tr => ({
         task_id: parseInt(tr.dataset.task,10),
-        duration_std: parseFloat(tr.querySelector('.t-dur').value || '0'),
-        duration_unit: tr.querySelector('.td-unit select').value,
-        delay_std: parseFloat(tr.querySelector('.t-del').value || '0'),
-        delay_unit: tr.querySelector('.td-dunit select').value
+        duration_std: parseFloat(tr.querySelector('.t-dur')?.value || '0'),
+        duration_unit: tr.querySelector('.td-unit select')?.value || 'minutes',
+        delay_std: parseFloat(tr.querySelector('.t-del')?.value || '0'),
+        delay_unit: tr.querySelector('.td-dunit select')?.value || 'minutes'
       }));
     } else {
       payload.duration_std = n('#fw-dur');
-      payload.duration_unit = v('#fw-dur-unit');
+      payload.duration_unit = v('#fw-dur-unit') || 'minutes';
     }
 
     const r = await fetch('/temps/api/weakness', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
@@ -198,8 +282,8 @@
       const id = act.value;
       const r = await fetch(`/temps/api/activity_defaults/${id}`);
       const j = await r.json();
-      tr.querySelector('.cell-dur').value = j.duration_minutes ?? 0;
-      tr.querySelector('.cell-del').value = j.delay_minutes ?? 0;
+      tr.querySelector('.cell-dur').value = parseFloat(j.duration_minutes) || 0;
+      tr.querySelector('.cell-del').value = parseFloat(j.delay_minutes) || 0;
       du.value = 'minutes'; deu.value = 'minutes';
       recalc();
     }
@@ -263,7 +347,7 @@
       await refreshProjectList();
       addProjectRow(); recalcProjectTotals();
     } else {
-      alert('Erreur d’enregistrement');
+      alert("Erreur d'enregistrement");
     }
   });
 
@@ -410,7 +494,7 @@
     if (!act) return;
     const r = await fetch(`/temps/api/activity_defaults/${act}`);
     const j = await r.json();
-    $('#act-duration').value = j.duration_minutes ?? 0;
+    $('#act-duration').value = parseFloat(j.duration_minutes) || 0;
     $('#act-duration-unit').value = 'minutes';
     const total = toMinutes(n('#act-duration'), v('#act-duration-unit')) * parseInt(v('#act-frequency')||'1',10) * parseInt(v('#act-people')||'1',10);
     $('#act-total').textContent = Math.round(total);
@@ -436,7 +520,7 @@
     } else {
       const r = await fetch('/temps/api/activity_workload', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
       j = await r.json();
-      if (!j.ok) return alert('Erreur d’enregistrement');
+      if (!j.ok) return alert("Erreur d'enregistrement");
       alert('Analyse activité enregistrée.');
     }
 
@@ -588,7 +672,7 @@
       const id = actSel.value;
       const r = await fetch(`/temps/api/activity_defaults/${id}`);
       const j = await r.json();
-      tr.querySelector('.r-dur').value = j.duration_minutes ?? 0;
+      tr.querySelector('.r-dur').value = parseFloat(j.duration_minutes) || 0;
       recalc();
     }
 
@@ -671,7 +755,7 @@
       alert('Analyse rôle enregistrée.');
       $('#role-name').value='';
       await refreshRoleAnalyses();
-    } else alert('Erreur d’enregistrement');
+    } else alert("Erreur d'enregistrement");
   });
 
   async function refreshRoleAnalyses(){
@@ -780,7 +864,7 @@
             btn.onclick = async ()=>{
               const tr = btn.closest('tr');
               const lineId = tr.dataset.line;
-              if (!confirmDel('Supprimer cette activité de l’analyse ?')) return;
+              if (!confirmDel("Supprimer cette activité de l'analyse ?")) return;
               const rr2 = await fetch(`/temps/api/role_line/${lineId}`, {method:'DELETE'});
               const resp = await rr2.json();
               if (resp.ok){
@@ -814,23 +898,29 @@
     await loadCalendarParams();
 
     // Weakness: si la sous-page existe dans le DOM, init
-    if ($('#subtab-faiblesse')) {
+    if ($('#subtab-faiblesse') || $('#fw-activity')) {
       // Construire le select activité de la faiblesse depuis la liste principale
       const fwAct = $('#fw-activity');
       if (fwAct && !fwAct.children.length) {
-        fwAct.innerHTML = $$('#act-activity option').map(o=>`<option value="${o.value}">${o.textContent}</option>`).join('');
+        const actOptions = $$('#act-activity option');
+        if (actOptions.length) {
+          fwAct.innerHTML = actOptions.map(o=>`<option value="${o.value}">${o.textContent}</option>`).join('');
+        }
       }
-      await refreshWeaknessDefaults();
+      // CORRECTION: Attendre un petit délai pour que le DOM soit prêt
+      setTimeout(async () => {
+        await refreshWeaknessDefaults();
+      }, 150);
     }
 
     await refreshProjectList();
     await refreshActivityWorkloadList();
 
     // Prefill bloc Activité
-    if ($('#act-activity')) {
+    if ($('#act-activity') && $('#act-activity').value) {
       const r0 = await fetch(`/temps/api/activity_defaults/${$('#act-activity').value}`);
       const j0 = await r0.json();
-      $('#act-duration').value = j0.duration_minutes ?? 0;
+      $('#act-duration').value = parseFloat(j0.duration_minutes) || 0;
       $('#act-duration-unit').value = 'minutes';
       const total = toMinutes(n('#act-duration'), v('#act-duration-unit')) * parseInt(v('#act-frequency')||'1',10) * parseInt(v('#act-people')||'1',10);
       $('#act-total').textContent = Math.round(total);
@@ -840,7 +930,7 @@
     if ($$('#project-rows tr').length === 0 && $('#project-rows')) { addProjectRow(); recalcProjectTotals(); }
 
     // Rôle
-    if ($('#role-select')) {
+    if ($('#role-select') && $('#role-select').value) {
       await loadRoleActivities($('#role-select').value);
       setTimeout(recalcRoleTotals, 0);
     }
