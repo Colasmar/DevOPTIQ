@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Liste des activités</title>
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- CSS principal -->
+  <link rel="stylesheet" href="/static/optiq.css">
+  <!-- CSS spinner -->
+  <link rel="stylesheet" href="/static/spinner.css">
+</head>
+<body>
+
+  {% include "header_buttons.html" %}
+
+  <h1>Liste des activités</h1>
+
+  {% for item in activity_data %}
+    {% include "activity_card.html" %}
+  {% endfor %}
+
+  {% include "modals_and_spinner.html" %}
+
+  {% include "script_loader.html" %}
+  <script defer src="{{ url_for('static', filename='js/activities_time.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/activity_highlight.js') }}"></script>
+
+</body>
+</html>
+

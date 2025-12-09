@@ -1,0 +1,83 @@
+<!-- Code/routes/templates/competency_modal.html -->
+<div id="competencyModal"
+     style="display:none; position:fixed; left:20%; top:20%; width:60%; background:#fff;
+            border:1px solid #aaa; padding:10px; z-index:9999;">
+  <h4>Propositions de compétences :</h4>
+  <ul id="proposalsList" style="list-style:none; padding-left:0;"></ul>
+  <div style="margin-top:10px;">
+    <button onclick="validateAllSelectedProposals()">Valider les compétences</button>
+    <button onclick="closeCompetencyModal()">Annuler</button>
+  </div>
+</div>
+
+<script>
+let proposalsGlobal = [];
+let currentActivityId = null;
+
+function showProposalsModal(proposals, activityId) {
+  proposalsGlobal = proposals;
+  currentActivityId = activityId;
+  const proposalsList = document.getElementById('proposalsList');
+  proposalsList.innerHTML = "";
+
+  proposals.forEach((proposal, index) => {
+    const li = document.createElement('li');
+    li.style.marginBottom = "5px";
+    // on échappe d’éventuelles apostrophes
+    const escaped = proposal.replace(/'/g, "\\'");
+    li.innerHTML = `
+      <label style="cursor:pointer;">
+        <input type="checkbox" data-proposal="${escaped}" />
+        ${proposal}
+      </label>
+    `;
+    proposalsList.appendChild(li);
+  });
+
+  document.getElementById('competencyModal').style.display = "block";
+}
+
+function validateAllSelectedProposals() {
+  const proposalsList = document.getElementById('proposalsList');
+  const checkboxes = proposalsList.querySelectorAll('input[type="checkbox"]:checked');
+  if (checkboxes.length === 0) {
+    alert("Veuillez sélectionner au moins une proposition.");
+    return;
+  }
+
+  let addPromises = [];
+  checkboxes.forEach(cb => {
+    const text = cb.getAttribute('data-proposal') || "Compétence ?";
+    let p = fetch('/skills/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        activity_id: currentActivityId,
+        description: text
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.error) {
+        console.error("Erreur en ajoutant la compétence:", data.error);
+      } else {
+        // Ajouter dans le DOM
+        addCompetencyItemToDOM(currentActivityId, data.id, data.description);
+      }
+    })
+    .catch(error => {
+      console.error("Erreur /skills/add:", error);
+    });
+    addPromises.push(p);
+  });
+
+  Promise.all(addPromises).then(() => {
+    closeCompetencyModal();
+    alert("Compétences sauvegardées en base.");
+  });
+}
+
+function closeCompetencyModal() {
+  document.getElementById('competencyModal').style.display = "none";
+}
+</script>

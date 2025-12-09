@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Gestion RH</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='gestion_rh.css') }}">
+  <script src="{{ url_for('static', filename='js/gestion_rh.js') }}" defer></script>
+</head>
+<header>
+  {% include 'header_buttons.html' %}
+</header>
+<body>
+  <div id="toast" class="toast-message">Changement enregistré !</div>
+
+  <div class="container-gestionrh">
+
+    <h2>Paramètres de l’entreprise</h2>
+    {% set keys = {
+      "work_hours_per_day": "Heures / jour",
+      "work_days_per_week": "Jours / semaine",
+      "work_weeks_per_year": "Semaines / an",
+      "work_days_per_year": "Jours / an"
+    } %}
+    {% for key, label in keys.items() %}
+    <div class="param-group" data-key="{{ key }}">
+      <div class="param-label">{{ label }}</div>
+      <div class="param-value">{{ settings[key] if key in settings else "" }}</div>
+      <div class="param-actions">
+        <button class="edit-btn">Modifier</button>
+      </div>
+    </div>
+    {% endfor %}
+
+    <hr>
+
+    <h2>Créer un rôle</h2>
+    <form id="create-role-form">
+      <input type="text" name="name" placeholder="Nom du rôle" required>
+      <button type="submit">Créer</button>
+    </form>
+
+    <hr>
+
+    <h2>Modifier les rôles existants</h2>
+    {% for role in roles %}
+    <div class="role-group" data-role-id="{{ role.id }}">
+      <div class="role-label">{{ role.name }}</div>
+      <div class="role-actions">
+        <button class="edit-role-btn">Modifier</button>
+      </div>
+    </div>
+    {% endfor %}
+
+    <hr>
+
+    <h2>Import de rôles via CSV</h2>
+    <form method="POST" action="{{ url_for('gestion_rh.import_roles') }}" enctype="multipart/form-data">
+      <input type="file" name="role_file" accept=".csv" required>
+      <button type="submit">Importer</button>
+    </form>
+
+    <hr>
+
+    <h2>Collaborateurs</h2>
+    <div class="collaborateur-controls">
+      <input type="text" id="search-collab" placeholder="Rechercher un collaborateur...">
+      <select id="filter-role">
+        <option value="">Tous les rôles</option>
+        {% for role in roles %}
+          <option value="{{ role.name }}">{{ role.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div id="collaborateur-list-wrapper">
+      <div id="collaborateur-list" class="collaborateur-list"></div>
+      <div style="margin-top: 10px;">
+        <button id="toggle-collab-view" class="btn-validate">Afficher tous les collaborateurs</button>
+      </div>
+    </div>
+
+    <hr>
+
+    <h2>Affectation des Managers</h2>
+    <div class="manager-section">
+      <label for="manager-select">Choisir un manager :</label>
+      <select id="manager-select"></select>
+
+      <div class="manager-options">
+        <button type="button" id="mode-by-roles">Par rôles</button>
+        <button type="button" id="mode-by-users">Par collaborateurs</button>
+      </div>
+
+      <div id="manager-assignment-container"></div>
+
+      <button id="confirm-manager-assignment" class="btn-validate hidden">Valider l’affectation</button>
+    </div>
+
+    <section id="global-user-summary">
+      <h2>Aperçu global des utilisateurs</h2>
+      <div id="global-users-container">Chargement...</div>
+    </section>
+
+    <!-- JS du tableau -->
+    <script src="{{ url_for('static', filename='js/global_users_summary.js') }}"></script>
+    <script>
+      // Charge dynamiquement le tableau via AJAX
+      fetch("/competences/users/global_summary")
+        .then(res => res.text())
+        .then(html => {
+          document.getElementById("global-users-container").innerHTML = html;
+        })
+        .catch(err => {
+          document.getElementById("global-users-container").innerHTML = "<p>Erreur de chargement.</p>";
+          console.error(err);
+        });
+    </script>
+
+
+
+
+  </div>
+</body>
+</html>

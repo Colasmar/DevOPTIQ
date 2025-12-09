@@ -1,0 +1,17 @@
+id,shape_id,name,description,is_result
+1,669,Mise à jour du Web,,False
+2,672,Traitement de la demande,,False
+3,674,Analyse de faisabilité,,False
+4,676,Réalisation de l’offre,,False
+5,679,Préparation projet,,False
+6,684,Prise en compte de l’offre,,True
+7,686,Cotation,,False
+8,1000,Négociation de l’ offre,,False
+9,1016,Test laboratoire,,False
+10,1022,Comité de décision,,True
+11,1025,Contrôle Qualité,,False
+12,1027,Contrôle fournisseur,,True
+13,1045,Réalisation des facture,,False
+14,1049,Consultation du site,,True
+15,1052,Relance,,False
+16,1055,Encaissement,,False

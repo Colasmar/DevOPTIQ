@@ -1,0 +1,42 @@
+id,name,description,order,activity_id
+1,Analye de la demande,,0,2
+2,Vérification de la disponibilité catalogue,si catalogue,3,2
+3,Collecte des informations pour les faisabilité,Si produit spécifique,6,2
+5,Collecter les informations necessaires,,0,4
+6,Rédaction de l'offre,,1,4
+7,Mise en forme de l'offre,,2,4
+8,Envoie de l'offre,,3,4
+9,Prise en compte de la demande et des objection du client,,,8
+10,Construction d'un argumentaire,,,8
+11,Négogiation avec le client ,MArge de négo 15 %,,8
+12,Vérifier avec le client la raison du retard de paiement,,,15
+13,Négocier fermement pour obtnir le paiement,Acceptation paiement 30 jours,,15
+14,Identifier l'équipe projet,Avec team leader,,5
+15,Pré- Sélectionner les fourniseurs,,,5
+16,Choisir les fournsseurs au regard de la cotation,,,5
+17,Etablir le planning des parties prenantes,,,5
+18,Mesure d'écart de résistance,,2,9
+19,Report des résultat sur feuille de test,,0,9
+20,Comparaison produits eistants,,1,9
+21,Analyse comparative des fournisseur,France uniquement,1,7
+22,Demande de cotation fournisseurs,,0,7
+23,Etablissement d'une feuiller de prix,,2,7
+24,Rapprocher le bon de commande de la facture,Vérifie fournisseur,0,13
+25,Etablir la facture et les pièces comptables,,1,13
+26,Merttre à jour la comptabilité clinet,,2,13
+27,Envoyer la facture,,3,13
+28,Préparation des conditions de test,,0,11
+29,Exécution des mesures demandées,utilisation des instructions,1,11
+30,Etablir les relevés de mesure,,2,11
+31,Faire la synthèse comparative des mesures,,3,11
+32,Identifier les caracéristiques de la demande,,0,3
+33,Analyser les contraintes techniques,,1,3
+34,Créer une maquette 3D,Usage platique,,3
+35,Faire le rapport de faisabilité,,,3
+36,Publication des pages modifiées,,19,1
+37,Etablir la liste des relances,,,16
+39,Vérifier les Ping,,14,1
+40,Faire le comtpe rendu de négo,,,8
+43,Traitement des images et photos au format web,,9,1
+44,finalisation de la page savoirs,,5,1
+45,a détruire,blabla,,1

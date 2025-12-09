@@ -1,2 +1,14 @@
 Flask
 flask_sqlalchemy
+flask_migrate
+openai
+vsdx
+python-docx
+pydotplus
+graphviz
+flask_mail
+python-dotenv
+gunicorn
+psycopg2-binary
+requests
+

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Projection Métiers — ROME 4.0</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='projection_metier.css') }}">
+</head>
+<body>
+  <header>
+    {% include 'header_buttons.html' %}
+  </header>
+
+  <main class="projection-page">
+    <section class="pm-hero">
+      <div class="pm-hero-left">
+        <h1>Projection métiers ROME 4.0</h1>
+        <p class="pm-subtitle">
+          Compare les compétences de tes collaborateurs avec les fiches métiers officielles ROME pour identifier
+          les <strong>métiers déjà maîtrisés</strong> et ceux <strong>envisageables</strong>.
+        </p>
+        <div class="pm-chip-row">
+          <div class="pm-chip pm-chip-pill">
+            <span class="dot dot-green"></span>
+            <span>Métiers maîtrisables : 100&nbsp;% des compétences ROME sont couvertes.</span>
+          </div>
+          <div class="pm-chip pm-chip-pill">
+            <span class="dot dot-amber"></span>
+            <span>Métiers envisageables : une partie des compétences est déjà couverte.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pm-layout">
+      <aside class="pm-col pm-col-left">
+        <div class="pm-card">
+          <h2>1. Choisir un collaborateur</h2>
+          <label for="user-select" class="pm-label">Collaborateur :</label>
+          <select id="user-select" class="pm-select">
+            <option value="0">-- Sélectionner --</option>
+            {% for u in users %}
+              <option value="{{ u.id }}">{{ u.first_name }} {{ u.last_name }}</option>
+            {% endfor %}
+          </select>
+
+          <div id="alert" class="pm-alert"></div>
+
+          <div class="pm-legend">
+            <h3>Légende des scores</h3>
+            <ul>
+              <li><span class="badge badge-green">100&nbsp;%</span> Métier pleinement maîtrisé</li>
+              <li><span class="badge badge-lime">60–99&nbsp;%</span> Très bonne couverture</li>
+              <li><span class="badge badge-amber">30–59&nbsp;%</span> Base partielle à consolider</li>
+              <li><span class="badge badge-orange">1–29&nbsp;%</span> Quelques briques présentes</li>
+              <li><span class="badge badge-gray">0&nbsp;%</span> Aucune compétence commune trouvée</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="pm-card pm-stats-card">
+          <h2>Vue d’ensemble</h2>
+          <div class="pm-stats">
+            <div class="pm-stat">
+              <span class="pm-stat-label">Métiers maîtrisables</span>
+              <span class="pm-stat-value" id="full-count">0/0</span>
+            </div>
+            <div class="pm-stat">
+              <span class="pm-stat-label">Métiers envisageables</span>
+              <span class="pm-stat-value" id="partial-count">0/0</span>
+            </div>
+          </div>
+          <p class="pm-help">
+            Sélectionne un collaborateur pour lancer l’analyse, puis clique sur un métier pour voir le détail.
+          </p>
+        </div>
+      </aside>
+
+      <section class="pm-col pm-col-center">
+        <div class="pm-card pm-card-tall">
+          <div class="pm-card-head">
+            <h2>2. Résultats ROME pour ce collaborateur</h2>
+          </div>
+
+          <div class="pm-filter-wrapper">
+            <input
+              type="text"
+              id="job-filter"
+              class="pm-input"
+              placeholder="Filtrer par métier ou code ROME…"
+            >
+          </div>
+
+          <div class="pm-loader">
+            <span id="spinner" class="spinner" aria-label="Chargement" title="Chargement"></span>
+            <span class="pm-loader-label">Sélectionne un collaborateur pour lancer l’analyse.</span>
+          </div>
+
+          <div class="results">
+            <div class="section-header">
+              <h3>Métiers maîtrisables</h3>
+              <button class="btn btn-ghost" id="full-more" type="button">Afficher plus</button>
+            </div>
+            <ul id="full-list" class="jobs"></ul>
+
+            <div class="section-header section-header-second">
+              <h3>Métiers envisageables</h3>
+            </div>
+            <ul id="partial-list" class="jobs"></ul>
+            <div class="list-footer">
+              <button class="btn btn-ghost" id="partial-more" type="button">Afficher plus</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="pm-col pm-col-right">
+        <div class="pm-card pm-card-tall" id="job-detail-panel">
+          <div class="pm-detail-empty">
+            <h2>3. Détail d’un métier</h2>
+            <p>Sélectionne un métier dans les listes à gauche pour voir :</p>
+            <ul>
+              <li>Le score global de correspondance</li>
+              <li>Les compétences ROME déjà couvertes</li>
+              <li>Les compétences à développer pour viser ce métier</li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='js/projection_metier.js') }}" defer></script>
+</body>
+</html>

@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Vue des Rôles</title>
+  <link rel="stylesheet" href="/static/optiq.css" />
+  <link rel="stylesheet" href="/static/spinner.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    /* Conteneur global */
+    .page-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 12px;
+    }
+
+    /* Carte rôle */
+    .role-container {
+      border: 1px solid #e3e3e3;
+      padding: 10px 10px 14px;
+      margin-bottom: 14px;
+      background-color: #f8fff9;
+      color: #222;
+      border-radius: 8px;
+    }
+    .role-header {
+      cursor: pointer;
+      font-size: 1.1rem;
+      font-weight: 700;
+      padding: 6px 8px;
+      background-color: #e9f8ee;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .role-header .actions {
+      margin-left: auto;
+      display: flex;
+      gap: 10px;
+    }
+    .role-header .actions i {
+      cursor: pointer;
+      color: #444;
+    }
+    .toggle-icon {
+      font-weight: 700;
+      width: 18px;
+      display: inline-block;
+      text-align: center;
+    }
+    .role-body {
+      display: none;
+      margin-top: 8px;
+    }
+
+    /* Blocs internes */
+    .role-block {
+      margin: 10px 0;
+      border: 1px solid #e3e3e3;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .block-header {
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 8px 10px;
+      background: #f3f6f8;
+      border-bottom: 1px solid #e3e3e3;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .block-content {
+      display: none;
+      padding: 10px;
+      color: #222;
+    }
+
+    /* Mission Générale */
+    .mission-area {
+      width: 100%;
+      min-height: 100px;
+      resize: vertical;
+      padding: 8px;
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+      font-family: inherit;
+    }
+    .mission-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .btn-primary {
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: none;
+      background: #1f7a54;
+      color: #fff;
+      cursor: pointer;
+    }
+    .btn-secondary {
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid #d0d7de;
+      background: #fff;
+      cursor: pointer;
+    }
+
+    /* Tableau simple */
+    table.simple {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    table.simple th, table.simple td {
+      border: 1px solid #e3e3e3;
+      padding: 6px 8px;
+      text-align: left;
+    }
+    table.simple thead {
+      background: #f3f6f8;
+    }
+
+    /* Titulaires */
+    .holder-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border-radius: 16px;
+      background: #f3f6f8;
+      border: 1px solid #e3e3e3;
+      margin: 4px 6px 0 0;
+    }
+    .holder-badge .level {
+      font-weight: 700;
+      color: #222;
+      min-width: 1.5rem;
+      text-align: center;
+    }
+
+    /* Liens vers activités */
+    .activity-link {
+      color: #1f7a54;
+      text-decoration: none;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+    .activity-link:hover {
+      color: #0d5a3a;
+      text-decoration: underline;
+    }
+
+    /* Liste activités */
+    .activity-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .activity-list li {
+      padding: 8px 12px;
+      margin: 4px 0;
+      background: #f9fafb;
+      border-radius: 6px;
+      border-left: 3px solid #1f7a54;
+      transition: background 0.2s;
+    }
+    .activity-list li:hover {
+      background: #e9f8ee;
+    }
+    .activity-description {
+      font-size: 0.9em;
+      color: #666;
+      margin-top: 4px;
+    }
+
+    /* Spinner overlay */
+    #spinnerOverlay {
+      display:none;
+      position:fixed; top:0; left:0; right:0; bottom:0;
+      background:rgba(0,0,0,0.25); z-index:9999;
+    }
+    #spinnerOverlay .center {
+      position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    }
+  </style>
+</head>
+<body>
+  {% include "header_buttons.html" %}
+
+  <div class="page-container">
+    <h1>Vue des Rôles</h1>
+
+    {% for item in roles_data %}
+      <div class="role-container">
+        <!-- En-tête -->
+        <div class="role-header" onclick="toggleRoleContainer('role-body-{{ item.role.id }}', event)">
+          <span class="toggle-icon" id="role-icon-{{ item.role.id }}">▶</span>
+          Rôle : <span id="role-name-{{ item.role.id }}">{{ item.role.name }}</span>
+          <div class="actions">
+            <i class="fas fa-pencil-alt" title="Renommer le rôle" onclick="editRole(event, {{ item.role.id }})"></i>
+            <i class="fas fa-trash" title="Supprimer le rôle" onclick="deleteRole(event, {{ item.role.id }})"></i>
+          </div>
+        </div>
+
+        <div id="role-body-{{ item.role.id }}" class="role-body">
+          <!-- Bloc Mission Générale -->
+          <div class="role-block">
+            <div class="block-header" onclick="toggleBlock('mission-{{ item.role.id }}', event)">
+              <span class="toggle-icon" id="mission-icon-{{ item.role.id }}">▼</span>
+              Mission Générale
+            </div>
+            <div id="mission-{{ item.role.id }}" class="block-content" style="display:block;">
+              <textarea id="mission-text-{{ item.role.id }}" class="mission-area"
+                        placeholder="Décrire ici la mission générale du rôle…">{{ item.mission_generale }}</textarea>
+              <div class="mission-footer">
+                <button class="btn-secondary" onclick="resetMission({{ item.role.id }})">Annuler</button>
+                <button class="btn-primary" onclick="saveMission({{ item.role.id }})">Enregistrer</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bloc 1 : Activités où ce rôle est Garant -->
+          <div class="role-block">
+            <div class="block-header" onclick="toggleBlock('block1-{{ item.role.id }}', event)">
+              <span class="toggle-icon" id="block1-icon-{{ item.role.id }}">▶</span>
+              Activités où ce rôle est Garant
+            </div>
+            <div id="block1-{{ item.role.id }}" class="block-content">
+              {% if item.block1 %}
+                <ul class="activity-list">
+                  {% for act in item.block1 %}
+                    <li>
+                      <a href="/activities/view?activity_id={{ act.id }}" class="activity-link">
+                        {{ act.name }}
+                      </a>
+                      {% if act.description %}
+                        <div class="activity-description">{{ act.description }}</div>
+                      {% endif %}
+                    </li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                <p>Aucune activité trouvée.</p>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Bloc 2 : Activités/Tâches où ce rôle intervient (non Garant) -->
+          <div class="role-block">
+            <div class="block-header" onclick="toggleBlock('block2-{{ item.role.id }}', event)">
+              <span class="toggle-icon" id="block2-icon-{{ item.role.id }}">▶</span>
+              Activités/Tâches où ce rôle intervient (non Garant)
+            </div>
+            <div id="block2-{{ item.role.id }}" class="block-content">
+              {% if item.block2 %}
+                <table class="simple">
+                  <thead>
+                    <tr>
+                      <th>Activité</th>
+                      <th>Tâche</th>
+                      <th>Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for t in item.block2 %}
+                      <tr>
+                        <td>
+                          <a href="/activities/view?activity_id={{ t.activity_id }}" class="activity-link">
+                            {{ t.activity_name }}
+                          </a>
+                        </td>
+                        <td>{{ t.task_name }}</td>
+                        <td>{{ t.status }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              {% else %}
+                <p>Aucune tâche trouvée.</p>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Bloc 3 : Compétences associées aux activités Garant -->
+          <div class="role-block">
+            <div class="block-header" onclick="toggleBlock('block3-{{ item.role.id }}', event)">
+              <span class="toggle-icon" id="block3-icon-{{ item.role.id }}">▶</span>
+              Compétences associées aux activités Garant
+            </div>
+            <div id="block3-{{ item.role.id }}" class="block-content">
+              {% if item.block3 %}
+                <ul class="activity-list">
+                  {% for comp in item.block3 %}
+                    <li>{{ comp.description }}</li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                <p>Aucune compétence trouvée.</p>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Bloc 4 : Savoirs / Savoir-faire / Aptitudes / HSC -->
+          <div class="role-block">
+            <div class="block-header" onclick="toggleBlock('block4-{{ item.role.id }}', event)">
+              <span class="toggle-icon" id="block4-icon-{{ item.role.id }}">▶</span>
+              Savoirs, Savoir-faire, Aptitudes et HSC
+            </div>
+            <div id="block4-{{ item.role.id }}" class="block-content">
+              <h3>Savoirs</h3>
+              <ul>
+                {% for entry in item.block4 if entry.type == 'savoir' %}
+                  <li>{{ entry.value }}</li>
+                {% endfor %}
+              </ul>
+
+              <h3>Savoir-faire</h3>
+              <ul>
+                {% for entry in item.block4 if entry.type == 'savoir-faire' %}
+                  <li>{{ entry.value }}</li>
+                {% endfor %}
+              </ul>
+
+              <h3>Aptitudes</h3>
+              <ul>
+                {% for entry in item.block4 if entry.type == 'aptitude' %}
+                  <li>{{ entry.value }}</li>
+                {% endfor %}
+              </ul>
+
+              <h3>HSC (Habiletés Socio-Cognitives)</h3>
+              {% set hsc_entries = item.block4 | selectattr("type", "equalto", "softskill") | list %}
+              {% if hsc_entries %}
+                <ul>
+                  {% for hsc in hsc_entries %}
+                    <li>
+                      <strong>{{ hsc.value }}</strong> (Niveau: {{ hsc.niveau }})
+                      {% if hsc.justification and hsc.justification != 'Pas de justification' %}
+                        — Justification: {{ hsc.justification }}
+                      {% endif %}
+                    </li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                <p>Aucune HSC trouvée.</p>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Bloc 5 : Titulaire du rôle -->
+          <div class="role-block">
+            <div class="block-header" onclick="toggleBlock('holders-{{ item.role.id }}', event)">
+              <span class="toggle-icon" id="holders-icon-{{ item.role.id }}">▼</span>
+              Titulaire du rôle
+            </div>
+            <div id="holders-{{ item.role.id }}" class="block-content" style="display:block;">
+              {% if item.holders and item.holders|length > 0 %}
+                <div>
+                  {% for u in item.holders %}
+                    <span class="holder-badge" data-user-id="{{ u.id }}" data-role-id="{{ item.role.id }}">
+                      <span>{{ u.last_name }} {{ u.first_name }}</span>
+                      <span class="level" id="validation-{{ u.id }}-{{ item.role.id }}">–</span>
+                    </span>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <p>Aucun titulaire pour ce rôle.</p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <!-- Spinner Overlay -->
+  <div id="spinnerOverlay">
+    <div class="center"><div class="loader"></div></div>
+  </div>
+
+  <script src="/static/js/spinner.js"></script>
+  <script>
+    /* ---------- Bascule rôle / blocs ---------- */
+    function toggleRoleContainer(containerId, event) {
+      event.stopPropagation();
+      const container = document.getElementById(containerId);
+      const roleId = containerId.split('-')[2];
+      const icon = document.getElementById('role-icon-' + roleId);
+      const visible = container.style.display === 'block';
+      container.style.display = visible ? 'none' : 'block';
+      icon.textContent = visible ? '▶' : '▼';
+      if (!visible) {
+        // Au premier déploiement, tenter de charger les niveaux de validation
+        loadValidationLevels(container);
+      }
+    }
+
+    function toggleBlock(blockId, event) {
+      event.stopPropagation();
+      const block = document.getElementById(blockId);
+      const icon = document.getElementById(blockId.replace(/^(.*?)-/, '$1-icon-'));
+      const visible = block.style.display === 'block';
+      block.style.display = visible ? 'none' : 'block';
+      if (icon) icon.textContent = visible ? '▶' : '▼';
+    }
+
+    /* ---------- Mission Générale ---------- */
+    function resetMission(roleId) {
+      // Recharge la valeur initiale depuis le DOM (stockée dans un attribut data-initial ?)
+      // Ici on choisit plus simple : ne rien faire (l'utilisateur modifie dans le textarea).
+      // Tu peux étendre si tu veux conserver une "valeur initiale" ailleurs.
+      const ta = document.getElementById('mission-text-' + roleId);
+      ta.value = ta.value; // no-op
+    }
+
+    function saveMission(roleId) {
+      const ta = document.getElementById('mission-text-' + roleId);
+      const payload = { mission_generale: (ta.value || '').trim() };
+
+      showSpinner();
+      fetch(`/roles_view/${roleId}/mission`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(r => r.json())
+      .then(data => {
+        hideSpinner();
+        if (!data.ok) {
+          alert("Erreur lors de l'enregistrement de la mission générale.");
+          return;
+        }
+        // Optionnel : petit feedback
+        ta.style.outline = '2px solid #1f7a54';
+        setTimeout(() => ta.style.outline = 'none', 800);
+      })
+      .catch(err => {
+        hideSpinner();
+        alert("Erreur : " + err.message);
+      });
+    }
+
+    /* ---------- CRUD rapide rôle (nom) ---------- */
+    function editRole(event, roleId) {
+      event.stopPropagation();
+      const span = document.getElementById('role-name-' + roleId);
+      const currentName = span.textContent.trim();
+      const newName = prompt("Modifier le nom du rôle :", currentName);
+      if (newName === null || newName.trim() === "") return;
+
+      fetch(`/roles/${roleId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName })
+      })
+      .then(resp => resp.json())
+      .then(data => {
+        if (data.error) {
+          alert("Erreur lors de la mise à jour du rôle : " + data.error);
+        } else {
+          span.textContent = data.role.name;
+        }
+      })
+      .catch(err => alert("Erreur : " + err.message));
+    }
+
+    function deleteRole(event, roleId) {
+      event.stopPropagation();
+      if (!confirm("Confirmez-vous la suppression de ce rôle ?")) return;
+      fetch(`/roles/${roleId}`, { method: "DELETE" })
+      .then(resp => resp.json())
+      .then(data => {
+        if (data.error) {
+          alert("Erreur lors de la suppression du rôle : " + data.error);
+        } else {
+          const card = document.getElementById('role-icon-' + roleId).closest('.role-container');
+          if (card) card.remove();
+        }
+      })
+      .catch(err => alert("Erreur : " + err.message));
+    }
+
+    /* ---------- Titulaires — Niveaux de validation ---------- */
+    function loadValidationLevels(scopeEl) {
+      const badges = scopeEl.querySelectorAll('.holder-badge');
+      badges.forEach(b => {
+        const userId = b.getAttribute('data-user-id');
+        const roleId = b.getAttribute('data-role-id');
+        const target = document.getElementById(`validation-${userId}-${roleId}`);
+        if (!userId || !roleId || !target) return;
+
+        fetch(`/roles_view/validation_level/${userId}/${roleId}`)
+          .then(r => r.json())
+          .then(data => {
+            target.textContent = (data && data.level != null && data.level !== '') ? data.level : '–';
+          })
+          .catch(() => {
+            target.textContent = '–';
+          });
+      });
+    }
+  </script>
+  <!-- NOTE : on conserve /static/js/roles.js si utilisé ailleurs dans l'app -->
+  <script src="/static/js/roles.js"></script>
+</body>
+</html>

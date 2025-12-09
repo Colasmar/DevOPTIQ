@@ -1,0 +1,114 @@
+{% include "header_buttons.html" %}
+<link rel="stylesheet" href="./../../../static/gestion_outils.css">
+<script defer src="{{ url_for('static', filename='js/gestion_outils.js') }}"></script>
+
+<div class="tools-page">
+
+  <!-- Titre principal -->
+  <header class="page-hero">
+    <h1 class="page-hero__title">Gestion des outils</h1>
+  </header>
+
+  <!-- SECTION 1 : Création d’un outil -->
+  <section class="section-card" aria-labelledby="create-title">
+    <div class="section-card__head">
+      <h2 id="create-title" class="section-card__title">Créer un outil</h2>
+      <p class="section-card__subtitle">Ajoutez un outil avec (optionnel) une description.</p>
+    </div>
+
+    <div class="create-grid">
+      <div class="field">
+        <label for="newToolName" class="label">Nom de l’outil <span class="req">*</span></label>
+        <input id="newToolName" class="input" type="text" placeholder="Ex. : Figma">
+      </div>
+
+      <div class="field">
+        <label for="newToolDesc" class="label">Description</label>
+        <input id="newToolDesc" class="input" type="text" placeholder="Ex. : Outil de design collaboratif">
+      </div>
+
+      <div class="actions">
+        <button id="createToolBtn" class="btn btn-primary">Ajouter l’outil</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 2 : Liste des outils -->
+  <section class="section-card" aria-labelledby="list-title">
+    <div class="section-card__head">
+      <h2 id="list-title" class="section-card__title">Liste des outils</h2>
+      <p class="section-card__subtitle">Renommez, remplacez, supprimez. Les détails d’usage s’ouvrent dans une fenêtre dédiée.</p>
+    </div>
+
+    <div class="table-wrap">
+      <table class="tools-table" aria-describedby="tools-caption">
+        <caption id="tools-caption" class="sr-only">Tableau des outils</caption>
+        <thead>
+          <tr>
+            <th>Outil</th>
+            <th>Description</th>
+            <th>Usages</th>
+            <th>Remplacer par…</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="toolsContainer">
+          <!-- Lignes injectées par JS -->
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<!-- Modal ÉDITION (nom/description) -->
+<div id="editModal" class="modal hidden" aria-hidden="true" role="dialog" aria-labelledby="editModalTitle">
+  <div class="modal-card">
+    <h3 id="editModalTitle">Modifier</h3>
+    <div class="edit-form">
+      <label for="editInput" class="label" id="editLabel">Valeur</label>
+      <input id="editInput" class="input" type="text" />
+    </div>
+    <div class="modal-actions">
+      <button id="saveEditBtn" class="btn btn-primary">Enregistrer</button>
+      <button id="cancelEditBtn" class="btn btn-ghost">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal SUPPRESSION -->
+<div id="deleteModal" class="modal hidden" aria-hidden="true" role="dialog" aria-labelledby="deleteModalTitle">
+  <div class="modal-card">
+    <h3 id="deleteModalTitle">Supprimer l’outil</h3>
+    <p class="muted">Cet outil est utilisé dans les éléments ci-dessous.</p>
+    <div id="deleteModalUsages" class="usage-list"></div>
+
+    <div class="divider"></div>
+
+    <div class="replace-inline">
+      <label for="replacementSelect" class="label">Remplacer par :</label>
+      <select id="replacementSelect" class="select"></select>
+      <button id="confirmReplaceBtn" class="btn btn-violet">Remplacer partout</button>
+    </div>
+
+    <div class="or">ou</div>
+
+    <div class="modal-actions">
+      <button id="forceDeleteBtn" class="btn btn-danger-outline">Détacher & supprimer</button>
+      <button id="closeDeleteModal" class="btn btn-ghost">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal USAGES -->
+<div id="usageModal" class="modal hidden" aria-hidden="true" role="dialog" aria-labelledby="usageModalTitle">
+  <div class="modal-card">
+    <h3 id="usageModalTitle">Usages</h3>
+    <div id="usageModalBody" class="usage-list"></div>
+    <div class="modal-actions">
+      <button id="closeUsageModal" class="btn btn-ghost">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast" role="status" aria-live="polite"></div>

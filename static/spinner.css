@@ -1,0 +1,27 @@
+/*******************************************************
+ * FICHIER : Code/static/spinner.css
+ * But : Créer un loader en pur CSS
+ ******************************************************/
+
+/* 
+   Cette classe ".loader" dessine un grand cercle 
+   qui tourne infiniment à l'aide d'une animation @keyframes.
+   - Diamètre : ~100px
+   - Deux nuances de bleu : 
+        * le cercle principal en #99ccff (bleu clair)
+        * la bande supérieure en #003366 (bleu foncé)
+*/
+.loader {
+  width: 100px;               /* Diamètre horizontal */
+  height: 100px;              /* Diamètre vertical */
+  border: 16px solid #99ccff; /* bordure bleu clair */
+  border-top: 16px solid #003366; /* bande supérieure bleu foncé */
+  border-radius: 50%;         /* forme ronde */
+  animation: spin 1s linear infinite; /* tourne sur 1s */
+}
+
+/* Animation pour faire tourner le cercle */
+@keyframes spin {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

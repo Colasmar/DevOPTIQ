@@ -1,0 +1,21 @@
+<!-- Template des performances personnalisées (conservé si utilisé ailleurs, mais les boutons sont déplacés) -->
+<script type="text/template" id="template-performance-perso">
+  <div class="perf-perso-block" data-perf-id="<%= id %>">
+    <textarea class="perf-text"><%= content %></textarea>
+    <div class="perf-date"><%= updated_at ? 'Dernière modification : ' + updated_at : '' %></div>
+    <div class="perf-buttons">
+      <button class="btn-save-perf">Enregistrer</button>
+      <button class="btn-delete-perf">Supprimer</button>
+    </div>
+  </div>
+</script>
+
+<!-- ===== Modale Historique des performances ===== -->
+<div id="perf-history-modal" class="modal hidden">
+  <div class="modal-content">
+    <span class="close-history" title="Fermer">&times;</span>
+    <h3 id="history-title">Historique</h3>
+    <div id="history-entries"><!-- Timeline injectée ici --></div>
+  </div>
+</div>
+

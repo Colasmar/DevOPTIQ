@@ -1,0 +1,151 @@
+{% include "header_buttons.html" %}
+<link rel="stylesheet" href="./../../../static/gestion_compte.css">
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
+<h1>Gestion des comptes utilisateurs</h1>
+
+<!-- SECTION 1 & 2 : Création + Filtrage -->
+<div class="form-filter-container">
+  <!-- Formulaire de création -->
+  <div class="box half-box">
+    <h2>Créer un nouvel utilisateur</h2>
+    <form action="{{ url_for('gestion_compte.create_user') }}" method="POST" class="create-form">
+      <label>Prénom :</label><input type="text" name="first_name" required>
+      <label>Nom :</label><input type="text" name="last_name" required>
+      <label>Âge :</label><input type="number" name="age">
+      <label>Email :</label><input type="email" name="email" required>
+      <label>Mot de passe :</label><input type="password" name="password" required>
+
+      <label>Rôle :</label>
+      <select name="role_id">
+        {% for role in roles %}
+          <option value="{{ role.id }}">{{ role.name }}</option>
+        {% endfor %}
+      </select>
+
+      <label>Statut :</label>
+      <select name="status">
+        <option value="user">Utilisateur</option>
+        <option value="rh">RH</option>
+        <option value="administrateur">Administrateur</option>
+      </select>
+
+      <button type="submit">Créer</button>
+    </form>
+  </div>
+
+  <!-- Filtres -->
+  <div class="box half-box">
+    <h2>Filtrer les utilisateurs</h2>
+    <form id="filterForm" onsubmit="event.preventDefault(); applyFilters();">
+      <input type="text" id="searchInput" placeholder="Rechercher par nom ou prénom...">
+      <select id="statusFilter">
+        <option value="">Tous les statuts</option>
+        <option value="user">Utilisateur</option>
+        <option value="rh">RH</option>
+        <option value="administrateur">Administrateur</option>
+      </select>
+      <select id="roleFilter">
+        <option value="">Tous les rôles</option>
+        {% for role in roles %}
+          <option value="{{ role.name }}">{{ role.name }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit">Rechercher</button>
+    </form>
+
+    <!-- Liste filtrée brute -->
+    <h2>Résultats du filtre</h2>
+    <div class="scrollable-list">
+      <ul id="filteredList" style="margin:0; padding:0; list-style:none;">
+        {% for role_name, users in role_users.items() %}
+          {% for user in users %}
+          <li class="user-item"
+              data-name="{{ user.first_name }} {{ user.last_name }}"
+              data-status="{{ user.status }}"
+              data-role="{{ role_name }}"
+              style="padding:8px; border-bottom:1px solid #ddd;">
+            {{ user.first_name }} {{ user.last_name }} – {{ user.age or 'N/A' }} ans – Statut : {{ user.status }} – Rôle : {{ role_name }}
+            <a href="{{ url_for('gestion_compte.update_user', user_id=user.id) }}" class="edit-btn">Modifier</a>
+            <form method="POST" action="{{ url_for('gestion_compte.delete_user', user_id=user.id) }}" style="display:inline;">
+              <button type="submit" class="delete-btn">Supprimer</button>
+            </form>
+          </li>
+          {% endfor %}
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 3 : Managers et collaborateurs -->
+<div class="box full-width" style="margin-top: 50px;">
+  <h2>Managers et leurs collaborateurs</h2>
+  <div id="managerContainer">
+    {% for manager in managers %}
+      <div class="manager-section">
+        <h3 class="manager-toggle" data-target="#collab-{{ manager.id }}">
+          {{ manager.first_name }}
+        </h3>
+        <div id="collab-{{ manager.id }}" class="collab-list hidden">
+          {% if manager.subordinates %}
+            <ul>
+              {% for user in manager.subordinates %}
+              <li>
+                {{ user.first_name }} {{ user.last_name }}
+                <form method="POST" action="{{ url_for('gestion_compte.remove_collaborator', user_id=user.id) }}" style="display:inline;">
+                  <button type="submit" class="delete-btn">Supprimer</button>
+                </form>
+              </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p>Aucun collaborateur.</p>
+          {% endif %}
+
+          <button class="add-collab-btn" data-manager-id="{{ manager.id }}">Ajouter un collaborateur</button>
+
+          <!-- Modal pour ajout collaborateur -->
+          <!-- Après -->
+          <div class="collab-modal" id="modal-{{ manager.id }}" style="display: none;">
+            <div class="modal-content">
+              <span class="close-modal">×</span>
+              <h3>Ajouter des collaborateurs à {{ manager.first_name }}</h3>
+              <!-- Zone de recherche -->
+              <div style="margin-bottom:10px; display:flex; align-items:center; gap:10px;">
+                <!-- Toggle switch pour selection multiple -->
+                <label class="switch">
+                  <input type="checkbox" class="toggle-multi-switch" data-target="select-{{ manager.id }}">
+                  <span class="slider round"></span>
+                </label>
+                <span style="margin-right:15px;">Sélection Multiple</span>
+
+                <!-- Zone de recherche -->
+                <input type="text" class="collab-search" placeholder="Rechercher un collaborateur..." data-target="collab-select-{{ manager.id }}">
+                <button type="button" class="search-btn" data-target="collab-select-{{ manager.id }}">🔍</button>
+                <input type="checkbox" class="toggle-multi-switch" data-target="collab-select-{{ manager.id }}">
+
+              </div>
+
+
+              <!-- Bouton d'action -->
+              <form method="POST" action="/comptes/assign_manager">
+                <input type="hidden" name="manager_id" value="{{ manager.id }}">
+                <input type="hidden" id="multi_select_{{ manager.id }}" name="multi_select" value="1">
+                <select name="user_ids[]" id="collab-select-{{ manager.id }}" multiple>
+                  {% for user in users %}
+                    <option value="{{ user.id }}">{{ user.first_name }} {{ user.last_name }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit">Ajouter</button>
+              </form>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script src="./../../../static/js/gestion_compte.js"></script>

@@ -1,0 +1,152 @@
+<!-- activity_card.html -->
+
+<div class="activity-container" data-activity-id="{{ item.activity.id }}">
+    <div class="activity-header" onclick="toggleDetails('details-{{ item.activity.id }}', this)">
+      <span class="toggle-icon" id="icon-{{ item.activity.id }}">▶</span>
+      <h2>{{ item.activity.name }}</h2>
+    </div>
+  
+    <div class="activity-details" id="details-{{ item.activity.id }}" style="display:none;">
+      <p>{{ item.activity.description or "" }}</p>
+  
+      <!-- Garant -->
+      <div class="activity-garant" style="margin-bottom:10px;">
+        <button onclick="openGarantModal({{ item.activity.id }})">Garant</button>
+        <span id="activity-garant-{{ item.activity.id }}" style="margin-left:10px;">
+          {% if item.garant %}
+            {{ item.garant.name }}
+          {% else %}
+            Aucun
+          {% endif %}
+        </span>
+      </div>
+  
+      <!-- Connexions -->
+      <div class="connections-container">
+        <!-- Connexions entrantes -->
+        <div class="incoming-connections">
+          <h3>Connexions entrantes</h3>
+          {% if item.incoming and item.incoming|length > 0 %}
+            <table class="conn-table">
+              <tr>
+                <th>Nom de la donnée</th>
+                <th>Provenance</th>
+              </tr>
+              {% for conn in item.incoming %}
+                <tr>
+                  <td>
+                    {% if conn.type|lower == 'déclenchante' %}
+                      <span class="declenchante">{{ conn.data_name }}</span>
+                    {% elif conn.type|lower == 'nourrissante' %}
+                      <span class="nourrissante">{{ conn.data_name }}</span>
+                    {% else %}
+                      {{ conn.data_name }}
+                    {% endif %}
+                  </td>
+                  <td>{{ conn.source_name }}</td>
+                </tr>
+              {% endfor %}
+            </table>
+          {% else %}
+            <p>Aucune connexion entrante.</p>
+          {% endif %}
+        </div>
+  
+        <!-- Connexions sortantes -->
+        <div class="outgoing-connections">
+          <h3>Connexions sortantes</h3>
+          {% if item.outgoing and item.outgoing|length > 0 %}
+            <table class="conn-table">
+              <tr>
+                <th>Nom de la donnée</th>
+                <th>Vers</th>
+                <th>Performance</th>
+              </tr>
+              {% for conn in item.outgoing %}
+                <tr>
+                  <td>
+                    {% if conn.type|lower == 'déclenchante' %}
+                      <span class="declenchante">{{ conn.data_name }}</span>
+                    {% elif conn.type|lower == 'nourrissante' %}
+                      <span class="nourrissante">{{ conn.data_name }}</span>
+                    {% else %}
+                      {{ conn.data_name }}
+                    {% endif %}
+                  </td>
+                  <td>{{ conn.target_name }}</td>
+                  <td>
+                    <div id="perf-cell-{{ conn.link_id }}" class="perf-container" data-linkid="{{ conn.link_id }}">
+                      {% if conn.performance %}
+                        <div id="perf-display-{{ conn.performance.id }}">
+                          <span id="perf-info-{{ conn.performance.id }}">
+                            {{ conn.performance.name }}
+                            {% if conn.performance.description %}
+                              - {{ conn.performance.description }}
+                            {% endif %}
+                          </span>
+                          <button onclick="showEditPerfForm('{{ conn.performance.id }}','{{ conn.performance.name|escapejs }}')">
+                            <i class="fa-solid fa-pencil"></i>
+                          </button>
+                          <button onclick="deletePerformance('{{ conn.performance.id }}')">
+                            <i class="fa-solid fa-trash"></i>
+                          </button>
+                        </div>
+                        <div id="perf-edit-form-{{ conn.performance.id }}" style="display:none; margin-top:5px;">
+                          <input type="text" id="perf-edit-input-{{ conn.performance.id }}" style="width:350px;" />
+                          <button onclick="submitEditPerf('{{ conn.performance.id }}')">Enregistrer</button>
+                          <button onclick="hideEditPerfForm('{{ conn.performance.id }}')">Annuler</button>
+                        </div>
+                      {% else %}
+                        <button onclick="showAddPerfForm('{{ conn.link_id }}')">Performance</button>
+                        <div id="perf-add-form-{{ conn.link_id }}" style="display:none; margin-top:5px;">
+                          <input type="text" id="perf-add-input-{{ conn.link_id }}" style="width:350px;" />
+                          <button onclick="submitAddPerf('{{ conn.link_id }}')">Enregistrer</button>
+                          <button onclick="hideAddPerfForm('{{ conn.link_id }}')">Annuler</button>
+                        </div>
+                      {% endif %}
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </table>
+          {% else %}
+            <p>Aucune connexion sortante.</p>
+          {% endif %}
+        </div>
+      </div>
+  
+      <!-- Contraintes -->
+      {% include "activity_constraints.html" %}
+  
+      <!-- Tâches -->
+      <div id="tasks-section-{{ item.activity.id }}">
+        {% set activity = item.activity %}
+        {% set tasks = item.tasks %}
+        {% include "tasks_partial.html" %}
+      </div>
+  
+      <!-- Compétences -->
+      <div style="margin-top:20px;">
+        {% include "activity_competencies.html" %}
+      </div>
+
+      <!-- Temps -->
+      <div>
+        {% include "activity_time_section.html" %}
+      </div>
+
+      <!-- 3 colonnes : Savoirs & Savoir-Faire / Aptitudes / HSC -->
+      <div style="display:flex; gap:30px; margin-top:20px;">
+        <div style="flex:2;">
+          {% include "activity_savoirs_faires.html" %}
+        </div>
+        <div style="flex:1;">
+          {% include "activity_aptitudes.html" %}
+        </div>
+        <div style="flex:1;">
+          {% include "activity_softskills.html" %}
+        </div>
+      </div>
+    </div>
+  </div>
+  

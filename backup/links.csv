@@ -1,0 +1,28 @@
+id,source_activity_id,source_data_id,target_activity_id,target_data_id,type,description
+1,2,,3,,déclenchante,Lancement  de l’’analyse de faisabilité
+2,3,,5,,déclenchante,Lancement pré-projet
+3,3,,4,,déclenchante,Offre à réaliser
+4,1,,3,,déclenchante,Liste des composants
+5,5,,4,,nourrissante,Planning prévisionnel projet
+6,4,,6,,déclenchante,Offre
+7,5,,7,,déclenchante,Demande de cotation
+8,7,,5,,nourrissante,cotation
+9,5,,7,,nourrissante,Produits sélectionnés
+10,4,,8,,déclenchante,Offre à suivre
+11,8,,1,,nourrissante,Enquête client
+13,8,,9,,déclenchante,Demande de tests qualité
+14,9,,5,,nourrissante,Feuille de test
+15,10,,8,,nourrissante,Résultat strétégique
+16,8,,10,,déclenchante,Ajustement
+17,9,,11,,déclenchante,Evaluation produit
+18,11,,12,,nourrissante,Résultat contrôle produit
+19,8,,3,,nourrissante,REX
+20,7,,4,,nourrissante,Feuille de prix
+22,11,,8,,nourrissante,AMDEC
+23,10,,13,,déclenchante,Bon de commande
+24,6,,8,,nourrissante,Demande de négociation
+25,14,,2,,déclenchante,Consutation
+26,1,,14,,déclenchante,Update
+27,13,,15,,déclenchante,Impayés
+28,10,,9,,nourrissante,Résultat labo client
+29,15,,16,,déclenchante,PAiement

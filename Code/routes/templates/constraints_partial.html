@@ -1,0 +1,28 @@
+<!-- Code/routes/templates/constraints_partial.html -->
+
+{% if activity.constraints|length > 0 %}
+  <ul>
+    {% for c in activity.constraints %}
+      <li id="constraint-{{ c.id }}">
+        <span class="constraint-text">{{ c.description }}</span>
+        <button 
+          class="edit-constraint-btn"
+          data-constraint='{{ {"id": c.id, "description": c.description}|tojson|safe }}'
+          onclick="showEditConstraintForm(this)"
+        >
+          <i class="fa-solid fa-pencil"></i>
+        </button>
+        <button onclick="deleteConstraint('{{ activity.id }}','{{ c.id }}')">
+          <i class="fa-solid fa-trash"></i>
+        </button>
+        <div id="edit-constraint-form-{{ c.id }}" style="display:none; margin-top:5px;">
+          <input type="text" id="edit-constraint-input-{{ c.id }}" />
+          <button onclick="submitEditConstraint('{{ activity.id }}','{{ c.id }}')">Enregistrer</button>
+          <button onclick="hideEditConstraintForm('{{ c.id }}')">Annuler</button>
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p>Aucune contrainte enregistrée.</p>
+{% endif %}

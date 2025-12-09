@@ -1,0 +1,21 @@
+<!-- templates/activity_savoirs_faires.html -->
+<div class="savoirs-faires-section">
+  <h3>Savoirs & Savoir-Faire</h3>
+
+  <button onclick="fetchActivityDetailsForSavoirsFaires('{{ activity.id }}')">
+    Proposer savoirs et savoir-faire
+  </button>
+
+  <!-- Wrapper immuable -->
+  <div id="savoirs-faires-container-{{ activity.id }}" style="margin-top:10px;">
+    <!-- === BODY (seul bloc rafraîchi en AJAX) === -->
+    <div class="sf-sv-body" id="sf-sv-body-{{ activity.id }}">
+      {% include 'sf_sv_body.html' %}
+    </div>
+  </div>
+
+  <!-- scripts nécessaires -->
+  <script src="{{ url_for('static', filename='js/propose_savoirs_faires.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/savoir_faires.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/competences_crud.js') }}"></script>
+</div>

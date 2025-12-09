@@ -1,0 +1,115 @@
+<!-- Template: templates/global_users_summary.html -->
+<style>
+  .global-summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9em;
+  }
+  .global-summary-table th,
+  .global-summary-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: center;
+  }
+  .global-summary-table thead th {
+    background: #f3f4f6;
+    font-weight: 600;
+  }
+  .global-summary-table tbody tr:hover {
+    background: #f9fafb;
+  }
+  .eval-indicator {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+  }
+  .eval-indicator.green {
+    background-color: #22c55e;
+  }
+  .eval-indicator.orange {
+    background-color: #f97316;
+  }
+  .eval-indicator.red {
+    background-color: #ef4444;
+  }
+  .eval-indicator.empty {
+    background-color: #e5e7eb;
+    border: 1px dashed #9ca3af;
+  }
+  .filter-controls {
+    margin-bottom: 15px;
+    display: flex;
+    gap: 15px;
+    align-items: center;
+  }
+  .filter-controls select {
+    padding: 6px 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    min-width: 150px;
+  }
+  .filter-controls label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+</style>
+
+<div class="filter-controls">
+  <label>
+    Filtrer par rôle :
+    <select id="global-role-filter" onchange="filterGlobalTable()">
+      <option value="">Tous les rôles</option>
+      {% for role in roles %}
+        <option value="{{ role.name }}">{{ role.name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>
+    <input type="checkbox" id="filter-with-notes" onchange="filterGlobalTable()">
+    Uniquement avec notation
+  </label>
+</div>
+
+<div style="overflow-x: auto;">
+  <table class="global-summary-table" id="global-users-table">
+    <thead>
+      <tr>
+        <th>Utilisateur</th>
+        {% for role in roles %}
+          <th data-role="{{ role.name }}">{{ role.name }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in user_rows %}
+        <tr data-user-id="{{ row.user_id }}">
+          <td>{{ row.user }}</td>
+          {% for note in row.notes %}
+            {% set role_name = roles[loop.index0].name if loop.index0 < roles|length else '' %}
+            <td data-role="{{ role_name }}" data-note="{{ note if note else '' }}">
+              {% if note %}
+                <span class="eval-indicator {{ note }}" title="{{ note }}"></span>
+              {% else %}
+                <span class="eval-indicator empty" title="Pas d'évaluation"></span>
+              {% endif %}
+            </td>
+          {% endfor %}
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="{{ roles|length + 1 }}" style="text-align: center; padding: 20px; color: #666;">
+            Aucun utilisateur trouvé.
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Debug: Afficher le nombre de lignes -->
+<script>
+  console.log('global_users_summary.html chargé');
+  console.log('Nombre de lignes:', document.querySelectorAll('#global-users-table tbody tr').length);
+</script>

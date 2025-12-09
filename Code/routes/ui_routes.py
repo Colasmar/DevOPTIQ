@@ -5,6 +5,6 @@ ui_bp = Blueprint('ui', __name__, url_prefix='/ui')
 
 @ui_bp.route('/activities', methods=['GET'])
 def activities():
-    # Récupérer toutes les activités depuis la base de données
-    activities = Activities.query.all()
+    # MODIFIÉ: Filtrer par entité active
+    activities = Activities.for_active_entity().all()
     return render_template('ui/activities.html', activities=activities)
