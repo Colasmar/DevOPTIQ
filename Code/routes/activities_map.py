@@ -1,9 +1,12 @@
 # Code/routes/activities_map.py
+"""
+Cartographie des activités avec gestion multi-entités.
+"""
 import os
-import re
 import shutil
 import datetime
-import subprocess
+import re
+import xml.etree.ElementTree as ET
 
 from flask import (
     Blueprint,
@@ -11,14 +14,16 @@ from flask import (
     request,
     jsonify,
     redirect,
-    url_for
+    url_for,
+    send_file
 )
 
 from Code.extensions import db
-from Code.models.models import Activities
+from Code.models.models import Activities, Entity
+
 
 # ============================================================
-# Blueprint avec prefix /activities
+# Blueprint
 # ============================================================
 activities_map_bp = Blueprint(
     "activities_map_bp",
@@ -26,260 +31,472 @@ activities_map_bp = Blueprint(
     url_prefix="/activities"
 )
 
-# Dossiers
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
-IMG_DIR = os.path.join(STATIC_DIR, "img")
-HISTORY_DIR = os.path.join(STATIC_DIR, "carto_history")
-
-# Chemin du SVG actif
-ACTIVE_SVG = os.path.join(IMG_DIR, "carto_activities.svg")
-
-# Extensions acceptées
-ALLOWED_EXTENSIONS = {'.svg', '.vsdx'}
+ENTITIES_DIR = os.path.join(STATIC_DIR, "entities")
+OLD_SVG_PATH = os.path.join(STATIC_DIR, "img", "carto_activities.svg")
 
 
-def get_file_extension(filename):
-    """Retourne l'extension du fichier en minuscule."""
-    return os.path.splitext(filename)[1].lower()
+def get_entity_svg_path(entity_id):
+    return os.path.join(ENTITIES_DIR, f"entity_{entity_id}", "carto.svg")
+
+
+def ensure_entity_dir(entity_id):
+    entity_dir = os.path.join(ENTITIES_DIR, f"entity_{entity_id}")
+    os.makedirs(entity_dir, exist_ok=True)
+    return entity_dir
 
 
 # ============================================================
-# 1) PAGE CARTOGRAPHIE (GET /activities/map)
+# PAGE CARTOGRAPHIE
 # ============================================================
 @activities_map_bp.route("/map")
 def activities_map_page():
-    """
-    Affiche la page de cartographie des activites.
-    """
-    # Verifier si le SVG existe
-    svg_exists = os.path.exists(ACTIVE_SVG)
-
-    # Recuperer toutes les activites avec leur shape_id
-    rows = db.session.query(Activities).order_by(Activities.id).all()
-
-    # Creer le mapping ShapeID -> ActivityID
+    active_entity = Entity.get_active()
+    
+    svg_exists = False
+    if active_entity:
+        svg_path = get_entity_svg_path(active_entity.id)
+        svg_exists = os.path.exists(svg_path)
+        if not svg_exists and os.path.exists(OLD_SVG_PATH):
+            svg_exists = True
+    
+    if active_entity:
+        rows = Activities.query.filter_by(entity_id=active_entity.id).order_by(Activities.id).all()
+    else:
+        rows = []
+    
     shape_activity_map = {
         str(act.shape_id): act.id
         for act in rows
         if act.shape_id is not None
     }
-
-    # Recuperer l'historique des fichiers
-    history = []
-    if os.path.exists(HISTORY_DIR):
-        for f in sorted(os.listdir(HISTORY_DIR), reverse=True):
-            ext = get_file_extension(f)
-            if ext in ALLOWED_EXTENSIONS:
-                # Format du nom: YYYYMMDD_HHMMSS_nomoriginal.ext
-                parts = f.split("_", 2)  # Split en max 3 parties
-                date_str = parts[0] if len(parts) > 0 else ""
-                time_str = parts[1] if len(parts) > 1 else ""
-                # Le nom original est après les deux premiers underscores
-                original_name = parts[2] if len(parts) > 2 else f
-                
-                history.append({
-                    "filename": f,
-                    "date": f"{date_str}_{time_str}" if time_str else date_str,
-                    "original_name": original_name,
-                    "type": ext.upper().replace(".", "")
-                })
-
+    
+    all_entities = Entity.query.order_by(Entity.name).all()
+    
+    active_entity_dict = None
+    if active_entity:
+        active_entity_dict = {
+            "id": active_entity.id,
+            "name": active_entity.name,
+            "description": active_entity.description or "",
+            "svg_filename": active_entity.svg_filename,
+            "is_active": active_entity.is_active
+        }
+    
+    all_entities_list = [
+        {
+            "id": e.id,
+            "name": e.name,
+            "description": e.description or "",
+            "svg_filename": e.svg_filename,
+            "is_active": e.is_active
+        }
+        for e in all_entities
+    ]
+    
     return render_template(
         "activities_map.html",
         svg_exists=svg_exists,
         shape_activity_map=shape_activity_map,
         activities=rows,
-        carto_history=history
+        active_entity=active_entity_dict,
+        all_entities=all_entities_list
     )
 
 
 # ============================================================
-# 2) RECHARGER LA CARTOGRAPHIE (GET /activities/update-cartography)
+# SERVIR LE SVG
 # ============================================================
-@activities_map_bp.route("/update-cartography")
-def update_cartography():
-    """
-    Point d'entree pour recharger la cartographie (utilise par le frontend).
-    """
-    return jsonify({"status": "ok", "message": "Cartographie rechargee"}), 200
-
-
-# ============================================================
-# 3) Conversion Visio -> SVG via LibreOffice
-# ============================================================
-def convert_vsdx_to_svg(vsdx_file, output_dir):
-    """
-    Convertit un fichier .vsdx en .svg avec LibreOffice en mode headless.
+@activities_map_bp.route("/svg")
+def serve_svg():
+    active_entity = Entity.get_active()
     
-    Args:
-        vsdx_file: Chemin complet vers le fichier .vsdx
-        output_dir: Dossier de sortie pour le SVG
+    if not active_entity:
+        return jsonify({"error": "Aucune entité active"}), 404
     
-    Returns:
-        tuple: (success: bool, error_message: str or None)
-    """
-    # Verifier que LibreOffice est disponible
-    try:
-        result = subprocess.run(
-            ["which", "soffice"],
-            capture_output=True,
-            text=True
-        )
-        if result.returncode != 0:
-            return False, "LibreOffice (soffice) n'est pas installe sur ce serveur"
-    except Exception:
-        return False, "Impossible de verifier la presence de LibreOffice"
+    svg_path = get_entity_svg_path(active_entity.id)
+    
+    if not os.path.exists(svg_path) and os.path.exists(OLD_SVG_PATH):
+        svg_path = OLD_SVG_PATH
+    
+    if not os.path.exists(svg_path):
+        return jsonify({"error": "SVG non trouvé"}), 404
+    
+    return send_file(svg_path, mimetype='image/svg+xml')
 
+
+# ============================================================
+# API ENTITÉS
+# ============================================================
+@activities_map_bp.route("/api/entities", methods=["GET"])
+def list_entities():
+    entities = Entity.query.order_by(Entity.name).all()
+    return jsonify([
+        {
+            "id": e.id,
+            "name": e.name,
+            "description": e.description,
+            "svg_filename": e.svg_filename,
+            "is_active": e.is_active,
+            "activities_count": Activities.query.filter_by(entity_id=e.id).count()
+        }
+        for e in entities
+    ])
+
+
+@activities_map_bp.route("/api/entities", methods=["POST"])
+def create_entity():
+    data = request.get_json()
+    
+    if not data or not data.get("name"):
+        return jsonify({"error": "Nom requis"}), 400
+    
+    entity = Entity(
+        name=data["name"],
+        description=data.get("description", ""),
+        is_active=False
+    )
+    db.session.add(entity)
+    db.session.commit()
+    
+    ensure_entity_dir(entity.id)
+    
+    return jsonify({
+        "status": "ok",
+        "entity": {
+            "id": entity.id,
+            "name": entity.name,
+            "description": entity.description,
+            "is_active": entity.is_active
+        }
+    })
+
+
+@activities_map_bp.route("/api/entities/<int:entity_id>/activate", methods=["POST"])
+def activate_entity(entity_id):
+    """Active une entité (désactive les autres)."""
+    entity = Entity.query.get(entity_id)
+    
+    if not entity:
+        return jsonify({"error": "Entité non trouvée"}), 404
+    
     try:
-        result = subprocess.run(
-            [
-                "soffice",
-                "--headless",
-                "--convert-to", "svg",
-                "--outdir", output_dir,
-                vsdx_file
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120  # Timeout de 120 secondes
-        )
+        # IMPORTANT: Ne PAS utiliser Entity.query.update() qui bloque SQLite
+        # À la place, on récupère et modifie chaque entité individuellement
+        all_entities = Entity.query.all()
         
-        if result.returncode != 0:
-            error_msg = result.stderr or result.stdout or "Erreur inconnue"
-            return False, f"Erreur LibreOffice: {error_msg}"
+        for e in all_entities:
+            if e.id == entity_id:
+                e.is_active = True
+            else:
+                e.is_active = False
         
-        return True, None
+        db.session.commit()
         
-    except subprocess.TimeoutExpired:
-        return False, "Timeout: la conversion a pris trop de temps (>120s)"
-    except FileNotFoundError:
-        return False, "LibreOffice (soffice) n'est pas installe"
+        return jsonify({
+            "status": "ok",
+            "message": f"Entité '{entity.name}' activée"
+        })
+        
     except Exception as e:
-        return False, f"Erreur inattendue: {str(e)}"
+        db.session.rollback()
+        print(f"[ACTIVATE] Erreur: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@activities_map_bp.route("/api/entities/<int:entity_id>", methods=["DELETE"])
+def delete_entity(entity_id):
+    entity = Entity.query.get(entity_id)
+    
+    if not entity:
+        return jsonify({"error": "Entité non trouvée"}), 404
+    
+    activities_count = Activities.query.filter_by(entity_id=entity_id).count()
+    
+    entity_dir = os.path.join(ENTITIES_DIR, f"entity_{entity_id}")
+    if os.path.exists(entity_dir):
+        shutil.rmtree(entity_dir)
+    
+    entity_name = entity.name
+    
+    try:
+        db.session.delete(entity)
+        db.session.commit()
+        
+        if not Entity.get_active():
+            first = Entity.query.first()
+            if first:
+                first.is_active = True
+                db.session.commit()
+        
+        return jsonify({
+            "status": "ok",
+            "message": f"Entité '{entity_name}' supprimée ({activities_count} activités supprimées)"
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+@activities_map_bp.route("/api/entities/<int:entity_id>", methods=["PATCH"])
+def update_entity(entity_id):
+    entity = Entity.query.get(entity_id)
+    
+    if not entity:
+        return jsonify({"error": "Entité non trouvée"}), 404
+    
+    data = request.get_json()
+    
+    if data.get("name"):
+        entity.name = data["name"]
+    if "description" in data:
+        entity.description = data["description"]
+    
+    db.session.commit()
+    
+    return jsonify({
+        "status": "ok",
+        "entity": {
+            "id": entity.id,
+            "name": entity.name,
+            "description": entity.description
+        }
+    })
 
 
 # ============================================================
-# 4) UPLOAD NOUVELLE CARTOGRAPHIE (POST /activities/upload-carto)
+# EXTRACTION DES ACTIVITÉS DEPUIS LE SVG
+# ============================================================
+
+def extract_activities_from_svg(svg_path):
+    """
+    Parse un fichier SVG Visio et extrait les activités valides.
+    
+    LOGIQUE:
+    - Les VRAIES activités sont sur le layer 1 (v:layerMember="1")
+    - Ce sont les rectangles colorés principaux de la cartographie
+    - Le nom de l'activité est le TEXTE à l'intérieur de la forme
+    
+    Layers Visio:
+    - Layer 1: Activités principales (rectangles colorés) ✓
+    - Layer 2: Noms des swimlanes (légendes)
+    - Layer 6: Activités client/fournisseur (flags)
+    - Layer 8: Cercles de retour (références)
+    - Layer 9: Documents/Résultats (données)
+    - Layer 10: Déclencheurs (flags)
+    """
+    activities = []
+    seen_names = set()
+    
+    print(f"[EXTRACT] Parsing SVG: {svg_path}")
+    
+    try:
+        tree = ET.parse(svg_path)
+        root = tree.getroot()
+        
+        # Namespaces
+        SVG_NS = "http://www.w3.org/2000/svg"
+        VISIO_NS = "http://schemas.microsoft.com/visio/2003/SVGExtensions/"
+        
+        # Chercher tous les éléments avec v:mID
+        for elem in root.iter():
+            mid = elem.get(f"{{{VISIO_NS}}}mID")
+            if not mid:
+                continue
+            
+            # FILTRE PRINCIPAL: Seulement le layer 1 (activités principales)
+            layer = elem.get(f"{{{VISIO_NS}}}layerMember", "")
+            if layer != "1":
+                continue
+            
+            # Chercher le TEXTE à l'intérieur de l'élément
+            text_content = None
+            for text_elem in elem.iter(f"{{{SVG_NS}}}text"):
+                t = "".join(text_elem.itertext()).strip()
+                if t and len(t) > 2:
+                    text_content = t
+                    break  # Prendre le premier texte significatif
+            
+            # Si pas de texte, ignorer
+            if not text_content:
+                continue
+            
+            # Ignorer les textes trop longs (descriptions)
+            if len(text_content) > 80:
+                continue
+            
+            # Éviter les doublons par nom
+            if text_content.lower() not in seen_names:
+                seen_names.add(text_content.lower())
+                activities.append({
+                    "shape_id": mid,
+                    "name": text_content
+                })
+                print(f"[EXTRACT] ✓ Activité: shape_id={mid}, name={text_content}")
+        
+        print(f"[EXTRACT] Total activités extraites: {len(activities)}")
+        
+    except Exception as e:
+        print(f"[EXTRACT] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    return activities
+
+
+def sync_activities_with_svg(entity_id, svg_path):
+    """Synchronise les activités en base avec celles du SVG."""
+    stats = {
+        "added": 0,
+        "existing": 0,
+        "skipped": 0,
+        "total_in_svg": 0
+    }
+    
+    print(f"[SYNC] Démarrage pour entity_id={entity_id}")
+    
+    svg_activities = extract_activities_from_svg(svg_path)
+    stats["total_in_svg"] = len(svg_activities)
+    
+    if not svg_activities:
+        print("[SYNC] Aucune activité extraite!")
+        return stats
+    
+    # Shape IDs existants pour CETTE entité
+    existing = Activities.query.filter_by(entity_id=entity_id).all()
+    existing_shape_ids = {str(a.shape_id) for a in existing if a.shape_id}
+    existing_names = {a.name.lower() for a in existing}
+    
+    for act_data in svg_activities:
+        shape_id = str(act_data["shape_id"])
+        name = act_data["name"]
+        
+        # Vérifier si existe déjà pour cette entité
+        if shape_id in existing_shape_ids or name.lower() in existing_names:
+            stats["existing"] += 1
+            continue
+        
+        try:
+            new_activity = Activities(
+                entity_id=entity_id,
+                shape_id=shape_id,
+                name=name,
+                description="",
+                is_result=False,
+                duration_minutes=0,
+                delay_minutes=0
+            )
+            db.session.add(new_activity)
+            # Commit immédiat pour chaque activité (évite les gros rollbacks)
+            db.session.commit()
+            stats["added"] += 1
+            print(f"[SYNC] ✓ Ajouté: {name}")
+            
+            # Mettre à jour les sets pour éviter les doublons
+            existing_shape_ids.add(shape_id)
+            existing_names.add(name.lower())
+            
+        except Exception as e:
+            db.session.rollback()
+            error_msg = str(e)
+            if "UNIQUE constraint" in error_msg:
+                print(f"[SYNC] ⚠️ Doublon ignoré: {name} (shape_id={shape_id})")
+                stats["skipped"] += 1
+            else:
+                print(f"[SYNC] Erreur ajout {name}: {e}")
+                stats["skipped"] += 1
+    
+    print(f"[SYNC] Terminé: {stats['added']} ajoutées, {stats['existing']} existantes, {stats['skipped']} ignorées")
+    return stats
+
+
+# ============================================================
+# UPLOAD CARTOGRAPHIE
 # ============================================================
 @activities_map_bp.route("/upload-carto", methods=["POST"])
 def upload_carto():
-    """
-    Upload et installe une nouvelle cartographie.
-    Accepte les fichiers SVG (direct) ou VSDX (conversion requise).
-    """
+    """Upload une nouvelle cartographie SVG."""
+    print("[UPLOAD] Début upload")
+    
     if "file" not in request.files:
-        return jsonify({"error": "Aucun fichier recu"}), 400
-
+        return jsonify({"error": "Aucun fichier reçu"}), 400
+    
     file = request.files["file"]
-
+    
     if file.filename == "":
         return jsonify({"error": "Nom de fichier vide"}), 400
-
-    ext = get_file_extension(file.filename)
     
-    if ext not in ALLOWED_EXTENSIONS:
-        return jsonify({
-            "error": f"Format non supporte. Formats acceptes: SVG, VSDX"
-        }), 400
-
-    # Creer les dossiers si necessaire
-    os.makedirs(HISTORY_DIR, exist_ok=True)
-    os.makedirs(IMG_DIR, exist_ok=True)
-
-    # Sauvegarder le fichier avec timestamp + nom original
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    # Nettoyer le nom original (enlever caractères spéciaux)
-    original_name = re.sub(r'[^\w\-_\.]', '_', file.filename)
+    filename_lower = file.filename.lower()
     
-    if ext == '.svg':
-        # === CAS SVG: Installation directe ===
-        svg_name = f"{timestamp}_{original_name}"
-        save_path = os.path.join(HISTORY_DIR, svg_name)
-        file.save(save_path)
-        
-        # Copier vers le SVG actif
-        shutil.copy(save_path, ACTIVE_SVG)
-        
-        return jsonify({
-            "status": "ok",
-            "message": "Cartographie SVG installee avec succes",
-            "filename": svg_name
-        })
+    if not filename_lower.endswith(".svg"):
+        return jsonify({"error": "Format SVG requis"}), 400
     
-    elif ext == '.vsdx':
-        # === CAS VSDX: Conversion necessaire ===
-        vsdx_name = f"{timestamp}_{original_name}"
-        save_path = os.path.join(HISTORY_DIR, vsdx_name)
-        file.save(save_path)
-
-        # Convertir en SVG
-        success, error_msg = convert_vsdx_to_svg(save_path, HISTORY_DIR)
+    active_entity = Entity.get_active()
+    
+    if not active_entity:
+        return jsonify({"error": "Aucune entité active"}), 400
+    
+    print(f"[UPLOAD] Entité: {active_entity.name} (id={active_entity.id})")
+    
+    try:
+        entity_dir = ensure_entity_dir(active_entity.id)
+        svg_path = os.path.join(entity_dir, "carto.svg")
         
-        if not success:
-            # Garder le VSDX dans l'historique mais signaler l'erreur
-            suggestion = (
-                "\n\nAlternative: Exportez votre fichier Visio en SVG "
-                "(Fichier > Exporter > SVG) et importez le SVG directement."
-            )
-            return jsonify({
-                "error": error_msg + suggestion
-            }), 500
-
-        # Verifier que le SVG a ete genere
-        expected_svg = os.path.join(HISTORY_DIR, vsdx_name.replace(".vsdx", ".svg"))
-        if not os.path.exists(expected_svg):
-            return jsonify({
-                "error": "Le fichier SVG n'a pas ete genere. "
-                         "Essayez d'exporter en SVG depuis Visio directement."
-            }), 500
-
-        # Remplacer le SVG actif
-        shutil.copy(expected_svg, ACTIVE_SVG)
-
+        file.save(svg_path)
+        print(f"[UPLOAD] Fichier sauvegardé: {svg_path}")
+        
+        active_entity.svg_filename = "carto.svg"
+        db.session.commit()
+        
+        # Synchroniser les activités
+        sync_stats = sync_activities_with_svg(active_entity.id, svg_path)
+        
         return jsonify({
             "status": "ok",
-            "message": "Cartographie VSDX convertie et installee",
-            "filename": vsdx_name
+            "message": f"Cartographie mise à jour",
+            "sync": sync_stats
         })
+        
+    except Exception as e:
+        print(f"[UPLOAD] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 
 # ============================================================
-# 5) UTILISER UNE CARTOGRAPHIE PRECEDENTE
+# RE-SYNCHRONISATION MANUELLE
 # ============================================================
-@activities_map_bp.route("/use-carto/<filename>")
-def use_carto(filename):
-    """
-    Restaure une cartographie precedente depuis l'historique.
-    """
-    # Securite: empecher la traversee de repertoire
-    if ".." in filename or "/" in filename or "\\" in filename:
-        return jsonify({"error": "Nom de fichier invalide"}), 400
-
-    file_path = os.path.join(HISTORY_DIR, filename)
-
-    if not os.path.exists(file_path):
-        return jsonify({"error": "Fichier introuvable dans l'historique"}), 404
-
-    ext = get_file_extension(filename)
-    os.makedirs(IMG_DIR, exist_ok=True)
-
-    if ext == '.svg':
-        # SVG: copie directe
-        shutil.copy(file_path, ACTIVE_SVG)
+@activities_map_bp.route("/resync", methods=["POST"])
+def resync_activities():
+    """Re-synchronise les activités depuis le SVG existant."""
+    active_entity = Entity.get_active()
+    
+    if not active_entity:
+        return jsonify({"error": "Aucune entité active"}), 400
+    
+    svg_path = get_entity_svg_path(active_entity.id)
+    
+    if not os.path.exists(svg_path) and os.path.exists(OLD_SVG_PATH):
+        svg_path = OLD_SVG_PATH
+    
+    if not os.path.exists(svg_path):
+        return jsonify({"error": "SVG non trouvé"}), 404
+    
+    try:
+        sync_stats = sync_activities_with_svg(active_entity.id, svg_path)
         
-    elif ext == '.vsdx':
-        # VSDX: conversion necessaire
-        success, error_msg = convert_vsdx_to_svg(file_path, HISTORY_DIR)
-        if not success:
-            return jsonify({"error": error_msg}), 500
+        return jsonify({
+            "status": "ok",
+            "message": f"Re-synchronisation terminée",
+            "sync": sync_stats
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-        expected_svg = os.path.join(HISTORY_DIR, filename.replace(".vsdx", ".svg"))
-        if not os.path.exists(expected_svg):
-            return jsonify({"error": "SVG non genere"}), 500
 
-        shutil.copy(expected_svg, ACTIVE_SVG)
-    else:
-        return jsonify({"error": "Format de fichier non supporte"}), 400
-
-    return redirect(url_for("activities_map_bp.activities_map_page"))
+@activities_map_bp.route("/update-cartography")
+def update_cartography():
+    return jsonify({"status": "ok", "message": "Cartographie rechargée"}), 200

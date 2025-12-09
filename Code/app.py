@@ -42,19 +42,28 @@ def create_app():
     db_url = os.getenv("DATABASE_URL")
 
     if db_url:
-        # ex: postgres://... ou postgresql://...
-        # pour être sûr avec SQLAlchemy :
         if db_url.startswith("postgres://"):
             db_url = db_url.replace("postgres://", "postgresql://", 1)
         app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     else:
-        # fallback local, comme avant
         instance_path = os.path.join(os.path.dirname(__file__), "instance")
         os.makedirs(instance_path, exist_ok=True)
         db_path = os.path.join(instance_path, "optiq.db")
-        app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
+        # IMPORTANT: Timeout augmenté pour SQLite
+        app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}?timeout=30"
 
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    
+    # Configuration SQLite pour éviter "database is locked"
+    if not db_url:  # Seulement pour SQLite
+        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+            "pool_pre_ping": True,
+            "pool_recycle": 300,
+            "connect_args": {
+                "timeout": 30,
+                "check_same_thread": False,
+            }
+        }
 
     # -----------------------------
     # 2) Mail
@@ -70,7 +79,7 @@ def create_app():
 
     migrate = Migrate(app, db)
 
-    # --------- filtres jinja (ton code) ----------
+    # --------- filtres jinja ----------
     import re
 
     def extract_numeric_level(value):
@@ -90,7 +99,7 @@ def create_app():
     app.jinja_env.filters["escapejs"] = escapejs_filter
 
     # -----------------------------
-    # Blueprints (ton code)
+    # Blueprints
     # -----------------------------
     from Code.routes.activities import activities_bp
     app.register_blueprint(activities_bp)
@@ -185,12 +194,9 @@ def create_app():
     from Code.routes.activities_map import activities_map_bp
     app.register_blueprint(activities_map_bp)
 
-
-
     # secret key
     app.secret_key = os.getenv("SECRET_KEY", "devoptiq-secret")
 
-    # petit endpoint de santé pour Cloud Run
     @app.route("/healthz")
     def healthz():
         return "ok", 200
@@ -199,10 +205,17 @@ def create_app():
     def home():
         return redirect(url_for("auth.login"))
 
+    # Fermer proprement les connexions après chaque requête
+    @app.teardown_appcontext
+    def shutdown_session(exception=None):
+        db.session.remove()
+
     return app
 
 
 app = create_app()
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+    # IMPORTANT: use_reloader=False pour éviter "database is locked" avec SQLite
+    # Le reloader crée 2 processus qui accèdent à la DB simultanément
+    app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", 8080)), use_reloader=False)

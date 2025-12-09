@@ -2,7 +2,7 @@
 from flask import Blueprint, render_template, jsonify, request, abort
 from sqlalchemy import func
 from Code.extensions import db
-from Code.models.models import Tool, Task, Activities, task_tools
+from Code.models.models import Tool, Task, Activities, task_tools, Entity
 
 bp_tools = Blueprint("gestion_outils", __name__, url_prefix="/gestion_outils")
 
@@ -20,11 +20,8 @@ def page():
 # -------------------------
 @bp_tools.route("/api/tools", methods=["GET"])
 def list_tools():
-    tools = (
-        db.session.query(Tool)
-        .order_by(func.lower(Tool.name))
-        .all()
-    )
+    # MODIFIÉ: Filtrer par entité active
+    tools = Tool.for_active_entity().order_by(func.lower(Tool.name)).all()
 
     # Précharger les usages: tasks + activity
     usages_by_tool = {t.id: [] for t in tools}
@@ -76,19 +73,21 @@ def create_tool():
     if not name:
         return jsonify({"error": "Le nom de l'outil est requis."}), 400
 
-    # Unicité
-    exists = db.session.query(Tool.id).filter(func.lower(Tool.name) == func.lower(name)).first()
+    # MODIFIÉ: Unicité par entité active
+    exists = Tool.for_active_entity().filter(func.lower(Tool.name) == func.lower(name)).first()
     if exists:
         return jsonify({"error": "Un outil avec ce nom existe déjà."}), 409
 
-    tool = Tool(name=name, description=description)
+    # MODIFIÉ: Créer l'outil avec l'entité active
+    active_entity_id = Entity.get_active_id()
+    tool = Tool(name=name, description=description, entity_id=active_entity_id)
     db.session.add(tool)
     db.session.commit()
     return jsonify({"message": "Outil créé.", "id": tool.id}), 201
 
 
 # -------------------------
-# API: Renommer / modifier la description d’un outil
+# API: Renommer / modifier la description d'un outil
 # -------------------------
 @bp_tools.route("/api/tools/<int:tool_id>", methods=["PUT"])
 def update_tool(tool_id):
@@ -103,9 +102,9 @@ def update_tool(tool_id):
         if not new_name:
             return jsonify({"error": "Le nom ne peut pas être vide."}), 400
 
-        # Vérifier unicité (hors l’outil courant)
+        # MODIFIÉ: Vérifier unicité par entité active (hors l'outil courant)
         exists = (
-            db.session.query(Tool.id)
+            Tool.for_active_entity()
             .filter(func.lower(Tool.name) == func.lower(new_name), Tool.id != tool.id)
             .first()
         )
