@@ -1,13 +1,14 @@
 /* ============================================================
-   CARTOGRAPHIE DES ACTIVITÉS - VERSION SVG INLINE
+   CARTOGRAPHIE DES ACTIVITÉS - VERSION SVG INLINE + ENTITÉS
    
    Cette version charge le SVG inline dans le DOM, ce qui permet
    un contrôle total sur les événements (pan + clic activités)
 ============================================================ */
 
 const SHAPE_ACTIVITY_MAP = window.CARTO_SHAPE_MAP || {};
-const CARTO_HISTORY = window.CARTO_HISTORY || [];
 const SVG_EXISTS = window.SVG_EXISTS || false;
+const ACTIVE_ENTITY = window.ACTIVE_ENTITY || null;
+const ALL_ENTITIES = window.ALL_ENTITIES || [];
 
 const VISIO_NS = "http://schemas.microsoft.com/visio/2003/SVGExtensions/";
 
@@ -15,7 +16,7 @@ const VISIO_NS = "http://schemas.microsoft.com/visio/2003/SVGExtensions/";
    ÉTAT GLOBAL PAN / ZOOM
 ============================================================ */
 let svgElement = null;
-let currentScale = 0.5; // Zoom initial plus petit pour voir toute la carto
+let currentScale = 0.5;
 
 let panX = 0;
 let panY = 0;
@@ -24,7 +25,7 @@ let panY = 0;
 let isPanning = false;
 let startX = 0;
 let startY = 0;
-let hasMoved = false; // Pour distinguer clic vs drag
+let hasMoved = false;
 
 // Dimensions du SVG
 let svgWidth = 0;
@@ -35,15 +36,10 @@ let clickableElements = new Set();
 
 // Limites de zoom
 const ZOOM_MIN = 0.1;
-const ZOOM_MAX = 10; // 1000%
+const ZOOM_MAX = 10;
 
-/* ============================================================
-   PAS DE CONTRAINTES DE PAN - Liberté totale de navigation
-============================================================ */
-function constrainPan() {
-  // Ne rien contraindre - l'utilisateur peut naviguer librement
-  // On pourrait ajouter des limites douces si nécessaire plus tard
-}
+// Entité actuellement sélectionnée dans le gestionnaire
+let selectedEntityId = null;
 
 /* ============================================================
    CENTRER LA CARTOGRAPHIE AU CHARGEMENT
@@ -57,23 +53,18 @@ function centerCartography() {
   const scaledWidth = svgWidth * currentScale;
   const scaledHeight = svgHeight * currentScale;
 
-  // Calculer pour centrer le SVG dans le wrapper
   panX = (wrapperRect.width - scaledWidth) / 2;
   panY = (wrapperRect.height - scaledHeight) / 2;
 
-  // Si le SVG scalé est plus grand que le wrapper, positionner en haut à gauche avec marge
   if (scaledWidth > wrapperRect.width) {
-    panX = 20; // Petite marge à gauche
+    panX = 20;
   }
   if (scaledHeight > wrapperRect.height) {
-    panY = 20; // Petite marge en haut pour voir la légende
+    panY = 20;
   }
 
-  // Appliquer la transformation
   panInner.style.transform = `translate(${panX}px, ${panY}px) scale(${currentScale})`;
   updateZoomDisplay();
-  
-  console.log(`Centrage: wrapper=${wrapperRect.width}x${wrapperRect.height}, svg=${scaledWidth}x${scaledHeight}, pan=${panX},${panY}`);
 }
 
 /* ============================================================
@@ -89,8 +80,6 @@ function updateZoomDisplay() {
 function applyTransform() {
   const panInner = document.getElementById("pan-inner");
   if (!panInner) return;
-
-  // Pas de contrainte de pan - navigation libre
   panInner.style.transform = `translate(${panX}px, ${panY}px) scale(${currentScale})`;
   updateZoomDisplay();
 }
@@ -100,8 +89,6 @@ function zoomAtPoint(delta, mouseX, mouseY) {
   if (!wrapper) return;
 
   const oldScale = currentScale;
-
-  // Pas de zoom proportionnel pour plus de contrôle
   const zoomStep = 0.15;
 
   if (delta > 0) {
@@ -110,7 +97,6 @@ function zoomAtPoint(delta, mouseX, mouseY) {
     currentScale = Math.max(ZOOM_MIN, currentScale * (1 - zoomStep));
   }
 
-  // Zoom centré sur la position de la souris
   const scaleRatio = currentScale / oldScale;
   panX = mouseX - (mouseX - panX) * scaleRatio;
   panY = mouseY - (mouseY - panY) * scaleRatio;
@@ -142,7 +128,6 @@ function initZoomButtons() {
   }
   if (btnReset) {
     btnReset.onclick = () => {
-      // Recalculer le scale optimal pour voir toute la carto
       const wrapper = document.getElementById("carto-pan-wrapper");
       if (wrapper && svgWidth && svgHeight) {
         const wrapperRect = wrapper.getBoundingClientRect();
@@ -160,24 +145,17 @@ function initZoomButtons() {
 
 /* ============================================================
    PAN (DÉPLACEMENT À LA SOURIS)
-   
-   Stratégie: Le pan commence toujours au mousedown.
-   Si l'utilisateur bouge la souris, c'est un pan.
-   Si l'utilisateur ne bouge pas (ou très peu) et relâche sur
-   une activité, c'est un clic.
 ============================================================ */
 function initPan() {
   const wrapper = document.getElementById("carto-pan-wrapper");
   const panInner = document.getElementById("pan-inner");
   if (!wrapper || !panInner) return;
 
-  // Seuil de mouvement pour distinguer clic vs drag (en pixels)
   const MOVE_THRESHOLD = 5;
   let startPanX = 0;
   let startPanY = 0;
 
   wrapper.addEventListener("mousedown", (e) => {
-    // Uniquement bouton gauche
     if (e.button !== 0) return;
     
     e.preventDefault();
@@ -191,8 +169,6 @@ function initPan() {
     
     wrapper.classList.add("panning");
     panInner.classList.add("no-transition");
-    
-    console.log(`[PAN] mousedown at (${e.clientX}, ${e.clientY}), hasMoved reset to false`);
   });
 
   window.addEventListener("mousemove", (e) => {
@@ -202,10 +178,8 @@ function initPan() {
     const dy = e.clientY - startY;
     const distance = Math.sqrt(dx * dx + dy * dy);
 
-    // Vérifier si on a bougé significativement
     if (distance > MOVE_THRESHOLD && !hasMoved) {
       hasMoved = true;
-      console.log(`[PAN] hasMoved = true (distance: ${distance.toFixed(1)}px)`);
     }
 
     panX = startPanX + dx;
@@ -216,24 +190,15 @@ function initPan() {
   window.addEventListener("mouseup", (e) => {
     if (!isPanning) return;
 
-    console.log(`[PAN] mouseup, hasMoved=${hasMoved}`);
-
     isPanning = false;
     wrapper.classList.remove("panning");
     panInner.classList.remove("no-transition");
 
-    // Si on n'a pas bougé, le clic sera géré par les event listeners des activités
-    if (!hasMoved) {
-      console.log("[PAN] Pas de mouvement détecté, clic potentiel sur activité");
-    }
-    
-    // IMPORTANT: Reset hasMoved après un court délai pour permettre au click de se propager
     setTimeout(() => {
       hasMoved = false;
     }, 10);
   });
 
-  // Empêcher le drag natif des images/SVG
   wrapper.addEventListener("dragstart", (e) => e.preventDefault());
 }
 
@@ -275,20 +240,20 @@ async function loadSvgInline() {
 
   if (!SVG_EXISTS) {
     container.innerHTML = `
-      <div class="svg-error">
+      <div class="svg-placeholder">
         <p>🗺️ Aucune cartographie disponible</p>
-        <p>Utilisez le bouton "Actions cartographie" pour importer un fichier SVG ou VSDX</p>
+        <p>Utilisez le <strong>Gestionnaire d'entités</strong> pour importer un fichier SVG</p>
       </div>
     `;
     return;
   }
 
   try {
-    // Charger le SVG depuis l'URL statique
-    const svgUrl = "/static/img/carto_activities.svg";
+    // Charger le SVG depuis l'API
+    const svgUrl = "/activities/svg?t=" + Date.now();
     console.log("[CARTO] Chargement du SVG depuis:", svgUrl);
     
-    const response = await fetch(svgUrl + "?t=" + Date.now()); // Cache bust
+    const response = await fetch(svgUrl);
     
     if (!response.ok) {
       throw new Error(`Fichier SVG introuvable (${response.status})`);
@@ -304,8 +269,6 @@ async function loadSvgInline() {
     if (!svgElement) {
       throw new Error("Pas d'élément <svg> trouvé dans le fichier");
     }
-
-    console.log("[CARTO] Élément SVG trouvé:", svgElement);
 
     // Configurer le SVG
     setupSvg();
@@ -333,7 +296,6 @@ function setupSvg() {
     svgWidth = vb.width;
     svgHeight = vb.height;
   } else {
-    // Fallback: utiliser width/height attributs
     const widthAttr = svgElement.getAttribute("width");
     const heightAttr = svgElement.getAttribute("height");
     
@@ -341,14 +303,13 @@ function setupSvg() {
       svgWidth = parseFloat(widthAttr) || 1000;
       svgHeight = parseFloat(heightAttr) || 800;
     } else {
-      // Dernier fallback: getBoundingClientRect
       const rect = svgElement.getBoundingClientRect();
       svgWidth = rect.width || 1000;
       svgHeight = rect.height || 800;
     }
   }
 
-  console.log(`Dimensions SVG détectées: ${svgWidth} x ${svgHeight}`);
+  console.log(`[CARTO] Dimensions SVG: ${svgWidth} x ${svgHeight}`);
 
   // Appliquer les dimensions au SVG
   svgElement.style.width = svgWidth + "px";
@@ -362,22 +323,21 @@ function setupSvg() {
   // Initialiser zoom
   initZoomButtons();
   
-  // Calculer le scale initial pour que la carto tienne dans la vue
+  // Calculer le scale initial
   const wrapper = document.getElementById("carto-pan-wrapper");
   if (wrapper) {
     const wrapperRect = wrapper.getBoundingClientRect();
-    const scaleX = (wrapperRect.width - 40) / svgWidth;  // 40px de marge
+    const scaleX = (wrapperRect.width - 40) / svgWidth;
     const scaleY = (wrapperRect.height - 40) / svgHeight;
-    currentScale = Math.min(scaleX, scaleY, 1); // Ne pas dépasser 100%
-    currentScale = Math.max(currentScale, 0.1); // Minimum 10%
+    currentScale = Math.min(scaleX, scaleY, 1);
+    currentScale = Math.max(currentScale, 0.1);
   }
   
-  // Centrer après un court délai pour s'assurer que le DOM est prêt
   setTimeout(() => {
     centerCartography();
   }, 50);
 
-  console.log(`SVG configuré: ${svgWidth}x${svgHeight}, scale initial: ${Math.round(currentScale * 100)}%, ${clickableElements.size} activités`);
+  console.log(`[CARTO] SVG configuré: scale=${Math.round(currentScale * 100)}%`);
 }
 
 /* ============================================================
@@ -385,41 +345,36 @@ function setupSvg() {
 ============================================================ */
 function activateSvgClicks() {
   if (!svgElement) {
-    console.error("[CARTO] svgElement est null, impossible d'activer les clics");
+    console.error("[CARTO] svgElement est null");
     return;
   }
 
-  console.log("[CARTO] === DÉBUT ACTIVATION DES CLICS ===");
-  console.log("[CARTO] SHAPE_ACTIVITY_MAP reçu:", SHAPE_ACTIVITY_MAP);
-  console.log("[CARTO] Nombre d'entrées dans le map:", Object.keys(SHAPE_ACTIVITY_MAP).length);
+  console.log("[CARTO] === ACTIVATION DES CLICS ===");
+  console.log("[CARTO] SHAPE_ACTIVITY_MAP:", SHAPE_ACTIVITY_MAP);
+  console.log("[CARTO] Nombre d'entrées:", Object.keys(SHAPE_ACTIVITY_MAP).length);
 
   const allElements = svgElement.querySelectorAll("*");
-  console.log("[CARTO] Nombre total d'éléments dans le SVG:", allElements.length);
+  console.log("[CARTO] Éléments dans le SVG:", allElements.length);
 
-  // Chercher tous les attributs qui pourraient contenir un ID
   let foundMids = [];
-  let elementsWithVisioAttr = 0;
+  let activatedCount = 0;
 
   allElements.forEach((el) => {
-    // Méthode 1: Namespace Visio standard
+    // Chercher l'attribut mID (plusieurs méthodes)
     let mid = el.getAttributeNS(VISIO_NS, "mID");
     
-    // Méthode 2: Attribut direct sans namespace
     if (!mid) {
       mid = el.getAttribute("v:mID");
     }
     
-    // Méthode 3: Attribut data-mid
     if (!mid) {
       mid = el.getAttribute("data-mid");
     }
     
-    // Méthode 4: Chercher dans tous les attributs
     if (!mid) {
       for (let attr of el.attributes || []) {
         if (attr.name.toLowerCase().includes("mid") || attr.name.toLowerCase().includes("shapeid")) {
           mid = attr.value;
-          console.log(`[CARTO] Trouvé attribut alternatif: ${attr.name}=${attr.value} sur`, el.tagName);
           break;
         }
       }
@@ -427,22 +382,16 @@ function activateSvgClicks() {
 
     if (mid) {
       foundMids.push(mid);
-      elementsWithVisioAttr++;
     }
 
     if (!mid) return;
 
     const activityId = SHAPE_ACTIVITY_MAP[mid];
     
-    if (!activityId) {
-      // Log uniquement les premiers pour ne pas spammer
-      if (foundMids.length <= 10) {
-        console.log(`[CARTO] mID="${mid}" trouvé mais pas dans SHAPE_ACTIVITY_MAP`);
-      }
-      return;
-    }
+    if (!activityId) return;
 
-    console.log(`[CARTO] ✓ Activité trouvée: mID="${mid}" → activityId=${activityId}`, el.tagName);
+    activatedCount++;
+    console.log(`[CARTO] ✓ Activité: mID="${mid}" → id=${activityId}`);
 
     // Marquer comme cliquable
     clickableElements.add(el);
@@ -455,7 +404,6 @@ function activateSvgClicks() {
 
     // Effets au survol
     el.addEventListener("mouseenter", () => {
-      console.log(`[CARTO] Survol activité ${activityId}`);
       el.style.filter = "drop-shadow(0 0 8px #22c55e)";
       el.style.opacity = "0.85";
     });
@@ -467,32 +415,24 @@ function activateSvgClicks() {
 
     // Clic sur l'activité
     el.addEventListener("click", (e) => {
-      console.log(`[CARTO] CLICK sur activité ${activityId}, hasMoved=${hasMoved}`);
-      
-      // Ne naviguer que si on n'a pas fait de pan
       if (!hasMoved) {
         e.stopPropagation();
         e.preventDefault();
         const url = `/activities/view?activity_id=${activityId}`;
         console.log(`[CARTO] Navigation vers: ${url}`);
         window.location.href = url;
-      } else {
-        console.log(`[CARTO] Navigation annulée car hasMoved=true`);
       }
     });
   });
 
   console.log("[CARTO] === RÉSUMÉ ===");
-  console.log(`[CARTO] Éléments avec attribut mID trouvés: ${elementsWithVisioAttr}`);
-  console.log(`[CARTO] mIDs uniques trouvés:`, [...new Set(foundMids)].slice(0, 20));
-  console.log(`[CARTO] Activités cliquables configurées: ${clickableElements.size}`);
+  console.log(`[CARTO] mIDs trouvés: ${foundMids.length}`);
+  console.log(`[CARTO] Activités cliquables: ${activatedCount}`);
   
-  if (clickableElements.size === 0) {
-    console.warn("[CARTO] ⚠️ AUCUNE ACTIVITÉ CLIQUABLE ! Vérifiez:");
-    console.warn("[CARTO] 1. Le SVG contient-il des attributs v:mID ou similaires ?");
-    console.warn("[CARTO] 2. SHAPE_ACTIVITY_MAP contient-il les bons mID ?");
-    console.warn("[CARTO] mIDs dans le SVG:", foundMids.slice(0, 30));
-    console.warn("[CARTO] mIDs attendus:", Object.keys(SHAPE_ACTIVITY_MAP));
+  if (activatedCount === 0 && Object.keys(SHAPE_ACTIVITY_MAP).length > 0) {
+    console.warn("[CARTO] ⚠️ Aucune activité cliquable !");
+    console.warn("[CARTO] mIDs dans SVG:", [...new Set(foundMids)].slice(0, 20));
+    console.warn("[CARTO] mIDs attendus:", Object.keys(SHAPE_ACTIVITY_MAP).slice(0, 20));
   }
 }
 
@@ -510,7 +450,7 @@ function initListClicks() {
 }
 
 /* ============================================================
-   POPUP & OUTILS
+   POPUP ACTIONS CARTOGRAPHIE
 ============================================================ */
 function initPopup() {
   const popup = document.getElementById("carto-actions-popup");
@@ -522,7 +462,6 @@ function initPopup() {
   btnOpen.onclick = () => popup.classList.remove("hidden");
   btnClose.onclick = () => popup.classList.add("hidden");
 
-  // Fermer en cliquant sur le fond
   popup.addEventListener("click", (e) => {
     if (e.target === popup) {
       popup.classList.add("hidden");
@@ -537,32 +476,319 @@ function initReloadButton() {
   btn.onclick = () => {
     btn.textContent = "⏳ Mise à jour…";
     btn.disabled = true;
-    fetch("/activities/update-cartography").then(() =>
-      window.location.reload()
-    );
+    window.location.reload();
   };
 }
 
-function initDropzone() {
-  const zone = document.getElementById("dropzone");
-  const status = document.getElementById("dropzone-status");
+function initResyncButton() {
+  const btn = document.getElementById("resync-activities-btn");
+  if (!btn) return;
+
+  btn.onclick = async () => {
+    btn.textContent = "⏳ Re-synchronisation...";
+    btn.disabled = true;
+
+    try {
+      const res = await fetch("/activities/resync", { method: "POST" });
+      const data = await res.json();
+
+      if (data.error) {
+        alert("Erreur: " + data.error);
+        btn.textContent = "🔄 Re-synchroniser les activités depuis le SVG";
+        btn.disabled = false;
+        return;
+      }
+
+      const msg = `Re-synchronisation terminée!\n\nActivités ajoutées: ${data.sync.added}\nActivités existantes: ${data.sync.existing}\nTotal dans SVG: ${data.sync.total_in_svg}`;
+      alert(msg);
+      
+      // Recharger la page pour voir les nouvelles activités
+      window.location.reload();
+
+    } catch (e) {
+      alert("Erreur réseau: " + e);
+      btn.textContent = "🔄 Re-synchroniser les activités depuis le SVG";
+      btn.disabled = false;
+    }
+  };
+}
+
+/* ============================================================
+   GESTIONNAIRE D'ENTITÉS
+============================================================ */
+function initEntityManager() {
+  const popup = document.getElementById("entity-manager-popup");
+  const btnOpen = document.getElementById("entity-manager-btn");
+  const btnClose = document.getElementById("close-entity-manager");
+
+  if (!popup || !btnOpen) return;
+
+  btnOpen.onclick = () => {
+    popup.classList.remove("hidden");
+    loadEntitiesList();
+  };
+  
+  if (btnClose) {
+    btnClose.onclick = () => popup.classList.add("hidden");
+  }
+
+  popup.addEventListener("click", (e) => {
+    if (e.target === popup) {
+      popup.classList.add("hidden");
+    }
+  });
+
+  // Bouton créer entité
+  const createBtn = document.getElementById("create-entity-btn");
+  if (createBtn) {
+    createBtn.onclick = createEntity;
+  }
+
+  // Boutons d'action
+  document.getElementById("activate-entity-btn")?.addEventListener("click", activateEntity);
+  document.getElementById("rename-entity-btn")?.addEventListener("click", showRenameModal);
+  document.getElementById("delete-entity-btn")?.addEventListener("click", showDeleteModal);
+
+  // Modals
+  document.getElementById("cancel-delete-btn")?.addEventListener("click", hideDeleteModal);
+  document.getElementById("confirm-delete-btn")?.addEventListener("click", confirmDelete);
+  document.getElementById("cancel-rename-btn")?.addEventListener("click", hideRenameModal);
+  document.getElementById("confirm-rename-btn")?.addEventListener("click", confirmRename);
+
+  // Dropzone entité
+  initEntityDropzone();
+}
+
+async function loadEntitiesList() {
+  try {
+    const response = await fetch("/activities/api/entities");
+    const entities = await response.json();
+
+    const list = document.getElementById("entities-list");
+    if (!list) return;
+
+    if (entities.length === 0) {
+      list.innerHTML = '<li class="no-entity">Aucune entité créée</li>';
+      return;
+    }
+
+    list.innerHTML = entities.map(e => `
+      <li class="entity-item ${e.is_active ? 'active' : ''}" data-id="${e.id}">
+        <span class="entity-name">${e.name}</span>
+        ${e.is_active ? '<span class="entity-active-badge">Active</span>' : ''}
+        <span class="entity-count">${e.activities_count} activités</span>
+      </li>
+    `).join("");
+
+    // Ajouter les clics
+    list.querySelectorAll(".entity-item").forEach(li => {
+      li.addEventListener("click", () => selectEntity(parseInt(li.dataset.id)));
+    });
+
+  } catch (error) {
+    console.error("Erreur chargement entités:", error);
+  }
+}
+
+function selectEntity(entityId) {
+  selectedEntityId = entityId;
+
+  // Highlight dans la liste
+  document.querySelectorAll(".entity-item").forEach(li => {
+    li.classList.toggle("selected", parseInt(li.dataset.id) === entityId);
+  });
+
+  // Afficher les détails
+  const placeholder = document.getElementById("entity-details-placeholder");
+  const details = document.getElementById("entity-details");
+  
+  if (placeholder) placeholder.classList.add("hidden");
+  if (details) details.classList.remove("hidden");
+
+  // Charger les infos
+  fetch(`/activities/api/entities`)
+    .then(r => r.json())
+    .then(entities => {
+      const entity = entities.find(e => e.id === entityId);
+      if (entity) {
+        document.getElementById("entity-detail-name").textContent = entity.name;
+        document.getElementById("entity-detail-description").textContent = entity.description || "Pas de description";
+        document.getElementById("entity-activities-count").textContent = entity.activities_count;
+        document.getElementById("entity-svg-status").textContent = entity.svg_filename ? "✓" : "—";
+        
+        // Masquer le bouton activer si déjà active
+        const activateBtn = document.getElementById("activate-entity-btn");
+        if (activateBtn) {
+          activateBtn.style.display = entity.is_active ? "none" : "inline-block";
+        }
+      }
+    });
+}
+
+async function createEntity() {
+  const nameInput = document.getElementById("new-entity-name");
+  const name = nameInput?.value.trim();
+
+  if (!name) {
+    alert("Veuillez entrer un nom pour l'entité");
+    return;
+  }
+
+  try {
+    const response = await fetch("/activities/api/entities", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name })
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      alert("Erreur: " + data.error);
+      return;
+    }
+
+    nameInput.value = "";
+    loadEntitiesList();
+    
+    // Sélectionner la nouvelle entité
+    setTimeout(() => selectEntity(data.entity.id), 100);
+
+  } catch (error) {
+    alert("Erreur réseau");
+  }
+}
+
+async function activateEntity() {
+  if (!selectedEntityId) return;
+
+  try {
+    const response = await fetch(`/activities/api/entities/${selectedEntityId}/activate`, {
+      method: "POST"
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      alert("Erreur: " + data.error);
+      return;
+    }
+
+    // Recharger la page pour mettre à jour tout le contexte
+    window.location.reload();
+
+  } catch (error) {
+    alert("Erreur réseau");
+  }
+}
+
+function showDeleteModal() {
+  if (!selectedEntityId) return;
+  document.getElementById("confirm-delete-modal")?.classList.remove("hidden");
+}
+
+function hideDeleteModal() {
+  document.getElementById("confirm-delete-modal")?.classList.add("hidden");
+}
+
+async function confirmDelete() {
+  if (!selectedEntityId) return;
+
+  try {
+    const response = await fetch(`/activities/api/entities/${selectedEntityId}`, {
+      method: "DELETE"
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      alert("Erreur: " + data.error);
+      return;
+    }
+
+    hideDeleteModal();
+    
+    // Recharger la page
+    window.location.reload();
+
+  } catch (error) {
+    alert("Erreur réseau");
+  }
+}
+
+function showRenameModal() {
+  if (!selectedEntityId) return;
+  
+  const currentName = document.getElementById("entity-detail-name")?.textContent || "";
+  const input = document.getElementById("rename-input");
+  if (input) input.value = currentName;
+  
+  document.getElementById("rename-modal")?.classList.remove("hidden");
+}
+
+function hideRenameModal() {
+  document.getElementById("rename-modal")?.classList.add("hidden");
+}
+
+async function confirmRename() {
+  if (!selectedEntityId) return;
+
+  const newName = document.getElementById("rename-input")?.value.trim();
+  if (!newName) {
+    alert("Veuillez entrer un nom");
+    return;
+  }
+
+  try {
+    const response = await fetch(`/activities/api/entities/${selectedEntityId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newName })
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      alert("Erreur: " + data.error);
+      return;
+    }
+
+    hideRenameModal();
+    loadEntitiesList();
+    selectEntity(selectedEntityId);
+
+  } catch (error) {
+    alert("Erreur réseau");
+  }
+}
+
+/* ============================================================
+   DROPZONE ENTITÉ (Upload SVG)
+============================================================ */
+function initEntityDropzone() {
+  const zone = document.getElementById("entity-dropzone");
+  const status = document.getElementById("entity-dropzone-status");
   if (!zone || !status) return;
 
-  // Clic pour ouvrir le sélecteur de fichiers
+  // Input file caché
   const fileInput = document.createElement("input");
   fileInput.type = "file";
-  fileInput.accept = ".svg,.vsdx";
+  fileInput.accept = ".svg";
   fileInput.style.display = "none";
   document.body.appendChild(fileInput);
 
   zone.addEventListener("click", () => {
+    if (!selectedEntityId && !ACTIVE_ENTITY) {
+      alert("Veuillez d'abord sélectionner ou activer une entité");
+      return;
+    }
     fileInput.click();
   });
 
   fileInput.addEventListener("change", async () => {
     const file = fileInput.files[0];
     if (file) {
-      await uploadFile(file, status);
+      await uploadEntitySvg(file, status);
     }
   });
 
@@ -582,27 +808,38 @@ function initDropzone() {
 
     const file = e.dataTransfer.files[0];
     if (file) {
-      await uploadFile(file, status);
+      await uploadEntitySvg(file, status);
     }
   });
 }
 
-async function uploadFile(file, status) {
-  const fileName = file.name.toLowerCase();
-  const isVsdx = fileName.endsWith(".vsdx");
-  const isSvg = fileName.endsWith(".svg");
-  
-  if (!isVsdx && !isSvg) {
-    status.innerHTML = "❌ Format invalide — fichiers .SVG ou .VSDX acceptés";
+async function uploadEntitySvg(file, status) {
+  if (!file.name.toLowerCase().endsWith(".svg")) {
+    status.innerHTML = "❌ Format invalide — fichier SVG requis";
     status.className = "dropzone-status error";
     return;
   }
 
-  if (isVsdx) {
-    status.innerHTML = "⏳ Upload et conversion en cours...<br><small>(La conversion VSDX peut échouer, préférez SVG)</small>";
-  } else {
-    status.innerHTML = "⏳ Upload en cours...";
+  // Vérifier qu'on a une entité active ou sélectionnée
+  const targetEntityId = selectedEntityId || (ACTIVE_ENTITY ? ACTIVE_ENTITY.id : null);
+  
+  if (!targetEntityId) {
+    status.innerHTML = "❌ Aucune entité active";
+    status.className = "dropzone-status error";
+    return;
   }
+
+  // Si l'entité sélectionnée n'est pas active, l'activer d'abord
+  if (selectedEntityId && (!ACTIVE_ENTITY || ACTIVE_ENTITY.id !== selectedEntityId)) {
+    status.innerHTML = "⏳ Activation de l'entité...";
+    status.className = "dropzone-status loading";
+    
+    await fetch(`/activities/api/entities/${selectedEntityId}/activate`, {
+      method: "POST"
+    });
+  }
+
+  status.innerHTML = "⏳ Upload en cours...";
   status.className = "dropzone-status loading";
 
   const form = new FormData();
@@ -632,34 +869,23 @@ async function uploadFile(file, status) {
   }
 }
 
-function initHistoryLoad() {
-  document.querySelectorAll(".history-item").forEach((item) => {
-    item.addEventListener("click", () => {
-      const filename = item.dataset.file;
-      if (!filename) return;
-      
-      item.textContent = "⏳ Chargement...";
-      window.location.href = `/activities/use-carto/${filename}`;
-    });
-  });
-}
-
 /* ============================================================
    INITIALISATION GLOBALE
 ============================================================ */
 document.addEventListener("DOMContentLoaded", async () => {
   console.log("[CARTO] ========================================");
   console.log("[CARTO] Initialisation de la cartographie");
-  console.log("[CARTO] SHAPE_ACTIVITY_MAP:", SHAPE_ACTIVITY_MAP);
+  console.log("[CARTO] ACTIVE_ENTITY:", ACTIVE_ENTITY);
   console.log("[CARTO] SVG_EXISTS:", SVG_EXISTS);
+  console.log("[CARTO] SHAPE_ACTIVITY_MAP:", Object.keys(SHAPE_ACTIVITY_MAP).length, "entrées");
   console.log("[CARTO] ========================================");
 
   // Initialiser les contrôles UI
   initListClicks();
   initPopup();
   initReloadButton();
-  initDropzone();
-  initHistoryLoad();
+  initResyncButton();
+  initEntityManager();
 
   // Initialiser pan et zoom
   initPan();
@@ -670,26 +896,3 @@ document.addEventListener("DOMContentLoaded", async () => {
   
   console.log("[CARTO] Initialisation terminée");
 });
-
-
-/* ============================================================
-   FORMATAGE DES DATES DE L’HISTORIQUE
-============================================================ */
-function formatHistoryDates() {
-  document.querySelectorAll(".history-date").forEach(span => {
-    const raw = span.textContent.trim(); // ex: 20251201_124734
-
-    if (/^\d{8}_\d{6}$/.test(raw)) {
-      const year = raw.substring(0, 4);
-      const month = raw.substring(4, 6);
-      const day = raw.substring(6, 8);
-      const hour = raw.substring(9, 11);
-      const min = raw.substring(11, 13);
-
-      const formatted = `${day}/${month}/${year} • ${hour}h${min}`;
-      span.textContent = formatted;
-    }
-  });
-}
-
-document.addEventListener("DOMContentLoaded", formatHistoryDates);

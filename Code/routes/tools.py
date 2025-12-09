@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from Code.extensions import db
-from Code.models.models import Task, Tool
+from Code.models.models import Task, Tool, Entity
 from sqlalchemy import func
 
 tools_bp = Blueprint('tools', __name__, url_prefix='/tools')
@@ -28,10 +28,12 @@ def add_tools_to_task():
         if 'new_tools' in data and isinstance(data['new_tools'], list):
             for tool_name in data['new_tools']:
                 if tool_name:
-                    # Vérifier si un outil du même nom existe déjà (insensible à la casse)
-                    tool = Tool.query.filter(func.lower(Tool.name) == tool_name.lower()).first()
+                    # MODIFIÉ: Vérifier si un outil du même nom existe déjà pour l'entité active
+                    tool = Tool.for_active_entity().filter(func.lower(Tool.name) == tool_name.lower()).first()
                     if not tool:
-                        tool = Tool(name=tool_name)
+                        # MODIFIÉ: Créer l'outil avec l'entité active
+                        active_entity_id = Entity.get_active_id()
+                        tool = Tool(name=tool_name, entity_id=active_entity_id)
                         db.session.add(tool)
                         db.session.flush()  # obtenir l'id du nouvel outil
                     if tool not in task.tools:
@@ -46,7 +48,8 @@ def add_tools_to_task():
 
 @tools_bp.route('/all', methods=['GET'])
 def get_all_tools():
-    tools = Tool.query.order_by(Tool.name).all()
+    # MODIFIÉ: Filtrer par entité active
+    tools = Tool.for_active_entity().order_by(Tool.name).all()
     return jsonify([{'id': tool.id, 'name': tool.name} for tool in tools])
 
 @tools_bp.route('/delete', methods=['POST'])

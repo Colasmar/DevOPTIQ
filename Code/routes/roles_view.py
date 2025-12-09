@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, jsonify, request
 from sqlalchemy import text, func, bindparam
 from Code.extensions import db
-from Code.models.models import Role
+from Code.models.models import Role, Entity
 
 roles_view_bp = Blueprint('roles_view', __name__, url_prefix='/roles_view', template_folder='templates')
 
@@ -58,8 +58,8 @@ def _get_validation_level(user_id: int, role_id: int):
 
 @roles_view_bp.route('/', methods=['GET'])
 def view_roles():
-    # Tous les rôles par ordre alphabétique (insensible à la casse)
-    roles = Role.query.order_by(func.lower(Role.name)).all()
+    # MODIFIÉ: Filtrer les rôles par entité active
+    roles = Role.for_active_entity().order_by(func.lower(Role.name)).all()
 
     roles_data = []
     for role in roles:

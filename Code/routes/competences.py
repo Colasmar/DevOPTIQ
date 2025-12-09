@@ -5,7 +5,7 @@ from Code.extensions import db
 from datetime import datetime
 from Code.models.models import (
     Competency, Role, Activities, User, UserRole,
-    CompetencyEvaluation, Savoir, SavoirFaire, Aptitude, Softskill, activity_roles, PerformancePersonnalisee
+    CompetencyEvaluation, Savoir, SavoirFaire, Aptitude, Softskill, activity_roles, PerformancePersonnalisee, Entity
 )
 
 competences_bp = Blueprint('competences_bp', __name__, url_prefix='/competences')
@@ -17,22 +17,44 @@ def competences_view():
 
 @competences_bp.route('/managers', methods=['GET'])
 def get_managers():
-    role_manager = Role.query.filter_by(name='manager').first()
+    # CORRIGÉ: Filtrer par entité active
+    active_entity_id = Entity.get_active_id()
+    
+    if active_entity_id:
+        role_manager = Role.query.filter_by(name='manager', entity_id=active_entity_id).first()
+    else:
+        role_manager = Role.query.filter_by(name='manager').first()
+    
     if not role_manager:
         return jsonify([])
-    managers = User.query.join(UserRole).filter(UserRole.role_id == role_manager.id).all()
+    
+    if active_entity_id:
+        managers = User.query.filter_by(entity_id=active_entity_id).join(UserRole).filter(UserRole.role_id == role_manager.id).all()
+    else:
+        managers = User.query.join(UserRole).filter(UserRole.role_id == role_manager.id).all()
+    
     return jsonify([{'id': m.id, 'name': f"{m.first_name} {m.last_name}"} for m in managers])
+
 
 @competences_bp.route('/collaborators/<int:manager_id>', methods=['GET'])
 def get_collaborators(manager_id):
-    collaborateurs = User.query.filter_by(manager_id=manager_id).all()
+    # CORRIGÉ: Filtrer par entité active
+    active_entity_id = Entity.get_active_id()
+    
+    if active_entity_id:
+        collaborateurs = User.query.filter_by(manager_id=manager_id, entity_id=active_entity_id).all()
+    else:
+        collaborateurs = User.query.filter_by(manager_id=manager_id).all()
+    
     return jsonify([{'id': u.id, 'first_name': u.first_name, 'last_name': u.last_name} for u in collaborateurs])
+
 
 @competences_bp.route('/get_user_roles/<int:user_id>', methods=['GET'])
 def get_user_roles(user_id):
     user_roles = UserRole.query.filter_by(user_id=user_id).all()
     roles = [Role.query.get(ur.role_id) for ur in user_roles if Role.query.get(ur.role_id)]
     return jsonify({'roles': [{'id': r.id, 'name': r.name} for r in roles]})
+
 
 @competences_bp.route('/save_user_evaluations', methods=['POST'])
 def save_user_evaluations():
@@ -91,7 +113,7 @@ def save_user_evaluations():
                         created_at=datetime.utcnow()
                     )
                     db.session.add(new_eval)
-                    db.session.flush()  # pour récupérer l'id et created_at avant commit
+                    db.session.flush()
                     saved_evals.append({
                         "activity_id": activity_id,
                         "item_id": item_id,
@@ -109,20 +131,14 @@ def save_user_evaluations():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-
-
 @competences_bp.route('/get_user_evaluations_by_user/<int:user_id>', methods=['GET'])
 def get_user_evaluations_by_user(user_id):
-    from datetime import datetime
-
     def to_iso(dt):
         if not dt:
             return ''
-        # la colonne est Text : dt peut être str ou datetime
         if isinstance(dt, datetime):
-            return dt.isoformat()  # ex: 2025-08-15T12:34:56.789123
+            return dt.isoformat()
         if isinstance(dt, str):
-            # essaie iso → sinon quelques formats courants → sinon renvoie tel quel
             for fmt in ("%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%d %H:%M:%S.%f",
                         "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S",
                         "%d/%m/%Y %H:%M", "%d/%m/%Y"):
@@ -130,10 +146,21 @@ def get_user_evaluations_by_user(user_id):
                     return datetime.strptime(dt, fmt).isoformat()
                 except ValueError:
                     continue
-            return dt  # on garde la valeur, le front fera un fallback
+            return dt
         return ''
 
-    evaluations = CompetencyEvaluation.query.filter_by(user_id=user_id).all()
+    # CORRIGÉ: Filtrer par entité active
+    active_entity_id = Entity.get_active_id()
+    
+    if active_entity_id:
+        active_activity_ids = [a.id for a in Activities.query.filter_by(entity_id=active_entity_id).all()]
+        evaluations = CompetencyEvaluation.query.filter(
+            CompetencyEvaluation.user_id == user_id,
+            CompetencyEvaluation.activity_id.in_(active_activity_ids) if active_activity_ids else False
+        ).all()
+    else:
+        evaluations = CompetencyEvaluation.query.filter_by(user_id=user_id).all()
+    
     return jsonify([{
         'activity_id': e.activity_id,
         'item_id': e.item_id,
@@ -146,15 +173,20 @@ def get_user_evaluations_by_user(user_id):
 
 @competences_bp.route('/role_structure/<int:user_id>/<int:role_id>', methods=['GET'])
 def get_role_structure(user_id, role_id):
-    from Code.models.models import activity_roles
-
     role = Role.query.get(role_id)
     user = User.query.get(user_id)
     if not role or not user:
         return jsonify({'error': 'Utilisateur ou rôle non trouvé'}), 404
 
-    activities = db.session.query(Activities).join(activity_roles)\
-        .filter(activity_roles.c.role_id == role_id).all()
+    # CORRIGÉ: Filtrer par entité active
+    active_entity_id = Entity.get_active_id()
+    
+    query = db.session.query(Activities).join(activity_roles).filter(activity_roles.c.role_id == role_id)
+    
+    if active_entity_id:
+        query = query.filter(Activities.entity_id == active_entity_id)
+    
+    activities = query.all()
 
     all_evaluations = CompetencyEvaluation.query.filter_by(user_id=user_id).all()
     eval_dict = {}
@@ -205,7 +237,6 @@ def get_role_structure(user_id, role_id):
 
         activities_data.append(activity_obj)
 
-    # Synthèse (notations garant, manager, RH) + compétences
     synthese = []
     for activity in activities:
         synthese.append({
@@ -228,9 +259,6 @@ def get_role_structure(user_id, role_id):
 
 @competences_bp.route('/global_summary/<int:user_id>')
 def global_summary(user_id):
-    from flask import render_template
-    from Code.models.models import activity_roles
-
     user = User.query.get(user_id)
     if not user:
         return "Utilisateur introuvable", 404
@@ -239,16 +267,23 @@ def global_summary(user_id):
     role_ids = [ur.role_id for ur in user_roles]
     roles = Role.query.filter(Role.id.in_(role_ids)).all()
 
+    # CORRIGÉ: Filtrer par entité active
+    active_entity_id = Entity.get_active_id()
+
     evals = CompetencyEvaluation.query.filter_by(user_id=user_id).all()
     eval_map = {}
     for e in evals:
-        if e.item_type is None and e.item_id is None:  # Synthèse par activité
+        if e.item_type is None and e.item_id is None:
             key = f"{e.activity_id}_{e.eval_number}"
             eval_map[key] = e.note
 
     role_data = []
     for role in roles:
-        activities = db.session.query(Activities).join(activity_roles).filter(activity_roles.c.role_id == role.id).all()
+        query = db.session.query(Activities).join(activity_roles).filter(activity_roles.c.role_id == role.id)
+        if active_entity_id:
+            query = query.filter(Activities.entity_id == active_entity_id)
+        activities = query.all()
+        
         activity_data = []
         for activity in activities:
             competencies = [c.description for c in activity.competencies]
@@ -274,9 +309,6 @@ def global_summary(user_id):
 
 @competences_bp.route('/global_flat_summary/<int:user_id>')
 def global_flat_summary(user_id):
-    from flask import render_template
-    from Code.models.models import activity_roles
-
     user = User.query.get(user_id)
     if not user:
         return "Utilisateur introuvable", 404
@@ -284,6 +316,9 @@ def global_flat_summary(user_id):
     user_roles = UserRole.query.filter_by(user_id=user_id).all()
     role_ids = [ur.role_id for ur in user_roles]
     roles = Role.query.filter(Role.id.in_(role_ids)).all()
+
+    # CORRIGÉ: Filtrer par entité active
+    active_entity_id = Entity.get_active_id()
 
     evaluations = CompetencyEvaluation.query.filter_by(user_id=user_id).all()
     eval_map = {}
@@ -310,8 +345,11 @@ def global_flat_summary(user_id):
     row_manager = []
 
     for role in roles:
-        activities = db.session.query(Activities).join(activity_roles)\
-            .filter(activity_roles.c.role_id == role.id).all()
+        query = db.session.query(Activities).join(activity_roles).filter(activity_roles.c.role_id == role.id)
+        if active_entity_id:
+            query = query.filter(Activities.entity_id == active_entity_id)
+        activities = query.all()
+        
         if not activities:
             continue
 
@@ -346,19 +384,25 @@ def global_flat_summary(user_id):
     )
 
 
-
 @competences_bp.route('/users/global_summary', methods=['GET'])
 def users_global_summary():
-    from Code.models.models import User, Role, Activities, CompetencyEvaluation, activity_roles
-
-    users = User.query.all()
-    roles = Role.query.order_by(Role.name).all()
+    # CORRIGÉ: Filtrer par entité active
+    active_entity_id = Entity.get_active_id()
+    
+    if active_entity_id:
+        users = User.query.filter_by(entity_id=active_entity_id).all()
+        roles = Role.query.filter_by(entity_id=active_entity_id).order_by(Role.name).all()
+    else:
+        users = User.query.all()
+        roles = Role.query.order_by(Role.name).all()
 
     # Préparer l'ensemble des activités par rôle
     role_activities_map = {}
     for role in roles:
-        acts = db.session.query(Activities).join(activity_roles)\
-            .filter(activity_roles.c.role_id == role.id).all()
+        query = db.session.query(Activities).join(activity_roles).filter(activity_roles.c.role_id == role.id)
+        if active_entity_id:
+            query = query.filter(Activities.entity_id == active_entity_id)
+        acts = query.all()
         role_activities_map[role.id] = acts
 
     user_rows = []
@@ -394,11 +438,9 @@ def users_global_summary():
     )
 
 
-
 @competences_bp.route('/general_performance/<int:activity_id>', methods=['GET'])
 def get_general_performance(activity_id):
     from Code.models.models import Link, Performance
-    # On récupère une performance attachée à un lien dont source est activity_id
     link = Link.query.filter_by(source_activity_id=activity_id).first()
     if not link or not link.performance:
         return jsonify({'content': ''})

@@ -28,21 +28,81 @@ task_roles = db.Table(
     extend_existing=True
 )
 
+
 # -------------------------------------------------------------------
-# Modèles - CORRIGÉ avec autoincrement=True pour PostgreSQL
+# Modèle Entity (Organisation/Entreprise)
+# -------------------------------------------------------------------
+class Entity(db.Model):
+    """
+    Représente une organisation/entreprise avec sa cartographie.
+    Chaque entité possède ses propres données (activités, rôles, etc.)
+    """
+    __tablename__ = 'entities'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    
+    # Fichier SVG actif pour cette entité
+    svg_filename = db.Column(db.String(255), nullable=True)
+    
+    # Statut
+    is_active = db.Column(db.Boolean, default=False, nullable=False)
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relations
+    activities = db.relationship('Activities', backref='entity', lazy=True, cascade="all, delete-orphan")
+    data = db.relationship('Data', backref='entity', lazy=True, cascade="all, delete-orphan")
+    roles = db.relationship('Role', backref='entity', lazy=True, cascade="all, delete-orphan")
+    tools = db.relationship('Tool', backref='entity', lazy=True, cascade="all, delete-orphan")
+    links = db.relationship('Link', backref='entity', lazy=True, cascade="all, delete-orphan")
+    
+    def __repr__(self):
+        return f'<Entity {self.id}: {self.name}>'
+    
+    @classmethod
+    def get_active(cls):
+        """Retourne l'entité actuellement active."""
+        return cls.query.filter_by(is_active=True).first()
+    
+    @classmethod
+    def get_active_id(cls):
+        """Retourne l'ID de l'entité active (ou None)."""
+        entity = cls.get_active()
+        return entity.id if entity else None
+    
+    @classmethod
+    def set_active(cls, entity_id):
+        """Définit une entité comme active (désactive les autres)."""
+        # Désactiver toutes les entités
+        cls.query.update({cls.is_active: False})
+        # Activer l'entité spécifiée
+        entity = cls.query.get(entity_id)
+        if entity:
+            entity.is_active = True
+            db.session.commit()
+        return entity
+
+
+# -------------------------------------------------------------------
+# Modèles principaux
 # -------------------------------------------------------------------
 class Activities(db.Model):
     __tablename__ = 'activities'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    shape_id = db.Column(db.String(50), unique=True, index=True, nullable=True)
+    entity_id = db.Column(db.Integer, db.ForeignKey('entities.id'), nullable=True, index=True)
+    shape_id = db.Column(db.String(50), index=True, nullable=True)
     name = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=True)
     is_result = db.Column(db.Boolean, nullable=False, default=False)
 
-    # 🔹 Nouvelles colonnes (défaut / préremplissage des autres pages)
-    duration_minutes = db.Column(db.Float, default=0)  # durée moyenne (en minutes)
-    delay_minutes    = db.Column(db.Float, default=0)  # délai de production (en minutes)
+    # Durée/délai (défaut / préremplissage des autres pages)
+    duration_minutes = db.Column(db.Float, default=0)
+    delay_minutes = db.Column(db.Float, default=0)
 
     tasks = db.relationship(
         'Task',
@@ -58,16 +118,48 @@ class Activities(db.Model):
     savoir_faires = db.relationship('SavoirFaire', backref='activity', lazy=True, cascade="all, delete-orphan")
     aptitudes = db.relationship('Aptitude', backref='activity', lazy=True, cascade="all, delete-orphan")
 
+    # Contrainte unique: shape_id unique par entité
+    __table_args__ = (
+        db.UniqueConstraint('entity_id', 'shape_id', name='uq_entity_shape'),
+    )
+
+    # =============================================
+    # HELPER : Filtrer par entité active
+    # =============================================
+    @classmethod
+    def for_active_entity(cls):
+        """
+        Retourne une query filtrée par l'entité active.
+        Usage: Activities.for_active_entity().all()
+        """
+        active_entity_id = Entity.get_active_id()
+        if active_entity_id:
+            return cls.query.filter_by(entity_id=active_entity_id)
+        # Si pas d'entité active, retourner query vide
+        return cls.query.filter(cls.id < 0)
+
 
 class Data(db.Model):
     __tablename__ = 'data'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    shape_id = db.Column(db.String(50), unique=True, index=True, nullable=True)
+    entity_id = db.Column(db.Integer, db.ForeignKey('entities.id'), nullable=True, index=True)
+    shape_id = db.Column(db.String(50), index=True, nullable=True)
     name = db.Column(db.String(255), nullable=False)
     type = db.Column(db.String(50), nullable=False)
     description = db.Column(db.Text, nullable=True)
     layer = db.Column(db.String(50), nullable=True)
+
+    __table_args__ = (
+        db.UniqueConstraint('entity_id', 'shape_id', name='uq_entity_data_shape'),
+    )
+
+    @classmethod
+    def for_active_entity(cls):
+        active_entity_id = Entity.get_active_id()
+        if active_entity_id:
+            return cls.query.filter_by(entity_id=active_entity_id)
+        return cls.query.filter(cls.id < 0)
 
 
 class Task(db.Model):
@@ -79,9 +171,9 @@ class Task(db.Model):
     order = db.Column(db.Integer, nullable=True)
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
 
-    # 🔹 Nouvelles colonnes (durée/délai par tâche — utile si saisie « par tâches »)
+    # Durée/délai par tâche
     duration_minutes = db.Column(db.Float, default=0)
-    delay_minutes    = db.Column(db.Float, default=0)
+    delay_minutes = db.Column(db.Float, default=0)
 
     tools = db.relationship(
         'Tool',
@@ -95,8 +187,20 @@ class Tool(db.Model):
     __tablename__ = 'tools'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    name = db.Column(db.String(255), nullable=False, unique=True)
+    entity_id = db.Column(db.Integer, db.ForeignKey('entities.id'), nullable=True, index=True)
+    name = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text, nullable=True)
+
+    __table_args__ = (
+        db.UniqueConstraint('entity_id', 'name', name='uq_entity_tool_name'),
+    )
+
+    @classmethod
+    def for_active_entity(cls):
+        active_entity_id = Entity.get_active_id()
+        if active_entity_id:
+            return cls.query.filter_by(entity_id=active_entity_id)
+        return cls.query.filter(cls.id < 0)
 
 
 class Competency(db.Model):
@@ -121,14 +225,27 @@ class Role(db.Model):
     __tablename__ = 'roles'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    name = db.Column(db.String(100), unique=True, nullable=False)
+    entity_id = db.Column(db.Integer, db.ForeignKey('entities.id'), nullable=True, index=True)
+    name = db.Column(db.String(100), nullable=False)
     onboarding_plan = db.Column(db.Text, nullable=True)
+
+    __table_args__ = (
+        db.UniqueConstraint('entity_id', 'name', name='uq_entity_role_name'),
+    )
+
+    @classmethod
+    def for_active_entity(cls):
+        active_entity_id = Entity.get_active_id()
+        if active_entity_id:
+            return cls.query.filter_by(entity_id=active_entity_id)
+        return cls.query.filter(cls.id < 0)
 
 
 class Link(db.Model):
     __tablename__ = 'links'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    entity_id = db.Column(db.Integer, db.ForeignKey('entities.id'), nullable=True, index=True)
     source_activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=True)
     source_data_id = db.Column(db.Integer, db.ForeignKey('data.id'), nullable=True)
     target_activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=True)
@@ -143,6 +260,13 @@ class Link(db.Model):
     @property
     def target_id(self):
         return self.target_activity_id if self.target_activity_id is not None else self.target_data_id
+
+    @classmethod
+    def for_active_entity(cls):
+        active_entity_id = Entity.get_active_id()
+        if active_entity_id:
+            return cls.query.filter_by(entity_id=active_entity_id)
+        return cls.query.filter(cls.id < 0)
 
 
 class Performance(db.Model):
@@ -206,6 +330,7 @@ class User(db.Model):
     __tablename__ = 'users'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    entity_id = db.Column(db.Integer, db.ForeignKey('entities.id'), nullable=True, index=True)
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
     age = db.Column(db.Integer, nullable=True)
@@ -216,6 +341,13 @@ class User(db.Model):
 
     subordinates = db.relationship('User', backref=db.backref('manager', remote_side=[id]))
     evaluations = db.relationship('CompetencyEvaluation', back_populates='user', cascade='all, delete-orphan')
+
+    @classmethod
+    def for_active_entity(cls):
+        active_entity_id = Entity.get_active_id()
+        if active_entity_id:
+            return cls.query.filter_by(entity_id=active_entity_id)
+        return cls.query.filter(cls.id < 0)
 
 
 class UserRole(db.Model):
@@ -305,15 +437,24 @@ class TimeAnalysis(db.Model):
                 return 0
         return 0
 
+
 # -------------------------------------------------------------------
-# 🔽 Nouveaux modèles "Temps"
+# Modèles "Temps"
 # -------------------------------------------------------------------
 class TimeProject(db.Model):
     __tablename__ = 'time_project'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    entity_id = db.Column(db.Integer, db.ForeignKey('entities.id'), nullable=True, index=True)
     name = db.Column(db.String(120))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     lines = db.relationship('TimeProjectLine', backref='project', cascade="all, delete-orphan")
+
+    @classmethod
+    def for_active_entity(cls):
+        active_entity_id = Entity.get_active_id()
+        if active_entity_id:
+            return cls.query.filter_by(entity_id=active_entity_id)
+        return cls.query.filter(cls.id < 0)
 
 
 class TimeProjectLine(db.Model):
@@ -340,9 +481,8 @@ class TimeRoleLine(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     role_analysis_id = db.Column(db.Integer, db.ForeignKey('time_role_analysis.id', ondelete="CASCADE"), nullable=False)
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
-    recurrence = db.Column(db.String(32), nullable=False)  # journalier/hebdomadaire/mensuel/annuel
+    recurrence = db.Column(db.String(32), nullable=False)
     frequency = db.Column(db.Integer, nullable=False, default=1)
-    # 🔹 Ajouts pour stocker la durée/délai/personnes à la ligne (corrige les agrégats à 0)
     duration_minutes = db.Column(db.Float, nullable=False, default=0)
     delay_minutes = db.Column(db.Float, nullable=False, default=0)
     nb_people = db.Column(db.Integer, nullable=False, default=1)
@@ -353,14 +493,14 @@ class TimeWeakness(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
     task_id = db.Column(db.Integer, db.ForeignKey('tasks.id'))
-    duration_std_minutes = db.Column(db.Float, nullable=False, default=0)  # B
-    delay_std_minutes = db.Column(db.Float, nullable=False, default=0)     # C
-    recurrence = db.Column(db.String(32), nullable=False)  # J/H/M/A
+    duration_std_minutes = db.Column(db.Float, nullable=False, default=0)
+    delay_std_minutes = db.Column(db.Float, nullable=False, default=0)
+    recurrence = db.Column(db.String(32), nullable=False)
     frequency = db.Column(db.Integer, nullable=False, default=1)
     weakness = db.Column(db.Text)
-    work_added_qty = db.Column(db.Float, nullable=False, default=0)  # L
+    work_added_qty = db.Column(db.Float, nullable=False, default=0)
     work_added_unit = db.Column(db.String(16), nullable=False, default='minutes')
-    wait_added_qty = db.Column(db.Float, nullable=False, default=0)  # M
+    wait_added_qty = db.Column(db.Float, nullable=False, default=0)
     wait_added_unit = db.Column(db.String(16), nullable=False, default='minutes')
-    prob_denom = db.Column(db.Integer, nullable=False, default=1)    # N
+    prob_denom = db.Column(db.Integer, nullable=False, default=1)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

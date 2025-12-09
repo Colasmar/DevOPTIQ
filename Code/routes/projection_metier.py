@@ -19,6 +19,7 @@ from Code.models.models import (
     Activities, activity_roles,
     Competency,
     Savoir, SavoirFaire, Softskill, Aptitude,
+    Entity,
 )
 
 projection_metier_bp = Blueprint(
@@ -617,8 +618,9 @@ def _extract_job_code(job_data: dict) -> str:
 
 @projection_metier_bp.route("/", methods=["GET"])
 def index():
-    """Page d'accueil de la projection mÃ©tiers."""
-    users = User.query.order_by(User.last_name, User.first_name).all()
+    """Page d'accueil de la projection métiers."""
+    # MODIFIÉ: Filtrer par entité active
+    users = User.for_active_entity().order_by(User.last_name, User.first_name).all()
     return render_template("projection_metier.html", users=users)
 
 

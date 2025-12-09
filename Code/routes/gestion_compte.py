@@ -1,24 +1,23 @@
 from flask import Blueprint, render_template, request, redirect, url_for, jsonify
 from Code.extensions import db
-from Code.models.models import User, Role, UserRole
+from Code.models.models import User, Role, UserRole, Entity
 
 gestion_compte_bp = Blueprint('gestion_compte', __name__, url_prefix='/comptes')
 
 @gestion_compte_bp.route('/')
 def list_users():
-    roles = Role.query.all()
+    # MODIFIÉ: Filtrer par entité active
+    roles = Role.for_active_entity().all()
     role_users = {
-        role.name: User.query.join(UserRole).filter(UserRole.role_id == role.id).all()
+        role.name: User.for_active_entity().join(UserRole).filter(UserRole.role_id == role.id).all()
         for role in roles
     }
-    users = User.query.all()
-    # version affiche uniquement les managers avec subordonnées
-    #  managers = User.query.filter(User.subordinates.any()).all()
+    users = User.for_active_entity().all()
 
     # version affiche tout les users ayant le role manager
-    manager_role = Role.query.filter_by(name="manager").first()
+    manager_role = Role.for_active_entity().filter_by(name="manager").first()
     managers = (
-        User.query.join(UserRole)
+        User.for_active_entity().join(UserRole)
         .filter(UserRole.role_id == manager_role.id)
         .all()
         if manager_role else []
@@ -42,7 +41,17 @@ def create_user():
     role_id = int(request.form['role_id'])
     status = request.form['status']
 
-    user = User(first_name=first_name, last_name=last_name, age=age, email=email, password=password, status=status)
+    # MODIFIÉ: Associer le nouvel utilisateur à l'entité active
+    active_entity_id = Entity.get_active_id()
+    user = User(
+        first_name=first_name, 
+        last_name=last_name, 
+        age=age, 
+        email=email, 
+        password=password, 
+        status=status,
+        entity_id=active_entity_id
+    )
     db.session.add(user)
     db.session.commit()
 
@@ -63,7 +72,8 @@ def delete_user(user_id):
 @gestion_compte_bp.route('/update/<int:user_id>', methods=['GET', 'POST'])
 def update_user(user_id):
     user = User.query.get_or_404(user_id)
-    roles = Role.query.all()
+    # MODIFIÉ: Filtrer les rôles par entité active
+    roles = Role.for_active_entity().all()
 
     if request.method == 'POST':
         user.first_name = request.form['first_name']
@@ -88,7 +98,8 @@ def update_user(user_id):
 
 @gestion_compte_bp.route('/managers')
 def get_managers():
-    managers = User.query.filter(User.subordinates.any()).all()
+    # MODIFIÉ: Filtrer par entité active
+    managers = User.for_active_entity().filter(User.subordinates.any()).all()
     return jsonify([
         {
             "id": m.id,
@@ -144,7 +155,8 @@ def remove_collaborator(user_id):
 
 @gestion_compte_bp.route('/users')
 def get_all_users():
-    users = User.query.all()
+    # MODIFIÉ: Filtrer par entité active
+    users = User.for_active_entity().all()
     return jsonify([
         {'id': u.id, 'name': f"{u.first_name} {u.last_name}"}
         for u in users
@@ -160,4 +172,3 @@ def get_subordinates(manager_id):
             for s in subordinates
         ]
     })
-
