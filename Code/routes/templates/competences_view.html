@@ -1,0 +1,95 @@
+<!-- templates/competences_view.html -->
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synthèse des Compétences</title>
+
+    <!-- Ton CSS existant -->
+    <link rel="stylesheet" type="text/css" href="./../../../static/synthese_comp.css">
+    <!-- Styles supplémentaires (entête + cartes prérequis, modal, etc.) -->
+    <link rel="stylesheet" type="text/css" href="./../../../static/synth_competences_extras.css">
+</head>
+<body>
+    <header>
+        {% include 'header_buttons.html' %}
+    </header>
+
+    <main>
+        <h1>Synthèse des Compétences</h1>
+
+        <!-- ====== ENTÊTE STYLÉE (remplace #manager-display + label/select) ====== -->
+        <header class="page-competences-header">
+          <div class="manager-chip">
+            <span class="dot"></span>
+            <span>Manager : <strong id="manager-name"></strong></span>
+          </div>
+
+          <div class="collab-select">
+            <label for="collaborator-select">Collaborateur :</label>
+            <!-- Laisse vide : ton JS remplira les options -->
+            <select id="collaborator-select"></select>
+          </div>
+        </header>
+        <!-- ================================================================ -->
+
+        <!-- On garde le conteneur des sections rôles juste après l’entête -->
+        <div id="roles-sections-container" style="margin-top: 30px;"></div>
+
+        <hr>
+        <button id="toggle-summary" class="btn btn-secondary">Afficher la synthèse globale</button>
+        <div id="global-summary-section" class="hidden" style="margin-top: 30px;"></div>
+
+        <div id="roles-competencies" style="margin-top: 40px;"></div>
+
+        <button id="save-competencies-button">Enregistrer ma notation de compétence</button>
+        <p id="admin-permission-message" style="margin-top: 10px; font-weight: bold; color: green; display: none;">
+            Vous avez le statut d'administrateur. Vous pouvez ainsi modifier cette page de manière permanente.
+        </p>
+    </main>
+
+    {% include 'competence_role_section.html' %}
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.13.6/underscore-min.js"></script>
+    <script src="{{ url_for('static', filename='js/synth_competences.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/plan_formation.js') }}"></script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            if (typeof userStatus !== 'undefined' && userStatus === 'administrateur') {
+                document.getElementById("admin-permission-message").style.display = "block";
+            }
+        });
+    </script>
+
+    {% include 'performance_perso_block.html' %}
+    <script src="{{ url_for('static', filename='js/performance_perso.js') }}"></script>
+
+    <!-- Toast (conservé) -->
+    <div id="toast-message" class="toast hidden">Succès</div>
+
+    <!-- Modal d’aperçu du plan (unique) -->
+    <div id="plan-modal" class="modal hidden">
+      <div class="modal__panel">
+        <div class="modal__head">
+          <h3>Proposition de plan</h3>
+          <button class="modal__close" data-modal-close>×</button>
+        </div>
+        <div id="plan-modal-content" class="modal__body"></div>
+        <div class="modal__foot">
+          <button class="btn" data-modal-close>Fermer</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Overlay de chargement global (génération de plan) -->
+    <div id="page-loader" class="page-loader hidden">
+      <div style="display:flex; flex-direction:column; align-items:center;">
+        <div class="spinner"></div>
+        <div class="label">Génération du plan…</div>
+      </div>
+    </div>
+
+</body>
+</html>

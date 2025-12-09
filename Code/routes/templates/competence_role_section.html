@@ -1,0 +1,135 @@
+<script type="text/template" id="template-role-block">
+  <!-- on ajoute data-role-id pour que le JS récupère le rôle -->
+  <div class="role-section" data-role-id="<%= role_id %>">
+    <h3 class="toggle-role">▼ <%= role_name %></h3>
+    <div class="role-content hidden">
+
+      <% if (activities.length === 0) { %>
+        <p><em>Aucune activité définie pour ce rôle en tant que garant.</em></p>
+      <% } else { %>
+        <p>Liste des activités du rôle « <%= role_name %> » :</p>
+
+        <% activities.forEach(function(act) { %>
+          <div class="activity-section" data-activity-id="<%= act.id %>">
+            <h4 class="toggle-activity">▼ <%= act.name %></h4>
+            <div class="activity-content hidden">
+
+              <!-- ====== TABLEAUX EXISTANTS ====== -->
+              <table class="eval-table">
+                <caption>Savoirs</caption>
+                <tr><th>Description</th><th>1</th><th>2</th><th>3</th></tr>
+                <% act.savoirs.forEach(function(s) { %>
+                  <tr>
+                    <td><%= s.description %></td>
+                    <% ['1','2','3'].forEach(function(k) { %>
+                      <td class="eval-cell <%= s.evals[k]?.note || '' %>"
+                          data-id="<%= s.id %>"
+                          data-type="savoirs"
+                          data-eval="<%= k %>"
+                          data-activity="<%= act.id %>">
+                      </td>
+                    <% }); %>
+                  </tr>
+                <% }); %>
+              </table>
+
+              <table class="eval-table">
+                <caption>Savoir-Faire</caption>
+                <tr><th>Description</th><th>1</th><th>2</th><th>3</th></tr>
+                <% act.savoir_faires.forEach(function(s) { %>
+                  <tr>
+                    <td><%= s.description %></td>
+                    <% ['1','2','3'].forEach(function(k) { %>
+                      <td class="eval-cell <%= s.evals[k]?.note || '' %>"
+                          data-id="<%= s.id %>"
+                          data-type="savoir_faires"
+                          data-eval="<%= k %>"
+                          data-activity="<%= act.id %>">
+                      </td>
+                    <% }); %>
+                  </tr>
+                <% }); %>
+              </table>
+
+              <table class="eval-table">
+                <caption>Habilités socio-cognitives</caption>
+                <tr><th>Description</th><th>1</th><th>2</th><th>3</th></tr>
+                <% act.hsc.forEach(function(s) { %>
+                  <tr>
+                    <td><%= s.description %> (<%= s.niveau %>)</td>
+                    <% ['1','2','3'].forEach(function(k) { %>
+                      <td class="eval-cell <%= s.evals[k]?.note || '' %>"
+                          data-id="<%= s.id %>"
+                          data-type="softskills"
+                          data-eval="<%= k %>"
+                          data-activity="<%= act.id %>">
+                      </td>
+                    <% }); %>
+                  </tr>
+                <% }); %>
+              </table>
+
+              <!-- ====== NOUVEAU : Bloc Prérequis & Plan ====== -->
+              <div class="prerequis-card"
+                   data-activity-id="<%= act.id %>"
+                   data-role-id="<%= role_id %>">
+                <div class="prerequis-card__header">
+                  <h4>Prérequis & plan (<%= act.name %>)</h4>
+                  <div class="prerequis-card__actions">
+                    <button class="btn btn-light btn-lg"   data-action="load-prerequis">Afficher les items</button>
+                    <button class="btn btn-primary btn-lg" data-action="save-prerequis"  disabled>Enregistrer les commentaires</button>
+                    <button class="btn btn-emerald btn-lg" data-action="save-and-generate" disabled>Enregistrer + Générer un plan</button>
+                  </div>
+                </div>
+
+                <div class="prerequis-table-wrapper">
+                  <table class="prerequis-table">
+                    <thead>
+                      <tr>
+                        <th>Item</th>
+                        <th>Type</th>
+                        <th>Commentaire du manager (prérequis, difficultés, niveau actuel)</th>
+                      </tr>
+                    </thead>
+                    <tbody class="prerequis-body">
+                      <!-- Lignes injectées par JS -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <!-- ====== /Bloc Prérequis & Plan ====== -->
+
+            </div>
+          </div>
+        <% }); %>
+
+        <div class="synthese-role">
+          <h4>Synthèse du rôle « <%= role_name %> »</h4>
+          <table class="eval-table">
+            <caption>Évaluation des activités du rôle</caption>
+            <tr><th>Activité</th><th>Garant</th><th>Manager</th><th>RH</th></tr>
+            <% synthese.forEach(function(row) { %>
+              <tr>
+                <td>
+                  <%= row.activity_name %><br>
+                  <% if (row.competencies && row.competencies.length > 0) { %>
+                    <small><i>Compétences : <%= row.competencies.join(", ") %></i></small>
+                  <% } %>
+                </td>
+                <% ['garant','manager','rh'].forEach(function(p) { %>
+                  <td class="eval-cell <%= row.evals[p]?.note || '' %>"
+                      data-id=""
+                      data-type=""
+                      data-eval="<%= p %>"
+                      data-activity="<%= row.activity_id %>">
+                  </td>
+                <% }); %>
+              </tr>
+            <% }); %>
+          </table>
+        </div>
+      <% } %>
+
+    </div>
+  </div>
+</script>

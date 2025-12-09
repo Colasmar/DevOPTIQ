@@ -1,44 +1,40 @@
 import os
 import sys
 from vsdx import VisioFile
-from sqlalchemy.exc import IntegrityError
 
-# Ajouter dynamiquement le chemin du projet pour accéder aux modules internes
+# Pour pouvoir importer Code.extensions et Code.models.models
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 from Code.extensions import db
-from Code.models.models import Activities, Data, Connections
+from Code.models.models import Activities, Data, Link
 
-# Mapping pour convertir les valeurs de calque en libellé normalisé
+# Calques Visio gérés
 LAYER_MAPPING = {
-    "1": "Activity",
-    "9": "N link",    # Nourrissante (ligne pointillée)
-    "10": "T link",   # Déclenchante (ligne pleine)
-    "6": "Result",    # Résultat (drapeau) -> sera traité comme activité
-    "8": "Return"     # Retour (rond)
+    "1": "Activity",    # rectangle normal
+    "9": "N link",      # ligne pointillée => nourrissante
+    "10": "T link",     # ligne pleine => déclenchante
+    "6": "Result",      # drapeau => activité de résultat
+    "8": "Return"       # rond => retour
 }
 
 # Calques à ignorer
 IGNORE_LAYERS = ["légende", "Color"]
 
-# Global mapping pour les activités (clé : ID Visio standardisé, valeur : ID en base)
+# ------------------- Variables globales -------------------
+# Elles sont utilisées par process_visio_file et print_summary
 activity_mapping = {}
-# Global mapping pour les retours (clé : ID Visio standardisé, valeur : texte de la forme)
-return_mapping = {}
-# Liste pour résumer les connexions créées (pour le rapport final)
-connection_summaries = []
+data_mapping = {}
+return_mapping = {}  # retours
 
-def get_entity_name(entity_id):
-    """
-    Renvoie le nom de l'entité dans Activities (prioritaire), sinon "inconnue".
-    """
-    act = Activities.query.get(entity_id)
-    if act:
-        return act.name.strip()
-    return "inconnue"
+connectors_list = []  # On y stocke toutes les infos des connecteurs (déclenchants/nourrissants)
+
+# Ces listes sont relues par print_summary()
+link_summaries = []     # (data_name, data_type, source_name, target_name)
+rename_summaries = []   # (old_name, new_name)
+
 
 def create_app():
-    """Crée une application Flask minimale avec contexte DB."""
+    """Exécuter ce script directement (standalone)."""
     from flask import Flask
     app = Flask(__name__)
     instance_path = os.path.abspath(os.path.join("Code", "instance"))
@@ -50,271 +46,427 @@ def create_app():
     db.init_app(app)
     return app
 
-def reset_database():
-    """Réinitialise la base en vidant toutes les tables et en réinitialisant les mappings."""
-    db.session.query(Connections).delete()
-    db.session.query(Data).delete()
-    db.session.query(Activities).delete()
-    db.session.commit()
-    activity_mapping.clear()
-    return_mapping.clear()
-    connection_summaries.clear()
-    print("INFO : La base de données a été réinitialisée avec succès.")
-
-def get_layer(shape):
-    """
-    Extrait la valeur du calque d'une forme à partir de son XML.
-    Retourne le libellé normalisé.
-    """
-    cell = shape.xml.find(".//{*}Cell[@N='LayerMember']")
-    if cell is not None:
-        value = cell.get("V")
-        return LAYER_MAPPING.get(value, value)
-    return None
-
-def get_fill_pattern(shape):
-    """
-    Extrait la valeur du FillPattern depuis la ShapeSheet.
-    Cherche la cellule dont N vaut "FillPattern" et retourne sa valeur (en chaîne),
-    ou None si non trouvée.
-    """
-    cell = shape.xml.find(".//{*}Cell[@N='FillPattern']")
-    if cell is not None:
-        return cell.get("V")
-    return None
 
 def process_visio_file(vsdx_path):
-    """Ouvre et traite un fichier Visio pour extraire les données."""
+    """
+    1) Parcours toutes les pages / formes du VSDX
+    2) Gère creation / maj / suppression de Activities/Data + fusion retours
+    3) Vide la table 'links'
+    4) Reconstruit tous les liens depuis 'connectors_list'
+    5) Nettoie orphelins
+    """
     if not os.path.exists(vsdx_path):
-        print(f"ERREUR : Le fichier Visio '{vsdx_path}' est introuvable.")
+        print(f"ERREUR : Fichier Visio introuvable : {vsdx_path}")
         return
+
+    print(f"INFO : Démarrage de l’import depuis {vsdx_path}")
+
+    # Réinit des globales
+    activity_mapping.clear()
+    data_mapping.clear()
+    return_mapping.clear()
+    connectors_list.clear()
+    link_summaries.clear()
+    rename_summaries.clear()
+
+    # Parcours du visio
     with VisioFile(vsdx_path) as visio:
         for page in visio.pages:
             print(f"INFO : Analyse de la page : {page.name}")
             for shape in page.all_shapes:
                 process_shape(shape)
 
+    # Suppression des activités et data obsolètes
+    del_act_count = remove_activities_not_in_new_mapping()
+    del_data_count = remove_data_not_in_new_mapping()
+
+    # On vide la table 'links'
+    Link.query.delete()
+    db.session.commit()
+    print("INFO : Table 'links' vidée, on va la reconstruire à partir de connectors_list...")
+
+    # Reconstruire la table des liens
+    rebuild_links_from_connectors()
+
+    # Nettoyage final orphelins
+    cleanup_orphan_links()
+
+    # Récap
+    print("INFO : Import terminé.")
+    print(f"      Activités ajoutées/mises à jour : {len(activity_mapping)} ; supprimées : {del_act_count}")
+    print(f"      Data (connecteurs/retours) totaux : {len(data_mapping)+len(return_mapping)} ; supprimés : {del_data_count}")
+
+
 def process_shape(shape):
-    """Oriente le traitement d'une forme selon son calque."""
+    """Oriente selon le calque (Activity, Return, T link, N link, etc.)."""
     layer = get_layer(shape)
-    if layer is None:
-        print("INFO : Forme sans calque détectée, ignorée.")
+    if not layer:
         return
-    if layer.lower() in [l.lower() for l in IGNORE_LAYERS]:
+    if layer.lower() in [x.lower() for x in IGNORE_LAYERS]:
         return
 
     if layer == "Activity":
-        add_activity(shape, is_result=False)
+        add_or_update_activity(shape, is_result=False)
     elif layer == "Result":
-        add_activity(shape, is_result=True)
+        add_or_update_activity(shape, is_result=True)
     elif layer == "Return":
-        add_return(shape)
-    elif layer in ["T link", "N link"]:
-        add_data_and_connections(shape)
+        add_or_update_return(shape)
+    elif layer in ("T link", "N link"):
+        store_connector_info(shape, layer)
     else:
-        print(f"INFO : Calque non traité ({layer}) pour la forme '{shape.text.strip() if shape.text else 'sans texte'}'.")
+        print(f"INFO : Calque '{layer}' non traité => forme '{shape.text or '??'}' ignorée.")
 
-def standardize_id(visio_id):
-    """Convertit l'ID de la forme en chaîne normalisée."""
-    try:
-        return str(int(visio_id)).strip().lower()
-    except (ValueError, TypeError):
-        return str(visio_id).strip().lower()
 
-def add_activity(shape, is_result=False):
-    """
-    Ajoute une activité dans Activities.
-    Pour les formes du calque "Activity", si FillPattern vaut "2", force is_result=True.
-    """
-    name = shape.text.strip() if shape.text else ("Résultat sans nom" if is_result else "Activité sans nom")
-    if not is_result:
-        fill_pattern = get_fill_pattern(shape)
-        if fill_pattern == "2":
-            is_result = True
-    try:
-        act = Activities(name=name, is_result=is_result)
-        db.session.add(act)
-        db.session.flush()  # Pour obtenir act.id
-        key = standardize_id(shape.ID)
-        activity_mapping[key] = act.id
-        type_str = "Activité de résultat" if is_result else "Activité"
-        print(f"INFO : {type_str} ajoutée : {name} (Visio ID: {shape.ID}, DB ID: {act.id})")
-    except IntegrityError:
-        db.session.rollback()
-        print(f"INFO : {('Activité de résultat' if is_result else 'Activité')} existante : {name}")
+def add_or_update_activity(shape, is_result=False):
+    key = standardize_id(shape.ID)
+    txt = shape.text.strip() if shape.text else ("Résultat sans nom" if is_result else "Activité sans nom")
 
-def add_return(shape):
-    """
-    Traite une forme de type "Return".
-    Enregistre la donnée dans Data avec le type "Retour" et met à jour le mapping des retours.
-    """
-    name = shape.text.strip() if shape.text else "Return sans nom"
-    try:
-        existing = Data.query.filter_by(name=name, type="Retour").first()
-        if existing:
-            print(f"INFO : Return réutilisé : {name}")
+    fill = get_fill_pattern(shape)
+    if fill and fill != "1":
+        is_result = True
+
+    act = Activities.query.filter_by(shape_id=key).first()
+    if act:
+        changed = False
+        old_name = act.name
+        if old_name != txt:
+            act.name = txt
+            rename_summaries.append((old_name, txt))
+            changed = True
+        if act.is_result != is_result:
+            act.is_result = is_result
+            changed = True
+        if changed:
+            print(f"INFO : Activity (ID={act.id}) maj => name='{txt}', is_result={is_result}")
         else:
-            d = Data(name=name, type="Retour")
-            db.session.add(d)
-            db.session.flush()
-            print(f"INFO : Return ajouté : {name}")
-        key = standardize_id(shape.ID)
-        return_mapping[key] = name
-    except IntegrityError:
-        db.session.rollback()
-        print(f"INFO : Problème avec le Return : {name}")
+            print(f"INFO : Activity (ID={act.id}) déjà existante, pas de modif.")
+    else:
+        new_a = Activities(name=txt, is_result=is_result, shape_id=key)
+        db.session.add(new_a)
+        db.session.flush()
+        print(f"INFO : Activity créée => '{txt}' (ID={new_a.id}, shape_id={key}, is_result={is_result})")
+        act = new_a
 
-def add_data_and_connections(shape):
+    activity_mapping[key] = act.id
+    db.session.commit()
+
+
+def add_or_update_return(shape):
     """
-    Traite une forme connecteur ("T link" ou "N link").
-    Crée ou réutilise une donnée dans Data et crée une connexion entre la source et la destination.
+    Gère une forme 'Return' => Data(type='Retour').
+    1) Crée/MAJ
+    2) Fusion si d’autres Retours ont le même nom
     """
-    data_name = shape.text.strip() if shape.text else "Donnée sans nom"
-    layer = get_layer(shape)
-    data_type = "déclenchante" if layer == "T link" else "nourrissante"
-    conns = analyze_connections(shape)
-    try:
-        existing = Data.query.filter_by(name=data_name, type=data_type, layer=layer).first()
-        if existing:
-            data_record = existing
-            print(f"INFO : Donnée réutilisée : {data_name} ({data_type})")
-        else:
-            data_record = Data(name=data_name, type=data_type, layer=layer)
-            db.session.add(data_record)
-            db.session.flush()
-            print(f"INFO : Donnée ajoutée : {data_name} ({data_type})")
-        
-        def resolve_id(visio_id):
-            if not visio_id:
-                return None
-            key = standardize_id(visio_id)
-            if key in activity_mapping:
-                return activity_mapping[key]
-            elif key in return_mapping:
-                act = Activities.query.filter(Activities.name.ilike(return_mapping[key])).first()
-                if act:
-                    return act.id
-            return None
+    key = standardize_id(shape.ID)
+    txt = shape.text.strip() or "Retour sans nom"
 
-        source_db_id = resolve_id(conns.get("from_id"))
-        target_db_id = resolve_id(conns.get("to_id"))
-
-        s_name = get_entity_name(source_db_id) if source_db_id else "inconnue"
-        t_name = get_entity_name(target_db_id) if target_db_id else "inconnue"
-
-        if s_name.strip().lower() == t_name.strip().lower():
-            print(f"WARNING: Source et target identiques ('{s_name}') pour donnée '{data_record.name}'. Connexion ignorée.")
+    d = Data.query.filter_by(shape_id=key, type="Retour").first()
+    if d:
+        old = d.name
+        if old != txt:
+            d.name = txt
+            rename_summaries.append((old, txt))
             db.session.commit()
-            return
+            print(f"INFO : Return (ID={d.id}) renommé '{old}' => '{txt}'")
+    else:
+        d = Data(name=txt, type="Retour", shape_id=key)
+        db.session.add(d)
+        db.session.flush()
+        print(f"INFO : Return créé => '{txt}' (ID={d.id}, shape_id={key})")
 
-        if source_db_id and target_db_id:
-            existing_conn = Connections.query.filter_by(
-                source_id=source_db_id,
-                target_id=target_db_id,
-                type=data_type
-            ).first()
-            if not existing_conn:
-                conn = Connections(
-                    source_id=source_db_id,
-                    target_id=target_db_id,
-                    type=data_type,
-                    description=data_record.name  # Ajout de la description pour la connexion complète
-                )
-                db.session.add(conn)
-                db.session.flush()
-                s_name = get_entity_name(source_db_id)
-                t_name = get_entity_name(target_db_id)
-                connection_summaries.append((data_record.name, data_record.type, s_name, t_name))
-                print(f"INFO : Connexion ajoutée entre {s_name} et {t_name} pour donnée {data_name}")
-        else:
-            if conns.get("from_id"):
-                sid = resolve_id(conns.get("from_id"))
-                if sid:
-                    existing_conn = Connections.query.filter_by(
-                        source_id=sid,
-                        target_id=data_record.id,
-                        type="output"
-                    ).first()
-                    if not existing_conn:
-                        conn = Connections(
-                            source_id=sid,
-                            target_id=data_record.id,
-                            type="output"
-                        )
-                        db.session.add(conn)
-                        db.session.flush()
-                        s_name = get_entity_name(sid)
-                        connection_summaries.append((data_record.name, data_record.type, s_name, "inconnue"))
-                        print(f"INFO : Connexion output ajoutée entre {s_name} et donnée {data_name}")
-            if conns.get("to_id"):
-                tid = resolve_id(conns.get("to_id"))
-                if tid:
-                    existing_conn = Connections.query.filter_by(
-                        source_id=data_record.id,
-                        target_id=tid,
-                        type="input"
-                    ).first()
-                    if not existing_conn:
-                        conn = Connections(
-                            source_id=data_record.id,
-                            target_id=tid,
-                            type="input"
-                        )
-                        db.session.add(conn)
-                        db.session.flush()
-                        t_name = get_entity_name(tid)
-                        connection_summaries.append((data_record.name, data_record.type, "inconnue", t_name))
-                        print(f"INFO : Connexion input ajoutée entre donnée {data_name} et {t_name}")
+    return_mapping[key] = d.id
+    db.session.commit()
+
+    # Fusion
+    unify_retours(d)
+
+
+def unify_retours(d):
+    """Si d’autres Data(type='Retour') ont le même .name, on supprime (sauf d)."""
+    keeper_id = d.id
+    duplicates = Data.query.filter(
+        Data.type == "Retour",
+        Data.name == d.name,
+        Data.id != keeper_id
+    ).all()
+    for dupe in duplicates:
+        print(f"INFO : Fusion retours => supprime Return ID={dupe.id} shape_id={dupe.shape_id}")
+        db.session.delete(dupe)
+    db.session.commit()
+
+
+def store_connector_info(shape, layer):
+    """
+    On stocke en mémoire les connecteurs (data), 
+    puis on créera les liens plus tard dans rebuild_links_from_connectors().
+    """
+    key = standardize_id(shape.ID)
+    txt = shape.text.strip() or "Donnée sans nom"
+    data_type = "déclenchante" if layer == "T link" else "nourrissante"
+
+    d = Data.query.filter_by(shape_id=key, type=data_type).first()
+    if d:
+        old = d.name
+        if old != txt:
+            d.name = txt
+            rename_summaries.append((old, txt))
+            db.session.commit()
+            print(f"INFO : Connector rename: (ID={d.id}) '{old}' => '{txt}'")
+    else:
+        d = Data(name=txt, type=data_type, shape_id=key, layer=layer)
+        db.session.add(d)
+        db.session.flush()
+        print(f"INFO : Connector créé => '{txt}' (ID={d.id}, shape_id={key})")
+
+    data_mapping[key] = d.id
+    db.session.commit()
+
+    # Récupère from_id / to_id
+    conns = analyze_connections(shape)
+    from_id = conns.get("from_id")
+    to_id = conns.get("to_id")
+
+    connectors_list.append({
+        "data_id": d.id,
+        "data_name": d.name,
+        "data_type": data_type,
+        "from_raw": from_id,
+        "to_raw": to_id
+    })
+
+
+def remove_activities_not_in_new_mapping():
+    existing_acts = Activities.query.filter(Activities.shape_id.isnot(None)).all()
+    count = 0
+    for act in existing_acts:
+        if act.shape_id not in activity_mapping:
+            print(f"INFO : Suppression Activity '{act.name}' (ID={act.id}, shape_id={act.shape_id})")
+            db.session.delete(act)
+            count += 1
+    db.session.commit()
+    return count
+
+
+def remove_data_not_in_new_mapping():
+    existing_data = Data.query.filter(Data.shape_id.isnot(None)).all()
+    count = 0
+    for d in existing_data:
+        sid = d.shape_id
+        if sid not in data_mapping and sid not in return_mapping:
+            print(f"INFO : Suppression data '{d.name}' (ID={d.id}, type={d.type}, shape_id={sid})")
+            db.session.delete(d)
+            count += 1
+    db.session.commit()
+    return count
+
+
+def rebuild_links_from_connectors():
+    """
+    Pour chaque connecteur stocké dans connectors_list, on crée un Link
+    (source=..., target=..., description=data_name) 
+    si from/to pointent vers des entités valides (Activity ou Data).
+    """
+    for c in connectors_list:
+        data_id = c["data_id"]
+        data_name = c["data_name"]
+        data_type = c["data_type"]
+        from_raw = c["from_raw"]
+        to_raw = c["to_raw"]
+
+        if not from_raw or not to_raw or (from_raw == to_raw):
+            print(f"INFO : Connecteur partiel/boucle => '{data_name}', on ignore.")
+            continue
+
+        (skind, sid) = resolve_visio_id(from_raw)
+        (tkind, tid) = resolve_visio_id(to_raw)
+
+        if not sid or not tid or sid == tid:
+            print(f"INFO : Connecteur impossible => '{data_name}' => on ignore")
+            continue
+
+        create_single_link(data_id, data_name, data_type, skind, sid, tkind, tid)
+
+
+def create_single_link(data_id, data_name, data_type, skind, sid, tkind, tid):
+    """
+    Crée un Link reliant source(activity/data) => target(activity/data).
+    """
+    s_name = get_entity_name(sid, skind)
+    t_name = get_entity_name(tid, tkind)
+
+    new_link = Link(type=data_type, description=data_name)
+
+    if skind == 'activity':
+        new_link.source_activity_id = sid
+    else:
+        new_link.source_data_id = sid
+
+    if tkind == 'activity':
+        new_link.target_activity_id = tid
+    else:
+        new_link.target_data_id = tid
+
+    # Vérif duplication
+    q = Link.query.filter_by(type=data_type, description=data_name)
+    if new_link.source_activity_id:
+        q = q.filter_by(source_activity_id=new_link.source_activity_id)
+    else:
+        q = q.filter_by(source_data_id=new_link.source_data_id)
+
+    if new_link.target_activity_id:
+        q = q.filter_by(target_activity_id=new_link.target_activity_id)
+    else:
+        q = q.filter_by(target_data_id=new_link.target_data_id)
+
+    if q.first():
+        print(f"INFO : Lien déjà existant => {s_name} -> {t_name} (data='{data_name}') => on ignore")
+        return
+
+    db.session.add(new_link)
+    db.session.flush()
+
+    link_summaries.append((data_name, data_type, s_name, t_name))
+    print(f"INFO : Lien créé => {s_name} -> {t_name} (data='{data_name}')")
+
+
+def cleanup_orphan_links():
+    """
+    Si un lien pointe sur un ID inexistant, on le supprime.
+    """
+    all_links = Link.query.all()
+    removed = 0
+    for lk in all_links:
+        remove_this = False
+        if lk.source_activity_id and not Activities.query.get(lk.source_activity_id):
+            remove_this = True
+        if lk.source_data_id and not Data.query.get(lk.source_data_id):
+            remove_this = True
+        if lk.target_activity_id and not Activities.query.get(lk.target_activity_id):
+            remove_this = True
+        if lk.target_data_id and not Data.query.get(lk.target_data_id):
+            remove_this = True
+        if remove_this:
+            print(f"INFO : Suppression lien orphelin ID={lk.id}, desc='{lk.description}'")
+            db.session.delete(lk)
+            removed += 1
+
+    if removed > 0:
         db.session.commit()
-    except IntegrityError:
-        db.session.rollback()
-        print(f"INFO : Problème d'insertion pour la donnée {data_name}")
+        print(f"INFO : {removed} lien(s) orphelin(s) supprimé(s).")
+
+
+def get_layer(shape):
+    cell = shape.xml.find(".//{*}Cell[@N='LayerMember']")
+    if cell is not None:
+        val = cell.get("V")
+        return LAYER_MAPPING.get(val, val)
+    return None
+
+
+def get_fill_pattern(shape):
+    cell = shape.xml.find(".//{*}Cell[@N='FillPattern']")
+    if cell is not None:
+        return cell.get("V")
+    return None
+
 
 def analyze_connections(shape):
-    """
-    Analyse le XML d'une forme pour extraire les IDs de connexion.
-    Recherche les cellules dont N vaut "BeginX" et "EndX" et retourne {"from_id": ..., "to_id": ...}.
-    """
+    """Retourne {'from_id':..., 'to_id':...}"""
     conns = {"from_id": None, "to_id": None}
     for cell in shape.xml.findall(".//{*}Cell"):
-        n_val = cell.get("N")
-        f_val = cell.get("F")
-        if n_val == "BeginX":
-            conns["from_id"] = extract_shape_id(f_val)
-        elif n_val == "EndX":
-            conns["to_id"] = extract_shape_id(f_val)
+        n = cell.get("N")
+        f = cell.get("F")
+        if n == "BeginX":
+            conns["from_id"] = extract_shape_id(f)
+        elif n == "EndX":
+            conns["to_id"] = extract_shape_id(f)
     return conns
 
+
 def extract_shape_id(f_val):
-    """
-    Extrait l'ID d'une forme connectée à partir de la chaîne f_val.
-    Cherche la sous-chaîne après "Sheet." et convertit en entier.
-    """
     if f_val and "Sheet." in f_val:
         try:
             return int(f_val.split("Sheet.")[1].split("!")[0])
-        except ValueError:
+        except:
             return None
     return None
 
+
+def resolve_visio_id(raw_id):
+    """
+    Convertit l'int 'raw_id' en (kind, db_id).
+    S'il s'agit d'un Return, on tente d'associer l'activité correspondante si possible.
+    """
+    if not raw_id:
+        return (None, None)
+    key = str(raw_id).lower()
+
+    if key in activity_mapping:
+        return ('activity', activity_mapping[key])
+    if key in data_mapping:
+        return ('data', data_mapping[key])
+    if key in return_mapping:
+        d_id = return_mapping[key]
+        d = Data.query.get(d_id)
+        if d and d.type.lower() == "retour":
+            # Chercher l'activité portant le même nom
+            same_act = Activities.query.filter_by(name=d.name).first()
+            if same_act:
+                return ('activity', same_act.id)
+        return ('data', d_id)
+
+    return (None, None)
+
+
+def get_entity_name(eid, kind):
+    """Renvoie .name de l’activité ou du data pour logs."""
+    if not eid:
+        return "??"
+    if kind == 'activity':
+        a = Activities.query.get(eid)
+        return a.name if a else "activité_inconnue"
+    elif kind == 'data':
+        dd = Data.query.get(eid)
+        return dd.name if dd else "data_inconnue"
+    return "inconnu"
+
+
+def standardize_id(visio_id):
+    """Convertit shape.ID en string stable."""
+    try:
+        return str(int(visio_id)).strip().lower()
+    except:
+        return str(visio_id).strip().lower()
+
+
 def print_summary():
     """
-    Affiche un résumé clair des connexions enregistrées.
-    Pour chaque connexion dans connection_summaries, affiche :
-      "Donnée <nom> (<type>) produite par <source> est utilisée par <destination>"
+    Affiche (print) un résumé des liens créés (link_summaries)
+    et des renommages (rename_summaries).
+    Cette fonction est appelée par activities.py
+    dans la route /update-cartography (avec contextlib.redirect_stdout).
     """
-    print("\n--- Résumé des connexions ---")
-    if connection_summaries:
-        for data_name, data_type, src, tgt in connection_summaries:
-            print(f'Donnée "{data_name}" ({data_type}) produite par "{src}" est utilisée par "{tgt}"')
+    print("\n--- RÉSUMÉ DES LIENS ---")
+    if link_summaries:
+        for (data_name, data_type, s_name, t_name) in link_summaries:
+            print(f"  - '{data_name}' ({data_type}) : {s_name} -> {t_name}")
     else:
-        print("Aucune connexion enregistrée.")
+        print("  Aucun lien créé")
     print("--- Fin du résumé ---\n")
 
+    if rename_summaries:
+        print("--- Renommages détectés ---")
+        for (old, new) in rename_summaries:
+            print(f"  * '{old}' => '{new}'")
+        print("--- Fin des renommages ---\n")
+
+    print("CONFIRMATION : toutes les opérations ont été effectuées avec succès.")
+
+
 if __name__ == "__main__":
+    from flask import Flask
     app = create_app()
     with app.app_context():
-        reset_database()
         vsdx_path = os.path.join("Code", "example.vsdx")
         process_visio_file(vsdx_path)
         print_summary()

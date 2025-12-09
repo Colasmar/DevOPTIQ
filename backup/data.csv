@@ -1,0 +1,38 @@
+id,shape_id,name,type,description,layer
+1,675,Lancement  de l’’analyse de faisabilité,déclenchante,,T link
+2,680,Lancement pré-projet,déclenchante,,T link
+3,681,Offre à réaliser,déclenchante,,T link
+4,682,Liste des composants,déclenchante,,T link
+5,683,Planning prévisionnel projet,nourrissante,,N link
+6,685,Offre,déclenchante,,T link
+7,687,Demande de cotation,déclenchante,,T link
+8,688,cotation,nourrissante,,N link
+9,689,Produits sélectionnés,nourrissante,,N link
+10,1001,Offre à suivre,déclenchante,,T link
+11,1002,Mise à jour du Web,Retour,,
+12,1003,Enquête client,nourrissante,,N link
+14,1005,Enquête client,nourrissante,,N link
+15,1017,Demande de tests qualité,déclenchante,,T link
+16,1018,Préparation projet,Retour,,
+17,1019,Test laboratoire,Retour,,
+18,1020,Feuille de test,nourrissante,,N link
+19,1021,Feuille de test,nourrissante,,N link
+20,1023,Résultat strétégique,nourrissante,,N link
+21,1024,Ajustement,déclenchante,,T link
+22,1026,Evaluation produit,déclenchante,,T link
+23,1028,Résultat contrôle produit,nourrissante,,N link
+25,1032,Contrôle Qualité,Retour,,
+26,1033,Analyse de faisabilité,Retour,,
+28,1035,REX,nourrissante,,N link
+29,1036,REX,nourrissante,,N link
+30,1037,Feuille de prix,nourrissante,,N link
+31,1043,AMDEC,nourrissante,,N link
+32,1044,AMDEC,nourrissante,,N link
+33,1046,Bon de commande,déclenchante,,T link
+34,1048,Demande de négociation,nourrissante,,N link
+35,1050,Consutation,déclenchante,,T link
+36,1051,Update,déclenchante,,T link
+42,1053,Impayés,déclenchante,,T link
+72,1054,Résultat labo client,nourrissante,,N link
+91,1056,PAiement,déclenchante,,T link
+163,1034,Négociation de l’ offre,Retour,,

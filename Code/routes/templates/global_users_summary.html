@@ -1,0 +1,56 @@
+{% include "header_buttons.html" %}
+<link rel="stylesheet" href="{{ url_for('static', filename='global_users_summary.css') }}">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+
+<h1>Aperçu global des utilisateurs</h1>
+
+<div class="filter-export-controls">
+  <label for="role-filter">Filtrer par rôle :</label>
+  <select id="role-filter" onchange="applyFilter()">
+    <option value="all">Tous</option>
+    {% for role in all_role_names %}
+      <option value="{{ role }}">{{ role }}</option>
+    {% endfor %}
+  </select>
+  <button onclick="openExportModal()">Exporter</button>
+</div>
+
+<div class="summary-table-wrapper">
+  <table id="user-summary-table" class="global-summary-table">
+    <thead>
+      <tr>
+        <th>Utilisateur</th>
+        {% for role in roles %}
+          <th class="role-header" data-role="{{ role.name }}">{{ role.name }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+        {% for row in user_rows %}
+        <tr data-manager-id="{{ row.manager_id }}">
+            <td class="user-name full-row-click" data-user-id="{{ row.user_id }}">{{ row.user }}</td>
+            {% for note in row.notes %}
+            <td class="eval-cell {{ note or 'empty' }}" data-role="{{ roles_loop[loop.index0] }}">
+                {% if not note %}-{% endif %}
+            </td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+        </tbody>
+  </table>
+</div>
+
+<!-- Modal export -->
+<div id="exportModal" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="closeExportModal()">✕</span>
+    <h3>Exporter le tableau</h3>
+    <button onclick="exportToExcel()">Excel</button>
+    <button onclick="exportToPDF()">PDF</button>
+  </div>
+</div>
+
+
+<script src="{{ url_for('static', filename='js/global_users_summary.js') }}"></script>
