@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, jsonify
 from Code.extensions import db
-from Code.models.models import User, Role, UserRole
+from Code.models.models import User, Role, UserRole, Entity
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text
 
@@ -8,24 +8,46 @@ gestion_rh_bp = Blueprint('gestion_rh', __name__, url_prefix='/gestion_rh')
 
 @gestion_rh_bp.route('/')
 def gestion_rh_home():
-    row = db.session.execute(text("SELECT * FROM entreprise_settings LIMIT 1")).mappings().fetchone()
+    # MODIFIÉ: Filtrer les paramètres par entité active
+    active_entity_id = Entity.get_active_id()
+    if active_entity_id:
+        row = db.session.execute(
+            text("SELECT * FROM entreprise_settings WHERE entity_id = :eid LIMIT 1"),
+            {"eid": active_entity_id}
+        ).mappings().fetchone()
+    else:
+        row = db.session.execute(text("SELECT * FROM entreprise_settings LIMIT 1")).mappings().fetchone()
     settings = dict(row) if row else {}
-    roles = Role.query.order_by(Role.name).all()
-    users = User.query.order_by(User.last_name).all()
+    # MODIFIÉ: Filtrer par entité active
+    roles = Role.for_active_entity().order_by(Role.name).all()
+    users = User.for_active_entity().order_by(User.last_name).all()
     return render_template('gestion_rh.html', settings=settings, roles=roles, users=users)
 
 @gestion_rh_bp.route('/update_settings', methods=['POST'])
 def update_settings():
     data = request.form
-    db.session.execute("DELETE FROM entreprise_settings")
+    # MODIFIÉ: Gérer les paramètres par entité
+    active_entity_id = Entity.get_active_id()
+    
+    # Supprimer les anciens paramètres de cette entité
+    if active_entity_id:
+        db.session.execute(
+            text("DELETE FROM entreprise_settings WHERE entity_id = :eid"),
+            {"eid": active_entity_id}
+        )
+    else:
+        db.session.execute(text("DELETE FROM entreprise_settings"))
+    
+    # Insérer les nouveaux paramètres
     db.session.execute(text("""
-        INSERT INTO entreprise_settings (work_hours_per_day, work_days_per_week, work_weeks_per_year, work_days_per_year)
-        VALUES (:h, :d, :w, :y)
+        INSERT INTO entreprise_settings (work_hours_per_day, work_days_per_week, work_weeks_per_year, work_days_per_year, entity_id)
+        VALUES (:h, :d, :w, :y, :eid)
     """), {
         "h": data.get("work_hours_per_day"),
         "d": data.get("work_days_per_week"),
         "w": data.get("work_weeks_per_year"),
-        "y": data.get("work_days_per_year")
+        "y": data.get("work_days_per_year"),
+        "eid": active_entity_id
     })
     db.session.commit()
     return redirect(url_for('gestion_rh.gestion_rh_home'))
@@ -55,6 +77,9 @@ def import_roles():
         filepath = os.path.join(UPLOAD_FOLDER, secure_filename(file.filename))
         file.save(filepath)
 
+        # MODIFIÉ: Récupérer l'entité active pour associer les rôles importés
+        active_entity_id = Entity.get_active_id()
+
         with open(filepath, newline='', encoding='utf-8') as csvfile:
             reader = csv.reader(csvfile)
             for row in reader:
@@ -62,7 +87,11 @@ def import_roles():
                     name = row[0].strip()
                     if name:
                         try:
-                            db.session.execute(text("INSERT INTO roles (name) VALUES (:name)"), {'name': name})
+                            # MODIFIÉ: Ajouter entity_id lors de l'import
+                            db.session.execute(
+                                text("INSERT INTO roles (name, entity_id) VALUES (:name, :entity_id)"), 
+                                {'name': name, 'entity_id': active_entity_id}
+                            )
                         except IntegrityError:
                             db.session.rollback()  # si doublon, ignorer
                         else:
@@ -74,20 +103,35 @@ def import_roles():
 def update_single_setting():
     key = request.form.get("key")
     value = request.form.get("value")
+    
+    # MODIFIÉ: Gérer les paramètres par entité
+    active_entity_id = Entity.get_active_id()
 
-    # Récupère ou crée la ligne entreprise_settings
-    row = db.session.execute(text("SELECT * FROM entreprise_settings LIMIT 1")).fetchone()
+    # Récupère ou crée la ligne entreprise_settings pour cette entité
+    if active_entity_id:
+        row = db.session.execute(
+            text("SELECT * FROM entreprise_settings WHERE entity_id = :eid LIMIT 1"),
+            {"eid": active_entity_id}
+        ).fetchone()
+    else:
+        row = db.session.execute(text("SELECT * FROM entreprise_settings LIMIT 1")).fetchone()
+    
     if not row:
         db.session.execute(text("""
-            INSERT INTO entreprise_settings (work_hours_per_day, work_days_per_week, work_weeks_per_year, work_days_per_year)
-            VALUES (NULL, NULL, NULL, NULL)
-        """))
+            INSERT INTO entreprise_settings (work_hours_per_day, work_days_per_week, work_weeks_per_year, work_days_per_year, entity_id)
+            VALUES (NULL, NULL, NULL, NULL, :eid)
+        """), {"eid": active_entity_id})
         db.session.commit()
 
-    # Effectue une mise à jour du champ concerné
-    db.session.execute(text(f"""
-        UPDATE entreprise_settings SET {key} = :val
-    """), {'val': value})
+    # Effectue une mise à jour du champ concerné pour cette entité
+    if active_entity_id:
+        db.session.execute(text(f"""
+            UPDATE entreprise_settings SET {key} = :val WHERE entity_id = :eid
+        """), {'val': value, 'eid': active_entity_id})
+    else:
+        db.session.execute(text(f"""
+            UPDATE entreprise_settings SET {key} = :val
+        """), {'val': value})
     db.session.commit()
     return jsonify(success=True)
 
@@ -103,7 +147,9 @@ def create_or_update_role():
         if role:
             role.name = name
     else:
-        new_role = Role(name=name)
+        # MODIFIÉ: Associer le nouveau rôle à l'entité active
+        active_entity_id = Entity.get_active_id()
+        new_role = Role(name=name, entity_id=active_entity_id)
         db.session.add(new_role)
     db.session.commit()
     return jsonify(success=True)
@@ -123,7 +169,12 @@ def get_collaborateurs():
     search = request.args.get('search', '').lower()
     role_filter = request.args.get('role', '')
 
+    # MODIFIÉ: Filtrer par entité active
+    active_entity_id = Entity.get_active_id()
     query = db.session.query(User).join(UserRole, isouter=True).join(Role, isouter=True)
+    
+    if active_entity_id:
+        query = query.filter(User.entity_id == active_entity_id)
 
     if search:
         query = query.filter((User.first_name + ' ' + User.last_name).ilike(f"%{search}%"))
@@ -186,7 +237,8 @@ def assign_manager():
 
 @gestion_rh_bp.route('/roles')
 def get_all_roles():
-    roles = Role.query.order_by(Role.name).all()
+    # MODIFIÉ: Filtrer par entité active
+    roles = Role.for_active_entity().order_by(Role.name).all()
     return jsonify([{'id': r.id, 'name': r.name} for r in roles])
 
 @gestion_rh_bp.route('/users_by_roles')
@@ -211,7 +263,8 @@ def get_users_by_roles():
 
 @gestion_rh_bp.route('/users_with_roles')
 def get_users_with_roles():
-    users = User.query.all()
+    # MODIFIÉ: Filtrer par entité active
+    users = User.for_active_entity().all()
     result = []
     for user in users:
         roles = [ur.role.name for ur in user.user_roles if ur.role is not None]
@@ -227,7 +280,8 @@ def get_users_with_roles():
 @gestion_rh_bp.route('/users_with_role')
 def get_users_with_role():
     role_name = request.args.get('role')
-    role = Role.query.filter_by(name=role_name).first()
+    # MODIFIÉ: Filtrer par entité active
+    role = Role.for_active_entity().filter_by(name=role_name).first()
     if not role:
         return jsonify([])
     users = db.session.query(User).join(UserRole).filter(UserRole.role_id == role.id).all()

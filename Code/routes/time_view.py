@@ -7,7 +7,7 @@ from Code.models.models import (
     Activities, Task, Role, TimeAnalysis,
     TimeProject, TimeProjectLine, TimeWeakness,
     TimeRoleAnalysis, TimeRoleLine,
-    activity_roles
+    activity_roles, Entity
 )
 
 time_bp = Blueprint('time_view', __name__, url_prefix='/temps')
@@ -80,8 +80,9 @@ def ensure_time_role_schema():
 # ---------- Page ----------
 @time_bp.route('/', methods=['GET'])
 def page():
-    activities = Activities.query.order_by(Activities.name.asc()).all()
-    roles = Role.query.order_by(Role.name.asc()).all()
+    # MODIFIÉ: Filtrer par entité active
+    activities = Activities.for_active_entity().order_by(Activities.name.asc()).all()
+    roles = Role.for_active_entity().order_by(Role.name.asc()).all()
     return render_template('time_dashboard.html', activities=activities, roles=roles)
 
 @time_bp.route('/api/calendar_params', methods=['GET'])
@@ -171,7 +172,9 @@ def api_project_create():
     name = (data.get('name') or 'Projet sans titre').strip()
     lines = data.get('lines') or []
 
-    proj = TimeProject(name=name, created_at=datetime.utcnow())
+    # MODIFIÉ: Associer le projet à l'entité active
+    active_entity_id = Entity.get_active_id()
+    proj = TimeProject(name=name, created_at=datetime.utcnow(), entity_id=active_entity_id)
     db.session.add(proj)
     db.session.flush()
 
@@ -199,56 +202,46 @@ def api_project_read(project_id):
             "duration_minutes": float(ln.duration_minutes),
             "delay_minutes": float(ln.delay_minutes),
             "nb_people": ln.nb_people,
-            "charge": charge
+            "charge_minutes": charge
         })
-        tot_nb += 1
+        tot_nb += ln.nb_people
         tot_dur += float(ln.duration_minutes)
-        sum_delay += float(ln.delay_minutes)
         tot_charge += charge
-    avg_delay = (sum_delay / tot_nb) if tot_nb else 0.0
+        sum_delay += float(ln.delay_minutes)
     return jsonify({
         "ok": True,
-        "project": {"id": proj.id, "name": proj.name, "created_at": proj.created_at.isoformat() },
+        "project": {"id": proj.id, "name": proj.name, "created_at": proj.created_at.isoformat() if proj.created_at else None},
         "lines": rows,
-        "summary": {
-            "nb_activites": tot_nb,
-            "tot_duree_minutes": tot_dur,
-            "delais_optimum_minutes": avg_delay,
-            "charge_globale_minutes": tot_charge
-        }
+        "total_nb_people": tot_nb,
+        "total_duration_minutes": tot_dur,
+        "total_charge_minutes": tot_charge,
+        "total_delay_minutes": sum_delay
     })
 
 @time_bp.route('/api/projects', methods=['GET'])
 def api_projects_list():
-    projs = TimeProject.query.order_by(TimeProject.created_at.desc(), TimeProject.id.desc()).all()
+    # MODIFIÉ: Filtrer par entité active
+    projs = TimeProject.for_active_entity().order_by(TimeProject.created_at.desc(), TimeProject.id.desc()).all()
     out = []
     for p in projs:
-        nb = len(p.lines)
-        tot_dur = sum(float(x.duration_minutes) for x in p.lines)
-        sum_delay = sum(float(x.delay_minutes) for x in p.lines)
-        tot_charge = sum(float(x.duration_minutes) * max(1, x.nb_people) for x in p.lines)
-        avg_delay = (sum_delay / nb) if nb else 0.0
+        tot_dur = sum(float(ln.duration_minutes) for ln in p.lines)
+        tot_charge = sum(float(ln.duration_minutes) * max(1, ln.nb_people) for ln in p.lines)
         out.append({
-            "id": p.id, "name": p.name, "created_at": p.created_at.isoformat(),
-            "nb_activites": nb, "tot_duree_minutes": tot_dur,
-            "delais_optimum_minutes": avg_delay, "charge_globale_minutes": tot_charge
+            "id": p.id,
+            "name": p.name,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+            "line_count": len(p.lines),
+            "total_duration_minutes": tot_dur,
+            "total_charge_minutes": tot_charge
         })
-    return jsonify({"ok": True, "projects": out})
+    return jsonify({"ok": True, "items": out})
 
-@time_bp.route('/api/project/<int:project_id>', methods=['PATCH', 'DELETE'])
-def api_project_update_delete(project_id):
+@time_bp.route('/api/project/<int:project_id>', methods=['DELETE'])
+def api_project_delete(project_id):
     proj = TimeProject.query.get_or_404(project_id)
-    if request.method == 'PATCH':
-        data = request.get_json(force=True) or {}
-        new_name = (data.get('name') or '').strip()
-        if new_name:
-            proj.name = new_name
-            db.session.commit()
-        return jsonify({"ok": True, "id": proj.id, "name": proj.name})
-    else:
-        db.session.delete(proj)
-        db.session.commit()
-        return jsonify({"ok": True, "deleted": True})
+    db.session.delete(proj)
+    db.session.commit()
+    return jsonify({"ok": True, "deleted": True})
 
 @time_bp.route('/api/project_line/<int:line_id>', methods=['DELETE'])
 def api_project_line_delete(line_id):
@@ -257,123 +250,104 @@ def api_project_line_delete(line_id):
     db.session.delete(ln)
     db.session.flush()
     remaining = TimeProjectLine.query.filter_by(project_id=proj_id).count()
-    project_deleted = False
+    deleted = False
     if remaining == 0:
         proj = TimeProject.query.get(proj_id)
         if proj:
             db.session.delete(proj)
-            project_deleted = True
+            deleted = True
     db.session.commit()
-    return jsonify({"ok": True, "project_deleted": project_deleted, "project_id": proj_id})
+    return jsonify({"ok": True, "project_deleted": deleted, "project_id": proj_id})
 
-# ========================= CHARGES : ACTIVITE =========================
-@time_bp.route('/api/activity_workload', methods=['POST'])
-def api_activity_workload():
+# ========================= TIME ANALYSIS =========================
+@time_bp.route('/api/time_analysis', methods=['POST'])
+def api_time_analysis_create():
     d = request.get_json(force=True) or {}
-    ta = TimeAnalysis(
-        type='activity',
-        activity_id=int(d['activity_id']),
-        duration=int(round(to_minutes(d.get('duration', 0), d.get('duration_unit')))),
-        recurrence=(d.get('recurrence') or 'journalier').strip().lower(),
-        frequency=int(d.get('frequency') or 1),
-        nb_people=int(d.get('nb_people') or 1),
-        delay=None,
-        delay_increase=None,
-        impact_unit='minutes'
-    )
-    db.session.add(ta)
-    db.session.commit()
-    total = float(ta.duration) * max(1, ta.frequency) * max(1, ta.nb_people)
-    return jsonify({"ok": True, "id": ta.id, "total_minutes": total})
+    mode = (d.get('mode') or 'activity').strip().lower()
+    rec = (d.get('recurrence') or 'journalier').strip().lower()
+    freq = int(d.get('frequency') or 1)
+    delay_total = to_minutes(d.get('delay', 0), d.get('delay_unit') or 'minutes')
+    activity_id = int(d.get('activity_id')) if d.get('activity_id') else None
 
-@time_bp.route('/api/activity_workload/<int:wk_id>', methods=['PATCH'])
-def api_activity_workload_update(wk_id):
-    x = TimeAnalysis.query.get_or_404(wk_id)
-    if x.type != 'activity':
-        return jsonify({"ok": False, "error": "bad_type"}), 400
-    d = request.get_json(force=True) or {}
-    if d.get('activity_id') is not None: x.activity_id = int(d['activity_id'])
-    if d.get('duration') is not None and d.get('duration_unit'):
-        x.duration = int(round(to_minutes(d['duration'], d['duration_unit'])))
-    if d.get('recurrence') is not None: x.recurrence = (d['recurrence'] or '').strip().lower()
-    if d.get('frequency') is not None: x.frequency = int(d['frequency'])
-    if d.get('nb_people') is not None: x.nb_people = int(d['nb_people'])
+    if mode == 'tasks':
+        tasks_payload = d.get('tasks') or []
+        for t in tasks_payload:
+            dur = to_minutes(t.get('duration', 0), t.get('duration_unit') or 'minutes')
+            db.session.add(TimeAnalysis(
+                type='task', activity_id=activity_id, task_id=int(t.get('task_id')),
+                duration=int(dur), recurrence=rec, frequency=freq, delay=int(delay_total)
+            ))
+    else:
+        dur = to_minutes(d.get('duration', 0), d.get('duration_unit') or 'minutes')
+        db.session.add(TimeAnalysis(
+            type='activity', activity_id=activity_id, task_id=None,
+            duration=int(dur), recurrence=rec, frequency=freq, delay=int(delay_total)
+        ))
     db.session.commit()
-    total = float(x.duration or 0) * max(1, x.frequency or 1) * max(1, x.nb_people or 1)
-    return jsonify({"ok": True, "id": x.id, "total_minutes": total})
+    return jsonify({"ok": True})
 
-@time_bp.route('/api/activity_workload/<int:wk_id>', methods=['DELETE'])
-def api_activity_workload_delete(wk_id):
-    x = TimeAnalysis.query.get_or_404(wk_id)
-    if x.type != 'activity':
-        return jsonify({"ok": False, "error": "bad_type"}), 400
+@time_bp.route('/api/time_analyses', methods=['GET'])
+def api_time_analyses_list():
+    activity_id = request.args.get('activity_id', type=int)
+    q = TimeAnalysis.query
+    if activity_id:
+        q = q.filter(TimeAnalysis.activity_id == activity_id)
+    items = q.order_by(TimeAnalysis.id.desc()).all()
+    out = []
+    for x in items:
+        act = Activities.query.get(x.activity_id)
+        out.append({
+            "id": x.id,
+            "type": x.type,
+            "activity_id": x.activity_id,
+            "activity": act.name if act else "",
+            "task_id": x.task_id,
+            "duration": x.duration,
+            "recurrence": x.recurrence,
+            "frequency": x.frequency,
+            "delay": x.delay,
+            "annual_time": x.annual_time
+        })
+    return jsonify({"ok": True, "items": out})
+
+@time_bp.route('/api/time_analysis/<int:tid>', methods=['DELETE'])
+def api_time_analysis_delete(tid):
+    x = TimeAnalysis.query.get_or_404(tid)
     db.session.delete(x)
     db.session.commit()
     return jsonify({"ok": True, "deleted": True})
 
-@time_bp.route('/api/activity_workloads', methods=['GET'])
-def api_activity_workloads_list():
-    items = (TimeAnalysis.query
-             .filter_by(type='activity')
-             .order_by(TimeAnalysis.id.desc())
-             .all())
-    out = []
-    for x in items:
-        act = Activities.query.get(x.activity_id)
-        total = float(x.duration or 0) * max(1, x.frequency or 1) * max(1, x.nb_people or 1)
-        out.append({
-            "id": x.id,
-            "activity_id": x.activity_id,
-            "activity": act.name if act else "",
-            "duration_minutes": float(x.duration or 0),
-            "recurrence": x.recurrence,
-            "frequency": int(x.frequency or 1),
-            "nb_people": int(x.nb_people or 1),
-            "total_minutes": total
-        })
-    return jsonify({"ok": True, "items": out})
-
-@time_bp.route('/api/activity_workload/<int:wk_id>', methods=['GET'])
-def api_activity_workload_read(wk_id):
-    x = TimeAnalysis.query.get_or_404(wk_id)
-    act = Activities.query.get(x.activity_id)
-    total = float(x.duration or 0) * max(1, x.frequency or 1) * max(1, x.nb_people or 1)
+# ========================= ACTIVITÉS (liste) =========================
+@time_bp.route('/api/activities', methods=['GET'])
+def api_activities_list():
+    # MODIFIÉ: Filtrer par entité active
+    qs = (Activities.for_active_entity()
+          .order_by(Activities.name.asc())
+          .all())
     return jsonify({
         "ok": True,
-        "item": {
-            "id": x.id,
-            "activity_id": x.activity_id,
-            "activity": act.name if act else "",
-            "duration_minutes": float(x.duration or 0),
-            "recurrence": x.recurrence,
-            "frequency": int(x.frequency or 1),
-            "nb_people": int(x.nb_people or 1),
-            "total_minutes": total
-        }
+        "items": [{
+            "id": a.id,
+            "name": a.name,
+            "duration_minutes": float(getattr(a, 'duration_minutes', 0) or 0),
+            "delay_minutes": float(getattr(a, 'delay_minutes', 0) or 0)
+        } for a in qs]
     })
 
-# ========================= CHARGES : PAR RÔLE =========================
-@time_bp.route('/api/role_activities/<int:role_id>', methods=['GET'])
-def api_role_activities(role_id):
-    qs = (Activities.query
-          .join(activity_roles, Activities.id == activity_roles.c.activity_id)
-          .filter(activity_roles.c.role_id == role_id)
-          .order_by(Activities.name.asc()))
-    items = [{"id": a.id, "name": a.name} for a in qs.all()]
-    return jsonify({"ok": True, "activities": items})
-
+# ========================= ROLE ANALYSIS =========================
 @time_bp.route('/api/role_analysis', methods=['POST'])
 def api_role_analysis_create():
     ensure_time_role_schema()
     d = request.get_json(force=True) or {}
-    R = TimeRoleAnalysis(
-        role_id=int(d['role_id']),
-        name=(d.get('name') or 'Analyse rôle').strip(),
-        created_at=datetime.utcnow()
-    )
+    role_id = int(d.get('role_id'))
+    name = (d.get('name') or 'Analyse rôle').strip()
+    lines = d.get('lines') or []
+
+    R = TimeRoleAnalysis(role_id=role_id, name=name, created_at=datetime.utcnow())
     db.session.add(R)
     db.session.flush()
-    for ln in (d.get('lines') or []):
+
+    for ln in lines:
         db.session.add(TimeRoleLine(
             role_analysis_id=R.id,
             activity_id=int(ln['activity_id']),

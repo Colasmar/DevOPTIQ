@@ -1,13 +1,13 @@
 /* ================================================
-   CARTOGRAPHIE DES ACTIVITÉS - STYLES
-   Avec gestionnaire d'entités
+   CARTOGRAPHIE DES ACTIVITÉS - CSS COMPLET
+   Inclut: Pan/Zoom, Liste activités, Gestionnaire d'entités
 ================================================ */
 
 /* ================================================
    CONTENEUR GLOBAL
 ================================================ */
 .carto-page {
-  max-width: 1400px;
+  max-width: 1600px;
   margin: 0 auto;
   padding: 20px 16px 40px;
 }
@@ -16,7 +16,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   flex-wrap: wrap;
   gap: 12px;
 }
@@ -28,38 +28,82 @@
   flex-wrap: wrap;
 }
 
+.carto-header-right {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .carto-page h1 {
   margin: 0;
   font-size: 1.8rem;
   font-weight: 700;
 }
 
-/* Badge entité active */
-.active-entity-badge,
-.no-entity-badge {
+/* ================================================
+   BADGE ENTITÉ ACTIVE
+================================================ */
+.entity-badge {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
+  gap: 6px;
+  padding: 6px 14px;
   border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.entity-badge.active {
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+  color: #065f46;
+  border: 1px solid #22c55e;
+}
+
+.entity-badge.inactive {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  color: #92400e;
+  border: 1px solid #f59e0b;
+}
+
+/* ================================================
+   BOUTONS HEADER
+================================================ */
+.btn-entity-manager {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+  border-radius: 12px;
+  padding: 10px 18px;
   font-weight: 600;
   font-size: 0.95rem;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  transition: all 0.15s ease;
 }
 
-.active-entity-badge {
-  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+.btn-entity-manager:hover {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+}
+
+.carto-actions-btn {
+  background: #16a34a;
+  color: white;
+  border-radius: 12px;
+  padding: 10px 18px;
+  font-weight: 600;
+  font-size: 0.95rem;
   border: 1px solid #22c55e;
-  color: #065f46;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+  transition: all 0.15s ease;
 }
 
-.no-entity-badge {
-  background: linear-gradient(135deg, #fef3c7, #fde68a);
-  border: 1px solid #f59e0b;
-  color: #92400e;
-}
-
-.badge-icon {
-  font-size: 1.1rem;
+.carto-actions-btn:hover {
+  background: white;
+  color: #16a34a;
+  transform: translateY(-1px);
 }
 
 /* ================================================
@@ -76,7 +120,6 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.15);
 }
 
 .carto-info-message::before {
@@ -84,58 +127,17 @@
   font-size: 1.2rem;
 }
 
-.carto-info-message strong {
-  color: #047857;
-}
-
-.carto-info-warning {
-  background: linear-gradient(135deg, #fef3c7, #fde68a);
-  border-color: #f59e0b;
-  color: #92400e;
-}
-
-.carto-info-warning::before {
-  content: "⚠️";
-}
-
-.carto-info-warning strong {
-  color: #b45309;
-}
-
 /* ================================================
-   BOUTON "GESTIONNAIRE D'ENTITÉS"
-================================================ */
-.carto-actions-btn {
-  background: #16a34a;
-  color: white;
-  border-radius: 12px;
-  padding: 10px 18px;
-  font-weight: 700;
-  font-size: 0.98rem;
-  border: 1px solid #22c55e;
-  cursor: pointer;
-  box-shadow: 0 8px 18px rgba(34, 197, 94, 0.35);
-  transition: all 0.12s ease;
-}
-
-.carto-actions-btn:hover {
-  background: white;
-  color: #16a34a;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.25);
-  transform: translateY(-1px);
-}
-
-/* ================================================
-   POPUP - BASE
+   POPUP GÉNÉRAL
 ================================================ */
 .popup {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 300;
+  z-index: 1000;
   padding: 20px;
 }
 
@@ -144,483 +146,446 @@
 }
 
 .popup-content {
-  width: 700px;
+  width: 500px;
   max-width: 95%;
   background: #ffffff;
   padding: 28px;
-  border-radius: 18px;
-  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.20), 0 8px 18px rgba(0, 0, 0, 0.15);
-  border: 1px solid #e5e7eb;
-  max-height: 90vh;
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  max-height: 85vh;
   overflow-y: auto;
 }
 
-.entity-manager-content {
-  width: 800px;
+.popup-content.popup-large {
+  width: 900px;
+  max-width: 95%;
 }
 
 .popup-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .popup-header h2 {
   margin: 0;
-  font-size: 1.6rem;
-  font-weight: 700;
+  font-size: 1.5rem;
 }
 
-.popup-close-btn {
-  background: #f3f4f6;
+.btn-close {
+  background: none;
   border: none;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  font-size: 1.2rem;
+  font-size: 1.5rem;
   cursor: pointer;
-  transition: all 0.15s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.popup-close-btn:hover {
-  background: #fee2e2;
-  color: #dc2626;
-}
-
-.popup-subtitle {
   color: #6b7280;
-  margin: 0 0 20px;
-  font-size: 0.95rem;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: all 0.15s;
 }
 
-.popup-content hr {
-  border: none;
-  border-top: 1px solid #e5e7eb;
-  margin: 20px 0;
-}
-
-/* ================================================
-   SECTIONS ENTITÉS
-================================================ */
-.entity-section {
-  margin-bottom: 16px;
-}
-
-.entity-section h3 {
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin: 0 0 12px;
-  color: #374151;
-}
-
-/* Formulaire création */
-.create-entity-form {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.entity-input {
-  flex: 1;
-  min-width: 150px;
-  padding: 10px 14px;
-  border: 1px solid #d1d5db;
-  border-radius: 10px;
-  font-size: 0.95rem;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.entity-input:focus {
-  outline: none;
-  border-color: #22c55e;
-  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
-}
-
-/* ================================================
-   LISTE DES ENTITÉS
-================================================ */
-.entities-list {
-  max-height: 250px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-right: 4px;
-}
-
-.entities-loading,
-.no-entities {
-  text-align: center;
-  padding: 30px;
-  color: #6b7280;
-}
-
-.no-entities .hint {
-  font-size: 0.85rem;
-  color: #9ca3af;
-  margin-top: 8px;
-}
-
-.entity-card {
-  background: #f9fafb;
-  border: 2px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 14px 16px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.entity-card:hover {
+.btn-close:hover {
   background: #f3f4f6;
-  border-color: #d1d5db;
-}
-
-.entity-card.selected {
-  background: #ecfdf5;
-  border-color: #22c55e;
-  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.15);
-}
-
-.entity-card.active {
-  background: linear-gradient(135deg, #f0fdf4, #dcfce7);
-}
-
-.entity-card-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 6px;
-}
-
-.entity-icon {
-  font-size: 1.2rem;
-}
-
-.entity-name {
-  font-weight: 600;
   color: #111827;
-  flex: 1;
-}
-
-.active-tag {
-  background: #22c55e;
-  color: white;
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 3px 8px;
-  border-radius: 6px;
-  text-transform: uppercase;
-}
-
-.entity-card-meta {
-  display: flex;
-  gap: 16px;
-  font-size: 0.8rem;
-  color: #6b7280;
 }
 
 /* ================================================
-   DÉTAILS ENTITÉ
+   GESTIONNAIRE D'ENTITÉS - LAYOUT
 ================================================ */
-.entity-details {
-  animation: fadeIn 0.2s ease;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.entity-actions-grid {
+.entity-manager-layout {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-top: 16px;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 24px;
+  min-height: 400px;
 }
 
-@media (max-width: 600px) {
-  .entity-actions-grid {
+@media (max-width: 768px) {
+  .entity-manager-layout {
     grid-template-columns: 1fr;
   }
 }
 
-.entity-action-card {
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 16px;
-}
-
-.entity-action-card h4 {
-  margin: 0 0 12px;
-  font-size: 1rem;
-  font-weight: 600;
+/* Section liste entités */
+.entity-list-section h3,
+.entity-details-section h3 {
+  margin: 0 0 12px 0;
+  font-size: 1.1rem;
   color: #374151;
 }
 
-.entity-buttons {
+/* Formulaire nouvelle entité */
+.new-entity-form {
   display: flex;
-  flex-direction: column;
   gap: 8px;
+  margin-bottom: 16px;
+}
+
+.new-entity-form input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+
+.new-entity-form input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Liste des entités */
+.entities-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+.entity-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.entity-item:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.entity-item.active {
+  background: #ecfdf5;
+  border-color: #22c55e;
+}
+
+.entity-item.selected {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.entity-name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.entity-active-badge {
+  background: #22c55e;
+  color: white;
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.entity-count {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.no-entity {
+  padding: 20px;
+  text-align: center;
+  color: #6b7280;
+  font-style: italic;
+}
+
+/* Section détails entité */
+.entity-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #9ca3af;
+  text-align: center;
+  padding: 40px;
+}
+
+.entity-details h3 {
+  font-size: 1.3rem;
+  margin-bottom: 8px;
+}
+
+.entity-description {
+  color: #6b7280;
+  margin-bottom: 16px;
 }
 
 /* Stats entité */
 .entity-stats {
-  display: flex;
-  gap: 24px;
-  margin-top: 20px;
-  padding: 16px;
-  background: #f3f4f6;
-  border-radius: 12px;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 20px;
 }
 
 .stat-item {
+  background: #f9fafb;
+  padding: 16px;
+  border-radius: 10px;
   text-align: center;
 }
 
 .stat-value {
   display: block;
-  font-size: 1.5rem;
+  font-size: 1.8rem;
   font-weight: 700;
-  color: #16a34a;
+  color: #111827;
 }
 
 .stat-label {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: #6b7280;
 }
 
-/* ================================================
-   DROPZONE
-================================================ */
-.dropzone {
-  background: #f3f4f6;
-  border: 2px dashed #9ca3af;
-  padding: 24px 16px;
-  text-align: center;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.15s ease;
+/* Actions entité */
+.entity-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
 }
 
-.dropzone:hover,
-.dropzone.dragover {
-  background: #ecfdf5;
-  border-color: #22c55e;
+/* Upload section */
+.entity-upload-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
 }
 
-.dropzone-icon {
-  font-size: 2rem;
-  margin-bottom: 8px;
-}
-
-.dropzone-text {
-  font-size: 0.95rem;
-  color: #374151;
-  margin-bottom: 4px;
-}
-
-.dropzone-hint {
-  font-size: 0.8rem;
-  color: #9ca3af;
-}
-
-/* Status messages */
-.status-message {
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  margin-top: 10px;
-  text-align: center;
-}
-
-.status-loading {
-  background: #fef3c7;
-  color: #92400e;
-  border: 1px solid #fcd34d;
-}
-
-.status-success {
-  background: #d1fae5;
-  color: #065f46;
-  border: 1px solid #34d399;
-}
-
-.status-error {
-  background: #fee2e2;
-  color: #991b1b;
-  border: 1px solid #fca5a5;
+.entity-upload-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 1rem;
 }
 
 /* ================================================
-   BOUTONS
+   BOUTONS GÉNÉRIQUES
 ================================================ */
-.btn-green {
-  background: linear-gradient(135deg, #16a34a, #22c55e);
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 10px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  font-size: 0.95rem;
-}
-
-.btn-green:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
-}
-
-.btn-green:disabled,
-.btn-green.btn-disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
 .btn-blue {
   background: linear-gradient(135deg, #3b82f6, #2563eb);
   color: white;
   border: none;
-  padding: 10px 20px;
-  border-radius: 10px;
+  padding: 10px 18px;
+  border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
-  font-size: 0.95rem;
+  transition: all 0.15s;
 }
 
 .btn-blue:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
 }
 
-.btn-blue:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.btn-green {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
 }
 
-.btn-blue.btn-small {
-  padding: 8px 14px;
-  font-size: 0.85rem;
-  margin-top: 10px;
+.btn-green:hover {
+  background: linear-gradient(135deg, #16a34a, #15803d);
 }
 
 .btn-red {
   background: linear-gradient(135deg, #ef4444, #dc2626);
   color: white;
   border: none;
-  padding: 10px 20px;
-  border-radius: 10px;
+  padding: 10px 18px;
+  border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.15s;
 }
 
 .btn-red:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
 }
 
-.btn-outline {
-  background: white;
+.btn-gray {
+  background: #f3f4f6;
   color: #374151;
   border: 1px solid #d1d5db;
-  padding: 10px 20px;
-  border-radius: 10px;
+  padding: 10px 18px;
+  border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.15s;
 }
 
-.btn-outline:hover {
-  background: #f9fafb;
-  border-color: #9ca3af;
-}
-
-.btn-red-outline {
-  background: white;
-  color: #dc2626;
-  border: 1px solid #fca5a5;
-  padding: 10px 20px;
-  border-radius: 10px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.btn-red-outline:hover {
-  background: #fee2e2;
-  border-color: #dc2626;
+.btn-gray:hover {
+  background: #e5e7eb;
 }
 
 /* ================================================
-   MODALS
+   MODAL DE CONFIRMATION
 ================================================ */
 .modal {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.7);
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 400;
-  padding: 20px;
+  z-index: 1100;
 }
 
 .modal-content {
   background: white;
-  padding: 24px;
+  padding: 28px;
   border-radius: 16px;
-  max-width: 450px;
-  width: 100%;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  max-width: 500px;
+  width: 90%;
+}
+
+.modal-content.modal-danger {
+  border-top: 4px solid #ef4444;
 }
 
 .modal-content h3 {
-  margin: 0 0 12px;
-  font-size: 1.3rem;
+  margin: 0 0 16px 0;
 }
 
-.modal-content p {
-  margin: 0 0 12px;
-  color: #4b5563;
+.delete-warning-detail {
+  color: #dc2626;
+  font-weight: 500;
 }
 
-.warning-text {
-  background: #fef3c7;
-  border: 1px solid #fcd34d;
-  padding: 10px 14px;
+.delete-consequences {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
   border-radius: 8px;
-  font-size: 0.9rem;
-  color: #92400e;
+  padding: 12px 12px 12px 32px;
+  margin: 12px 0;
+  color: #991b1b;
 }
 
-.modal-buttons {
+.delete-consequences li {
+  margin: 4px 0;
+}
+
+.delete-warning-final {
+  background: #fef2f2;
+  padding: 10px;
+  border-radius: 8px;
+  text-align: center;
+  color: #991b1b;
+}
+
+.modal-actions {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   justify-content: flex-end;
   margin-top: 20px;
 }
 
+/* Modal renommage */
+#rename-input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 1rem;
+  margin: 16px 0;
+}
+
 /* ================================================
-   SECTION SVG + LISTE
+   DROPZONE
+================================================ */
+.dropzone {
+  background: #f9fafb;
+  border: 2px dashed #d1d5db;
+  padding: 30px 20px;
+  text-align: center;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: #6b7280;
+}
+
+.dropzone:hover {
+  background: #ecfdf5;
+  border-color: #22c55e;
+  color: #065f46;
+}
+
+.dropzone.dragover {
+  background: #ecfdf5;
+  border-color: #22c55e;
+  border-style: solid;
+}
+
+.dropzone-status {
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.dropzone-status.loading {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.dropzone-status.success {
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.dropzone-status.error {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+/* ================================================
+   CONTENU PRINCIPAL (SVG + Liste)
 ================================================ */
 .carto-container {
   display: flex;
-  flex-direction: column;
   gap: 20px;
+  min-height: calc(100vh - 250px);
 }
 
 .carto-left {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
+}
+
+.carto-right {
+  width: 320px;
+  flex-shrink: 0;
+  background: #f9fafb;
+  padding: 20px;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e5e7eb;
+  max-height: calc(100vh - 250px);
+  overflow-y: auto;
+}
+
+@media (max-width: 1024px) {
+  .carto-container {
+    flex-direction: column;
+  }
+  
+  .carto-right {
+    width: 100%;
+    max-height: 400px;
+  }
 }
 
 /* ================================================
@@ -629,26 +594,24 @@
 .carto-toolbar {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 6px 12px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.85);
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35);
+  background: rgba(15, 23, 42, 0.9);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
   margin-bottom: 10px;
 }
 
 .carto-toolbar button {
   border: none;
-  outline: none;
   cursor: pointer;
   border-radius: 999px;
-  padding: 5px 12px;
+  padding: 6px 14px;
   font-size: 0.95rem;
-  font-weight: 500;
-  background: linear-gradient(135deg, #16a34a, #22c55e);
-  color: #ecfdf5;
-  box-shadow: 0 4px 10px rgba(22, 163, 74, 0.45);
-  transition: all 0.1s ease;
+  font-weight: 600;
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: white;
+  transition: all 0.1s;
 }
 
 .carto-toolbar button:hover {
@@ -656,23 +619,22 @@
 }
 
 #carto-zoom-reset {
-  min-width: 75px;
-  background: linear-gradient(135deg, #0f172a, #1e293b);
-  color: #e5e7eb;
+  min-width: 70px;
+  background: linear-gradient(135deg, #374151, #1f2937);
 }
 
 /* ================================================
-   WRAPPER SVG — ZONE PAN/ZOOM
+   WRAPPER SVG (Pan/Zoom)
 ================================================ */
 .carto-pan-wrapper {
   position: relative;
-  height: calc(100vh - 260px);
+  height: calc(100vh - 280px);
   min-height: 400px;
   border-radius: 12px;
   overflow: hidden;
-  background: #f3f4f6;
+  background: #f8fafc;
   cursor: grab;
-  user-select: none;
+  border: 1px solid #e2e8f0;
 }
 
 .carto-pan-wrapper.panning {
@@ -680,102 +642,55 @@
 }
 
 #pan-inner {
-  position: absolute;
-  top: 0;
-  left: 0;
+  width: 100%;
+  height: 100%;
   transform-origin: 0 0;
-  transition: transform 0.1s ease-out;
+  transition: transform 0.15s ease-out;
 }
 
 #pan-inner.no-transition {
   transition: none;
 }
 
-.svg-container {
+#svg-container {
+  width: 100%;
+  height: 100%;
+}
+
+#svg-container svg {
   display: block;
 }
 
-.svg-container svg {
-  display: block;
-  max-width: none;
-  max-height: none;
-}
-
-/* Placeholders */
-.svg-placeholder {
+/* Placeholder SVG */
+.svg-placeholder,
+.svg-error {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   height: 100%;
   min-height: 300px;
+  color: #6b7280;
   text-align: center;
   padding: 40px;
-  color: #6b7280;
 }
 
-.placeholder-icon {
-  font-size: 4rem;
-  margin-bottom: 16px;
-  opacity: 0.6;
-}
-
-.svg-placeholder h3 {
-  margin: 0 0 8px;
-  font-size: 1.4rem;
-  color: #374151;
-}
-
-.svg-placeholder p {
-  margin: 0 0 20px;
-  max-width: 300px;
-}
-
-.svg-loading {
-  text-align: center;
-  padding: 60px;
-  color: #6b7280;
-  font-size: 1.1rem;
+.svg-placeholder p:first-child,
+.svg-error p:first-child {
+  font-size: 1.5rem;
+  margin-bottom: 8px;
 }
 
 .svg-error {
-  text-align: center;
-  padding: 40px;
-  color: #6b7280;
-}
-
-.svg-error p:first-child {
-  font-size: 3rem;
-  margin-bottom: 16px;
-}
-
-/* ================================================
-   ACTIVITÉS DANS LE SVG (hover)
-================================================ */
-.carto-activity {
-  cursor: pointer !important;
-  transition: filter 0.15s ease, opacity 0.15s ease;
-}
-
-.carto-activity:hover {
-  filter: drop-shadow(0 0 8px #22c55e);
-  opacity: 0.85;
+  color: #dc2626;
 }
 
 /* ================================================
    LISTE DES ACTIVITÉS
 ================================================ */
-.carto-right {
-  background: #f9fafb;
-  padding: 20px;
-  border-radius: 16px;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.15);
-  border: 1px solid rgba(148, 163, 184, 0.3);
-}
-
 .carto-right h2 {
   margin: 0 0 16px;
-  font-size: 1.3rem;
+  font-size: 1.2rem;
   font-weight: 700;
   color: #111827;
 }
@@ -784,31 +699,6 @@
   list-style: none;
   padding: 0;
   margin: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 12px;
-  max-height: 400px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #22c55e #e5e7eb;
-}
-
-.activities-list::-webkit-scrollbar {
-  width: 8px;
-}
-
-.activities-list::-webkit-scrollbar-track {
-  background: #e5e7eb;
-  border-radius: 10px;
-}
-
-.activities-list::-webkit-scrollbar-thumb {
-  background: #22c55e;
-  border-radius: 10px;
-}
-
-.activities-list::-webkit-scrollbar-thumb:hover {
-  background: #16a34a;
 }
 
 .activity-item {
@@ -820,20 +710,20 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  transition: transform 0.08s ease, box-shadow 0.08s ease, border-color 0.12s ease, background-color 0.12s ease;
+  margin-bottom: 8px;
+  transition: all 0.1s;
 }
 
 .activity-item:hover {
   background: #ecfdf5;
   border-color: #22c55e;
-  box-shadow: 0 8px 20px rgba(34, 197, 94, 0.18);
-  transform: translateY(-2px);
+  transform: translateX(4px);
 }
 
 .activity-item .num {
   font-weight: 700;
   color: #16a34a;
-  font-size: 1rem;
+  font-size: 0.9rem;
   min-width: 32px;
   height: 32px;
   display: flex;
@@ -846,7 +736,7 @@
 
 .activity-item .label {
   color: #111827;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 500;
   line-height: 1.3;
   overflow: hidden;
@@ -858,56 +748,37 @@
 
 .no-activities {
   text-align: center;
-  padding: 30px;
+  padding: 30px 20px;
   color: #6b7280;
 }
 
 .no-activities .hint {
   font-size: 0.85rem;
-  color: #9ca3af;
   margin-top: 8px;
+  color: #9ca3af;
 }
 
 /* ================================================
-   RESPONSIVE
+   INFO TEXT
 ================================================ */
-@media (max-width: 768px) {
-  .carto-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+.info-text {
+  background: #eff6ff;
+  padding: 12px;
+  border-radius: 8px;
+  color: #1e40af;
+  font-size: 0.9rem;
+  margin: 16px 0;
+}
 
-  .carto-header-left {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
+/* ================================================
+   ACTIVITÉS CLIQUABLES DANS LE SVG
+================================================ */
+.carto-activity {
+  cursor: pointer !important;
+  transition: filter 0.15s, opacity 0.15s;
+}
 
-  .carto-pan-wrapper {
-    height: 50vh;
-    min-height: 300px;
-  }
-
-  .activities-list {
-    grid-template-columns: 1fr;
-    max-height: 300px;
-  }
-
-  .carto-info-message {
-    font-size: 0.8rem;
-    padding: 8px 12px;
-  }
-
-  .entity-actions-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .create-entity-form {
-    flex-direction: column;
-  }
-
-  .entity-stats {
-    flex-wrap: wrap;
-    gap: 16px;
-  }
+.carto-activity:hover {
+  filter: drop-shadow(0 0 8px #22c55e);
+  opacity: 0.85;
 }

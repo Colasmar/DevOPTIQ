@@ -3,7 +3,7 @@
 from flask import Blueprint, request, jsonify
 from sqlalchemy import text, func
 from Code.extensions import db
-from Code.models.models import Role
+from Code.models.models import Role, Entity
 
 roles_bp = Blueprint('roles', __name__, url_prefix='/roles')
 
@@ -11,8 +11,9 @@ roles_bp = Blueprint('roles', __name__, url_prefix='/roles')
 def list_roles():
     """
     Retourne la liste de tous les rôles, triés par ordre alphabétique insensible à la casse.
+    MODIFIÉ: Filtrer par entité active
     """
-    roles = Role.query.order_by(func.lower(Role.name)).all()
+    roles = Role.for_active_entity().order_by(func.lower(Role.name)).all()
     data = [{"id": r.id, "name": r.name} for r in roles]
     return jsonify(data), 200
 
@@ -30,10 +31,12 @@ def set_garant_role(activity_id):
     if not role_name:
         return jsonify({"error": "role_name is required"}), 400
 
-    # Vérifier si le rôle existe déjà
-    existing = Role.query.filter_by(name=role_name).first()
+    # MODIFIÉ: Vérifier si le rôle existe déjà pour l'entité active
+    existing = Role.for_active_entity().filter_by(name=role_name).first()
     if not existing:
-        existing = Role(name=role_name)
+        # MODIFIÉ: Créer le rôle avec l'entité active
+        active_entity_id = Entity.get_active_id()
+        existing = Role(name=role_name, entity_id=active_entity_id)
         db.session.add(existing)
         db.session.commit()
 

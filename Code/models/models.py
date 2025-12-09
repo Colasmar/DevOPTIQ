@@ -30,7 +30,7 @@ task_roles = db.Table(
 
 
 # -------------------------------------------------------------------
-# NOUVEAU : Modèle Entity (Organisation/Entreprise)
+# Modèle Entity (Organisation/Entreprise)
 # -------------------------------------------------------------------
 class Entity(db.Model):
     """
@@ -69,6 +69,12 @@ class Entity(db.Model):
         return cls.query.filter_by(is_active=True).first()
     
     @classmethod
+    def get_active_id(cls):
+        """Retourne l'ID de l'entité active (ou None)."""
+        entity = cls.get_active()
+        return entity.id if entity else None
+    
+    @classmethod
     def set_active(cls, entity_id):
         """Définit une entité comme active (désactive les autres)."""
         # Désactiver toutes les entités
@@ -82,7 +88,7 @@ class Entity(db.Model):
 
 
 # -------------------------------------------------------------------
-# Modèles - CORRIGÉ avec autoincrement=True pour PostgreSQL
+# Modèles principaux
 # -------------------------------------------------------------------
 class Activities(db.Model):
     __tablename__ = 'activities'
@@ -117,6 +123,21 @@ class Activities(db.Model):
         db.UniqueConstraint('entity_id', 'shape_id', name='uq_entity_shape'),
     )
 
+    # =============================================
+    # HELPER : Filtrer par entité active
+    # =============================================
+    @classmethod
+    def for_active_entity(cls):
+        """
+        Retourne une query filtrée par l'entité active.
+        Usage: Activities.for_active_entity().all()
+        """
+        active_entity_id = Entity.get_active_id()
+        if active_entity_id:
+            return cls.query.filter_by(entity_id=active_entity_id)
+        # Si pas d'entité active, retourner query vide
+        return cls.query.filter(cls.id < 0)
+
 
 class Data(db.Model):
     __tablename__ = 'data'
@@ -132,6 +153,13 @@ class Data(db.Model):
     __table_args__ = (
         db.UniqueConstraint('entity_id', 'shape_id', name='uq_entity_data_shape'),
     )
+
+    @classmethod
+    def for_active_entity(cls):
+        active_entity_id = Entity.get_active_id()
+        if active_entity_id:
+            return cls.query.filter_by(entity_id=active_entity_id)
+        return cls.query.filter(cls.id < 0)
 
 
 class Task(db.Model):
@@ -167,6 +195,13 @@ class Tool(db.Model):
         db.UniqueConstraint('entity_id', 'name', name='uq_entity_tool_name'),
     )
 
+    @classmethod
+    def for_active_entity(cls):
+        active_entity_id = Entity.get_active_id()
+        if active_entity_id:
+            return cls.query.filter_by(entity_id=active_entity_id)
+        return cls.query.filter(cls.id < 0)
+
 
 class Competency(db.Model):
     __tablename__ = 'competencies'
@@ -198,6 +233,13 @@ class Role(db.Model):
         db.UniqueConstraint('entity_id', 'name', name='uq_entity_role_name'),
     )
 
+    @classmethod
+    def for_active_entity(cls):
+        active_entity_id = Entity.get_active_id()
+        if active_entity_id:
+            return cls.query.filter_by(entity_id=active_entity_id)
+        return cls.query.filter(cls.id < 0)
+
 
 class Link(db.Model):
     __tablename__ = 'links'
@@ -218,6 +260,13 @@ class Link(db.Model):
     @property
     def target_id(self):
         return self.target_activity_id if self.target_activity_id is not None else self.target_data_id
+
+    @classmethod
+    def for_active_entity(cls):
+        active_entity_id = Entity.get_active_id()
+        if active_entity_id:
+            return cls.query.filter_by(entity_id=active_entity_id)
+        return cls.query.filter(cls.id < 0)
 
 
 class Performance(db.Model):
@@ -292,6 +341,13 @@ class User(db.Model):
 
     subordinates = db.relationship('User', backref=db.backref('manager', remote_side=[id]))
     evaluations = db.relationship('CompetencyEvaluation', back_populates='user', cascade='all, delete-orphan')
+
+    @classmethod
+    def for_active_entity(cls):
+        active_entity_id = Entity.get_active_id()
+        if active_entity_id:
+            return cls.query.filter_by(entity_id=active_entity_id)
+        return cls.query.filter(cls.id < 0)
 
 
 class UserRole(db.Model):
@@ -392,6 +448,13 @@ class TimeProject(db.Model):
     name = db.Column(db.String(120))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     lines = db.relationship('TimeProjectLine', backref='project', cascade="all, delete-orphan")
+
+    @classmethod
+    def for_active_entity(cls):
+        active_entity_id = Entity.get_active_id()
+        if active_entity_id:
+            return cls.query.filter_by(entity_id=active_entity_id)
+        return cls.query.filter(cls.id < 0)
 
 
 class TimeProjectLine(db.Model):
