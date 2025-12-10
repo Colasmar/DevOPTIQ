@@ -52,7 +52,10 @@ def ensure_entity_dir(entity_id):
 # ============================================================
 @activities_map_bp.route("/map")
 def activities_map_page():
+    from flask import session
+    
     active_entity = Entity.get_active()
+    active_entity_id = session.get('active_entity_id')
     
     svg_exists = False
     if active_entity:
@@ -81,7 +84,7 @@ def activities_map_page():
             "name": active_entity.name,
             "description": active_entity.description or "",
             "svg_filename": active_entity.svg_filename,
-            "is_active": active_entity.is_active
+            "is_active": True  # Par définition, c'est l'entité active
         }
     
     all_entities_list = [
@@ -90,7 +93,7 @@ def activities_map_page():
             "name": e.name,
             "description": e.description or "",
             "svg_filename": e.svg_filename,
-            "is_active": e.is_active
+            "is_active": (e.id == active_entity_id)  # Basé sur la session
         }
         for e in all_entities
     ]
@@ -131,14 +134,23 @@ def serve_svg():
 # ============================================================
 @activities_map_bp.route("/api/entities", methods=["GET"])
 def list_entities():
-    entities = Entity.query.order_by(Entity.name).all()
+    from flask import session
+    
+    user_id = session.get('user_id')
+    active_entity_id = session.get('active_entity_id')
+    
+    if user_id:
+        entities = Entity.query.filter_by(owner_id=user_id).order_by(Entity.name).all()
+    else:
+        entities = []
+    
     return jsonify([
         {
             "id": e.id,
             "name": e.name,
             "description": e.description,
             "svg_filename": e.svg_filename,
-            "is_active": e.is_active,
+            "is_active": (e.id == active_entity_id),  # Basé sur la session, pas la base
             "activities_count": Activities.query.filter_by(entity_id=e.id).count()
         }
         for e in entities
@@ -180,30 +192,23 @@ def create_entity():
 
 @activities_map_bp.route("/api/entities/<int:entity_id>/activate", methods=["POST"])
 def activate_entity(entity_id):
-    """Active une entité (désactive les autres de l'utilisateur)."""
+    """Active une entité pour l'utilisateur courant (stocké dans la session)."""
     from flask import session
-    
-    entity = Entity.query.get(entity_id)
-    
-    if not entity:
-        return jsonify({"error": "Entité non trouvée"}), 404
     
     user_id = session.get('user_id')
     
+    if not user_id:
+        return jsonify({"error": "Non connecté"}), 401
+    
+    # Vérifier que l'entité existe et appartient à l'utilisateur
+    entity = Entity.query.filter_by(id=entity_id, owner_id=user_id).first()
+    
+    if not entity:
+        return jsonify({"error": "Entité non trouvée ou non autorisée"}), 404
+    
     try:
-        # Désactiver uniquement les entités de l'utilisateur connecté
-        if user_id:
-            user_entities = Entity.query.filter_by(owner_id=user_id).all()
-        else:
-            user_entities = Entity.query.all()
-        
-        for e in user_entities:
-            if e.id == entity_id:
-                e.is_active = True
-            else:
-                e.is_active = False
-        
-        db.session.commit()
+        # Stocker l'entité active dans la session (pas en base)
+        session['active_entity_id'] = entity.id
         
         return jsonify({
             "status": "ok",
@@ -211,17 +216,24 @@ def activate_entity(entity_id):
         })
         
     except Exception as e:
-        db.session.rollback()
         print(f"[ACTIVATE] Erreur: {e}")
         return jsonify({"error": str(e)}), 500
 
 
 @activities_map_bp.route("/api/entities/<int:entity_id>", methods=["DELETE"])
 def delete_entity(entity_id):
-    entity = Entity.query.get(entity_id)
+    from flask import session
+    
+    user_id = session.get('user_id')
+    
+    if not user_id:
+        return jsonify({"error": "Non connecté"}), 401
+    
+    # Vérifier que l'entité appartient à l'utilisateur
+    entity = Entity.query.filter_by(id=entity_id, owner_id=user_id).first()
     
     if not entity:
-        return jsonify({"error": "Entité non trouvée"}), 404
+        return jsonify({"error": "Entité non trouvée ou non autorisée"}), 404
     
     activities_count = Activities.query.filter_by(entity_id=entity_id).count()
     
@@ -235,11 +247,13 @@ def delete_entity(entity_id):
         db.session.delete(entity)
         db.session.commit()
         
-        if not Entity.get_active():
-            first = Entity.query.first()
+        # Si l'entité supprimée était l'active, en choisir une autre
+        if session.get('active_entity_id') == entity_id:
+            first = Entity.query.filter_by(owner_id=user_id).first()
             if first:
-                first.is_active = True
-                db.session.commit()
+                session['active_entity_id'] = first.id
+            else:
+                session.pop('active_entity_id', None)
         
         return jsonify({
             "status": "ok",
@@ -253,10 +267,18 @@ def delete_entity(entity_id):
 
 @activities_map_bp.route("/api/entities/<int:entity_id>", methods=["PATCH"])
 def update_entity(entity_id):
-    entity = Entity.query.get(entity_id)
+    from flask import session
+    
+    user_id = session.get('user_id')
+    
+    if not user_id:
+        return jsonify({"error": "Non connecté"}), 401
+    
+    # Vérifier que l'entité appartient à l'utilisateur
+    entity = Entity.query.filter_by(id=entity_id, owner_id=user_id).first()
     
     if not entity:
-        return jsonify({"error": "Entité non trouvée"}), 404
+        return jsonify({"error": "Entité non trouvée ou non autorisée"}), 404
     
     data = request.get_json()
     
