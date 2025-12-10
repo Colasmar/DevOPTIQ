@@ -1,5 +1,6 @@
 # Code/models/models.py
 from datetime import datetime
+from flask import session
 from Code.extensions import db
 
 # -------------------------------------------------------------------
@@ -36,12 +37,16 @@ class Entity(db.Model):
     """
     Représente une organisation/entreprise avec sa cartographie.
     Chaque entité possède ses propres données (activités, rôles, etc.)
+    et appartient à un utilisateur (owner_id).
     """
     __tablename__ = 'entities'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=True)
+    
+    # Propriétaire de l'entité (user qui l'a créée)
+    owner_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
     
     # Fichier SVG actif pour cette entité
     svg_filename = db.Column(db.String(255), nullable=True)
@@ -64,27 +69,50 @@ class Entity(db.Model):
         return f'<Entity {self.id}: {self.name}>'
     
     @classmethod
-    def get_active(cls):
-        """Retourne l'entité actuellement active."""
+    def get_active(cls, user_id=None):
+        """Retourne l'entité actuellement active pour un utilisateur."""
+        if user_id is None:
+            user_id = session.get('user_id')
+        
+        if user_id:
+            return cls.query.filter_by(is_active=True, owner_id=user_id).first()
         return cls.query.filter_by(is_active=True).first()
     
     @classmethod
-    def get_active_id(cls):
+    def get_active_id(cls, user_id=None):
         """Retourne l'ID de l'entité active (ou None)."""
-        entity = cls.get_active()
+        entity = cls.get_active(user_id)
         return entity.id if entity else None
     
     @classmethod
-    def set_active(cls, entity_id):
-        """Définit une entité comme active (désactive les autres)."""
-        # Désactiver toutes les entités
-        cls.query.update({cls.is_active: False})
+    def set_active(cls, entity_id, user_id=None):
+        """Définit une entité comme active pour un utilisateur (désactive les autres)."""
+        if user_id is None:
+            user_id = session.get('user_id')
+        
+        if user_id:
+            # Désactiver toutes les entités de cet utilisateur
+            cls.query.filter_by(owner_id=user_id).update({cls.is_active: False})
+        else:
+            # Fallback: désactiver toutes les entités
+            cls.query.update({cls.is_active: False})
+        
         # Activer l'entité spécifiée
         entity = cls.query.get(entity_id)
         if entity:
             entity.is_active = True
             db.session.commit()
         return entity
+    
+    @classmethod
+    def for_user(cls, user_id=None):
+        """Retourne les entités appartenant à un utilisateur."""
+        if user_id is None:
+            user_id = session.get('user_id')
+        
+        if user_id:
+            return cls.query.filter_by(owner_id=user_id).order_by(cls.name)
+        return cls.query.order_by(cls.name)
 
 
 # -------------------------------------------------------------------
