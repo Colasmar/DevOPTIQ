@@ -18,6 +18,7 @@ from flask import (
     send_file
 )
 
+from sqlalchemy import or_
 from Code.extensions import db
 from Code.models.models import Activities, Entity
 
@@ -140,9 +141,13 @@ def list_entities():
     active_entity_id = session.get('active_entity_id')
     
     if user_id:
-        entities = Entity.query.filter_by(owner_id=user_id).order_by(Entity.name).all()
+        # Entités de l'utilisateur OU entités sans propriétaire (legacy)
+        entities = Entity.query.filter(
+            or_(Entity.owner_id == user_id, Entity.owner_id == None)
+        ).order_by(Entity.name).all()
     else:
-        entities = []
+        # Pas connecté: montrer toutes les entités (mode legacy)
+        entities = Entity.query.order_by(Entity.name).all()
     
     return jsonify([
         {
@@ -150,7 +155,7 @@ def list_entities():
             "name": e.name,
             "description": e.description,
             "svg_filename": e.svg_filename,
-            "is_active": (e.id == active_entity_id),  # Basé sur la session, pas la base
+            "is_active": (e.id == active_entity_id),
             "activities_count": Activities.query.filter_by(entity_id=e.id).count()
         }
         for e in entities
@@ -197,17 +202,25 @@ def activate_entity(entity_id):
     
     user_id = session.get('user_id')
     
-    if not user_id:
-        return jsonify({"error": "Non connecté"}), 401
-    
-    # Vérifier que l'entité existe et appartient à l'utilisateur
-    entity = Entity.query.filter_by(id=entity_id, owner_id=user_id).first()
+    # Vérifier que l'entité existe et appartient à l'utilisateur (ou est sans propriétaire)
+    if user_id:
+        entity = Entity.query.filter(
+            Entity.id == entity_id,
+            or_(Entity.owner_id == user_id, Entity.owner_id == None)
+        ).first()
+    else:
+        entity = Entity.query.get(entity_id)
     
     if not entity:
         return jsonify({"error": "Entité non trouvée ou non autorisée"}), 404
     
+    # Si l'entité n'a pas de propriétaire, l'assigner à l'utilisateur courant
+    if entity.owner_id is None and user_id:
+        entity.owner_id = user_id
+        db.session.commit()
+    
     try:
-        # Stocker l'entité active dans la session (pas en base)
+        # Stocker l'entité active dans la session
         session['active_entity_id'] = entity.id
         
         return jsonify({
@@ -226,11 +239,14 @@ def delete_entity(entity_id):
     
     user_id = session.get('user_id')
     
-    if not user_id:
-        return jsonify({"error": "Non connecté"}), 401
-    
-    # Vérifier que l'entité appartient à l'utilisateur
-    entity = Entity.query.filter_by(id=entity_id, owner_id=user_id).first()
+    # Vérifier que l'entité appartient à l'utilisateur (ou est sans propriétaire)
+    if user_id:
+        entity = Entity.query.filter(
+            Entity.id == entity_id,
+            or_(Entity.owner_id == user_id, Entity.owner_id == None)
+        ).first()
+    else:
+        entity = Entity.query.get(entity_id)
     
     if not entity:
         return jsonify({"error": "Entité non trouvée ou non autorisée"}), 404
@@ -249,7 +265,13 @@ def delete_entity(entity_id):
         
         # Si l'entité supprimée était l'active, en choisir une autre
         if session.get('active_entity_id') == entity_id:
-            first = Entity.query.filter_by(owner_id=user_id).first()
+            if user_id:
+                first = Entity.query.filter(
+                    or_(Entity.owner_id == user_id, Entity.owner_id == None)
+                ).first()
+            else:
+                first = Entity.query.first()
+            
             if first:
                 session['active_entity_id'] = first.id
             else:
@@ -271,11 +293,14 @@ def update_entity(entity_id):
     
     user_id = session.get('user_id')
     
-    if not user_id:
-        return jsonify({"error": "Non connecté"}), 401
-    
-    # Vérifier que l'entité appartient à l'utilisateur
-    entity = Entity.query.filter_by(id=entity_id, owner_id=user_id).first()
+    # Vérifier que l'entité appartient à l'utilisateur (ou est sans propriétaire)
+    if user_id:
+        entity = Entity.query.filter(
+            Entity.id == entity_id,
+            or_(Entity.owner_id == user_id, Entity.owner_id == None)
+        ).first()
+    else:
+        entity = Entity.query.get(entity_id)
     
     if not entity:
         return jsonify({"error": "Entité non trouvée ou non autorisée"}), 404
