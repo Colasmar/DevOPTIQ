@@ -1,6 +1,7 @@
 # Code/models/models.py
 from datetime import datetime
 from flask import session
+from sqlalchemy import or_
 from Code.extensions import db
 
 # -------------------------------------------------------------------
@@ -81,18 +82,30 @@ class Entity(db.Model):
         
         active_entity_id = session.get('active_entity_id')
         
-        if active_entity_id and user_id:
-            # Vérifier que l'entité appartient bien à cet utilisateur
-            entity = cls.query.filter_by(id=active_entity_id, owner_id=user_id).first()
+        if active_entity_id:
+            # Vérifier que l'entité existe et appartient à l'utilisateur (ou est legacy)
+            if user_id:
+                entity = cls.query.filter(
+                    cls.id == active_entity_id,
+                    or_(cls.owner_id == user_id, cls.owner_id == None)
+                ).first()
+            else:
+                entity = cls.query.get(active_entity_id)
+            
             if entity:
                 return entity
         
-        # Fallback: retourner la première entité de l'utilisateur
+        # Fallback: retourner la première entité accessible
         if user_id:
-            first_entity = cls.query.filter_by(owner_id=user_id).first()
-            if first_entity:
-                session['active_entity_id'] = first_entity.id
-                return first_entity
+            first_entity = cls.query.filter(
+                or_(cls.owner_id == user_id, cls.owner_id == None)
+            ).first()
+        else:
+            first_entity = cls.query.first()
+        
+        if first_entity:
+            session['active_entity_id'] = first_entity.id
+            return first_entity
         
         return None
     
@@ -111,8 +124,14 @@ class Entity(db.Model):
         if user_id is None:
             user_id = session.get('user_id')
         
-        # Vérifier que l'entité appartient à cet utilisateur
-        entity = cls.query.filter_by(id=entity_id, owner_id=user_id).first()
+        # Vérifier que l'entité existe et appartient à l'utilisateur (ou est legacy)
+        if user_id:
+            entity = cls.query.filter(
+                cls.id == entity_id,
+                or_(cls.owner_id == user_id, cls.owner_id == None)
+            ).first()
+        else:
+            entity = cls.query.get(entity_id)
         
         if entity:
             session['active_entity_id'] = entity.id
@@ -122,13 +141,15 @@ class Entity(db.Model):
     
     @classmethod
     def for_user(cls, user_id=None):
-        """Retourne les entités appartenant à un utilisateur."""
+        """Retourne les entités appartenant à un utilisateur (ou sans propriétaire)."""
         if user_id is None:
             user_id = session.get('user_id')
         
         if user_id:
-            return cls.query.filter_by(owner_id=user_id).order_by(cls.name)
-        return cls.query.filter(cls.id < 0)  # Query vide
+            return cls.query.filter(
+                or_(cls.owner_id == user_id, cls.owner_id == None)
+            ).order_by(cls.name)
+        return cls.query.order_by(cls.name)
 
 
 # -------------------------------------------------------------------
