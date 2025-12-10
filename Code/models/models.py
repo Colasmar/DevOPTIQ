@@ -38,6 +38,8 @@ class Entity(db.Model):
     Représente une organisation/entreprise avec sa cartographie.
     Chaque entité possède ses propres données (activités, rôles, etc.)
     et appartient à un utilisateur (owner_id).
+    
+    L'entité ACTIVE est stockée dans la session utilisateur (pas en base).
     """
     __tablename__ = 'entities'
 
@@ -51,7 +53,7 @@ class Entity(db.Model):
     # Fichier SVG actif pour cette entité
     svg_filename = db.Column(db.String(255), nullable=True)
     
-    # Statut
+    # DEPRECATED: is_active n'est plus utilisé, l'entité active est dans la session
     is_active = db.Column(db.Boolean, default=False, nullable=False)
     
     # Timestamps
@@ -70,13 +72,29 @@ class Entity(db.Model):
     
     @classmethod
     def get_active(cls, user_id=None):
-        """Retourne l'entité actuellement active pour un utilisateur."""
+        """
+        Retourne l'entité active pour l'utilisateur courant.
+        L'ID de l'entité active est stocké dans session['active_entity_id'].
+        """
         if user_id is None:
             user_id = session.get('user_id')
         
+        active_entity_id = session.get('active_entity_id')
+        
+        if active_entity_id and user_id:
+            # Vérifier que l'entité appartient bien à cet utilisateur
+            entity = cls.query.filter_by(id=active_entity_id, owner_id=user_id).first()
+            if entity:
+                return entity
+        
+        # Fallback: retourner la première entité de l'utilisateur
         if user_id:
-            return cls.query.filter_by(is_active=True, owner_id=user_id).first()
-        return cls.query.filter_by(is_active=True).first()
+            first_entity = cls.query.filter_by(owner_id=user_id).first()
+            if first_entity:
+                session['active_entity_id'] = first_entity.id
+                return first_entity
+        
+        return None
     
     @classmethod
     def get_active_id(cls, user_id=None):
@@ -86,23 +104,21 @@ class Entity(db.Model):
     
     @classmethod
     def set_active(cls, entity_id, user_id=None):
-        """Définit une entité comme active pour un utilisateur (désactive les autres)."""
+        """
+        Définit une entité comme active pour l'utilisateur courant.
+        Stocke l'ID dans la session (pas en base).
+        """
         if user_id is None:
             user_id = session.get('user_id')
         
-        if user_id:
-            # Désactiver toutes les entités de cet utilisateur
-            cls.query.filter_by(owner_id=user_id).update({cls.is_active: False})
-        else:
-            # Fallback: désactiver toutes les entités
-            cls.query.update({cls.is_active: False})
+        # Vérifier que l'entité appartient à cet utilisateur
+        entity = cls.query.filter_by(id=entity_id, owner_id=user_id).first()
         
-        # Activer l'entité spécifiée
-        entity = cls.query.get(entity_id)
         if entity:
-            entity.is_active = True
-            db.session.commit()
-        return entity
+            session['active_entity_id'] = entity.id
+            return entity
+        
+        return None
     
     @classmethod
     def for_user(cls, user_id=None):
@@ -112,7 +128,7 @@ class Entity(db.Model):
         
         if user_id:
             return cls.query.filter_by(owner_id=user_id).order_by(cls.name)
-        return cls.query.order_by(cls.name)
+        return cls.query.filter(cls.id < 0)  # Query vide
 
 
 # -------------------------------------------------------------------
