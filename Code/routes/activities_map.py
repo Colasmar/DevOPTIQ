@@ -131,6 +131,53 @@ def serve_svg():
 
 
 # ============================================================
+# DEBUG - Route pour diagnostiquer le problème de session
+# ============================================================
+@activities_map_bp.route("/api/debug-session")
+def debug_session():
+    """Route de diagnostic pour voir ce qui se passe avec la session."""
+    from flask import session
+    
+    user_id = session.get('user_id')
+    user_email = session.get('user_email')
+    active_entity_id = session.get('active_entity_id')
+    
+    # Chercher toutes les entités en base
+    all_entities_db = Entity.query.all()
+    
+    # Chercher les entités de l'utilisateur
+    user_entities = []
+    if user_id:
+        user_entities = Entity.query.filter_by(owner_id=user_id).all()
+    
+    # Tester Entity.get_active()
+    active_entity = Entity.get_active()
+    
+    return jsonify({
+        "session": {
+            "user_id": user_id,
+            "user_id_type": str(type(user_id)),
+            "user_email": user_email,
+            "active_entity_id": active_entity_id
+        },
+        "database": {
+            "all_entities": [
+                {"id": e.id, "name": e.name, "owner_id": e.owner_id, "owner_id_type": str(type(e.owner_id))}
+                for e in all_entities_db
+            ],
+            "user_entities_count": len(user_entities),
+            "user_entities": [
+                {"id": e.id, "name": e.name, "owner_id": e.owner_id}
+                for e in user_entities
+            ]
+        },
+        "get_active_result": {
+            "entity": {"id": active_entity.id, "name": active_entity.name} if active_entity else None
+        }
+    })
+
+
+# ============================================================
 # API ENTITÉS
 # ============================================================
 @activities_map_bp.route("/api/entities", methods=["GET"])

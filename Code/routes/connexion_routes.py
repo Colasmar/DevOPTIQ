@@ -24,7 +24,7 @@ def login():
 
         # Stocker l'email ET l'ID dans la session si la connexion est réussie
         session['user_email'] = email
-        session['user_id'] = User.id  # IMPORTANT pour le filtrage des entités
+        session['user_id'] = user.id  # IMPORTANT pour le filtrage des entités
         return redirect(url_for('activities.view_activities'))  # Endpoint à adapter si nécessaire
 
     return render_template('connexion.html')
