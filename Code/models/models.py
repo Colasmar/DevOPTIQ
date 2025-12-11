@@ -1,764 +1,569 @@
-# Code/routes/activities_map.py
-"""
-Cartographie des activités avec gestion multi-entités.
-"""
-import os
-import shutil
-import datetime
-import re
-import xml.etree.ElementTree as ET
-
-from flask import (
-    Blueprint,
-    render_template,
-    request,
-    jsonify,
-    redirect,
-    url_for,
-    send_file
-)
-
+# Code/models/models.py
+from datetime import datetime
+from flask import session
 from sqlalchemy import or_
 from Code.extensions import db
-from Code.models.models import Activities, Entity
 
-
-# ============================================================
-# Blueprint
-# ============================================================
-activities_map_bp = Blueprint(
-    "activities_map_bp",
-    __name__,
-    url_prefix="/activities"
+# -------------------------------------------------------------------
+# Tables d'association (déclarées UNE seule fois + extend_existing)
+# -------------------------------------------------------------------
+task_tools = db.Table(
+    'task_tools',
+    db.Column('task_id', db.Integer, db.ForeignKey('tasks.id'), primary_key=True),
+    db.Column('tool_id', db.Integer, db.ForeignKey('tools.id'), primary_key=True),
+    extend_existing=True
 )
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-STATIC_DIR = os.path.join(BASE_DIR, "static")
-ENTITIES_DIR = os.path.join(STATIC_DIR, "entities")
-OLD_SVG_PATH = os.path.join(STATIC_DIR, "img", "carto_activities.svg")
+activity_roles = db.Table(
+    'activity_roles',
+    db.Column('activity_id', db.Integer, db.ForeignKey('activities.id'), primary_key=True),
+    db.Column('role_id', db.Integer, db.ForeignKey('roles.id'), primary_key=True),
+    db.Column('status', db.String(50), nullable=False),
+    extend_existing=True
+)
+
+task_roles = db.Table(
+    'task_roles',
+    db.Column('task_id', db.Integer, db.ForeignKey('tasks.id'), primary_key=True),
+    db.Column('role_id', db.Integer, db.ForeignKey('roles.id'), primary_key=True),
+    db.Column('status', db.String(50), nullable=False),
+    extend_existing=True
+)
 
 
-def get_entity_svg_path(entity_id):
-    return os.path.join(ENTITIES_DIR, f"entity_{entity_id}", "carto.svg")
+# -------------------------------------------------------------------
+# Modèle Entity (Organisation/Entreprise)
+# -------------------------------------------------------------------
+class Entity(db.Model):
+    """
+    Représente une organisation/entreprise avec sa cartographie.
+    Chaque entité possède ses propres données (activités, rôles, etc.)
+    et appartient à un utilisateur (owner_id).
+    
+    L'entité ACTIVE est stockée dans la session utilisateur (pas en base).
+    """
+    __tablename__ = 'entities'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    
+    # Propriétaire de l'entité (user qui l'a créée)
+    owner_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
+    
+    # Fichier SVG actif pour cette entité
+    svg_filename = db.Column(db.String(255), nullable=True)
+    
+    # DEPRECATED: is_active n'est plus utilisé, l'entité active est dans la session
+    is_active = db.Column(db.Boolean, default=False, nullable=False)
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relations
+    activities = db.relationship('Activities', backref='entity', lazy=True, cascade="all, delete-orphan")
+    data = db.relationship('Data', backref='entity', lazy=True, cascade="all, delete-orphan")
+    roles = db.relationship('Role', backref='entity', lazy=True, cascade="all, delete-orphan")
+    tools = db.relationship('Tool', backref='entity', lazy=True, cascade="all, delete-orphan")
+    links = db.relationship('Link', backref='entity', lazy=True, cascade="all, delete-orphan")
+    
+    def __repr__(self):
+        return f'<Entity {self.id}: {self.name}>'
+    
+    @classmethod
+    def get_active(cls, user_id=None):
+        """
+        Retourne l'entité active pour l'utilisateur courant.
+        L'ID de l'entité active est stocké dans session['active_entity_id'].
+        STRICT: Ne retourne que les entités appartenant à l'utilisateur.
+        """
+        if user_id is None:
+            user_id = session.get('user_id')
+        
+        if not user_id:
+            return None  # Pas connecté = pas d'entité
+        
+        active_entity_id = session.get('active_entity_id')
+        
+        if active_entity_id:
+            # Vérifier que l'entité appartient à cet utilisateur
+            entity = cls.query.filter(
+                cls.id == active_entity_id,
+                cls.owner_id == user_id
+            ).first()
+            
+            if entity:
+                return entity
+        
+        # Fallback: retourner la première entité de l'utilisateur
+        first_entity = cls.query.filter_by(owner_id=user_id).first()
+        
+        if first_entity:
+            session['active_entity_id'] = first_entity.id
+            return first_entity
+        
+        return None
+    
+    @classmethod
+    def get_active_id(cls, user_id=None):
+        """Retourne l'ID de l'entité active (ou None)."""
+        entity = cls.get_active(user_id)
+        return entity.id if entity else None
+    
+    @classmethod
+    def set_active(cls, entity_id, user_id=None):
+        """
+        Définit une entité comme active pour l'utilisateur courant.
+        Stocke l'ID dans la session (pas en base).
+        STRICT: Ne permet d'activer que les entités appartenant à l'utilisateur.
+        """
+        if user_id is None:
+            user_id = session.get('user_id')
+        
+        if not user_id:
+            return None  # Pas connecté
+        
+        # Vérifier que l'entité appartient à cet utilisateur
+        entity = cls.query.filter_by(id=entity_id, owner_id=user_id).first()
+        
+        if entity:
+            session['active_entity_id'] = entity.id
+            return entity
+        
+        return None
+    
+    @classmethod
+    def for_user(cls, user_id=None):
+        """
+        Retourne les entités appartenant à un utilisateur.
+        STRICT: Ne retourne que les entités avec owner_id correspondant.
+        """
+        if user_id is None:
+            user_id = session.get('user_id')
+        
+        if user_id:
+            return cls.query.filter_by(owner_id=user_id).order_by(cls.name)
+        
+        # Pas connecté = pas d'entités
+        return cls.query.filter(cls.id < 0)  # Query vide
+        return cls.query.order_by(cls.name)
 
 
-def ensure_entity_dir(entity_id):
-    entity_dir = os.path.join(ENTITIES_DIR, f"entity_{entity_id}")
-    os.makedirs(entity_dir, exist_ok=True)
-    return entity_dir
+# -------------------------------------------------------------------
+# Modèles principaux
+# -------------------------------------------------------------------
+class Activities(db.Model):
+    __tablename__ = 'activities'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    entity_id = db.Column(db.Integer, db.ForeignKey('entities.id'), nullable=True, index=True)
+    shape_id = db.Column(db.String(50), index=True, nullable=True)
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    is_result = db.Column(db.Boolean, nullable=False, default=False)
+
+    # Durée/délai (défaut / préremplissage des autres pages)
+    duration_minutes = db.Column(db.Float, default=0)
+    delay_minutes = db.Column(db.Float, default=0)
+
+    tasks = db.relationship(
+        'Task',
+        backref='activity',
+        lazy=True,
+        order_by='Task.order',
+        cascade="all, delete-orphan"
+    )
+    competencies = db.relationship('Competency', backref='activity', lazy=True, cascade="all, delete-orphan")
+    softskills = db.relationship('Softskill', backref='activity', lazy=True, cascade="all, delete-orphan")
+    constraints = db.relationship('Constraint', backref='activity', lazy=True, cascade="all, delete-orphan")
+    savoirs = db.relationship('Savoir', backref='activity', lazy=True, cascade="all, delete-orphan")
+    savoir_faires = db.relationship('SavoirFaire', backref='activity', lazy=True, cascade="all, delete-orphan")
+    aptitudes = db.relationship('Aptitude', backref='activity', lazy=True, cascade="all, delete-orphan")
+
+    # Contrainte unique: shape_id unique par entité
+    __table_args__ = (
+        db.UniqueConstraint('entity_id', 'shape_id', name='uq_entity_shape'),
+    )
+
+    # =============================================
+    # HELPER : Filtrer par entité active
+    # =============================================
+    @classmethod
+    def for_active_entity(cls):
+        """
+        Retourne une query filtrée par l'entité active.
+        Usage: Activities.for_active_entity().all()
+        """
+        active_entity_id = Entity.get_active_id()
+        if active_entity_id:
+            return cls.query.filter_by(entity_id=active_entity_id)
+        # Si pas d'entité active, retourner query vide
+        return cls.query.filter(cls.id < 0)
 
 
-# ============================================================
-# PAGE CARTOGRAPHIE
-# ============================================================
-@activities_map_bp.route("/map")
-def activities_map_page():
-    from flask import session
-    
-    active_entity = Entity.get_active()
-    active_entity_id = session.get('active_entity_id')
-    
-    svg_exists = False
-    if active_entity:
-        svg_path = get_entity_svg_path(active_entity.id)
-        svg_exists = os.path.exists(svg_path)
-        if not svg_exists and os.path.exists(OLD_SVG_PATH):
-            svg_exists = True
-    
-    if active_entity:
-        rows = Activities.query.filter_by(entity_id=active_entity.id).order_by(Activities.id).all()
-    else:
-        rows = []
-    
-    shape_activity_map = {
-        str(act.shape_id): act.id
-        for act in rows
-        if act.shape_id is not None
-    }
-    
-    all_entities = Entity.for_user().all()
-    
-    active_entity_dict = None
-    if active_entity:
-        active_entity_dict = {
-            "id": active_entity.id,
-            "name": active_entity.name,
-            "description": active_entity.description or "",
-            "svg_filename": active_entity.svg_filename,
-            "is_active": True  # Par définition, c'est l'entité active
-        }
-    
-    all_entities_list = [
-        {
-            "id": e.id,
-            "name": e.name,
-            "description": e.description or "",
-            "svg_filename": e.svg_filename,
-            "is_active": (e.id == active_entity_id)  # Basé sur la session
-        }
-        for e in all_entities
-    ]
-    
-    return render_template(
-        "activities_map.html",
-        svg_exists=svg_exists,
-        shape_activity_map=shape_activity_map,
-        activities=rows,
-        active_entity=active_entity_dict,
-        all_entities=all_entities_list
+class Data(db.Model):
+    __tablename__ = 'data'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    entity_id = db.Column(db.Integer, db.ForeignKey('entities.id'), nullable=True, index=True)
+    shape_id = db.Column(db.String(50), index=True, nullable=True)
+    name = db.Column(db.String(255), nullable=False)
+    type = db.Column(db.String(50), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    layer = db.Column(db.String(50), nullable=True)
+
+    __table_args__ = (
+        db.UniqueConstraint('entity_id', 'shape_id', name='uq_entity_data_shape'),
+    )
+
+    @classmethod
+    def for_active_entity(cls):
+        active_entity_id = Entity.get_active_id()
+        if active_entity_id:
+            return cls.query.filter_by(entity_id=active_entity_id)
+        return cls.query.filter(cls.id < 0)
+
+
+class Task(db.Model):
+    __tablename__ = 'tasks'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    order = db.Column(db.Integer, nullable=True)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
+
+    # Durée/délai par tâche
+    duration_minutes = db.Column(db.Float, default=0)
+    delay_minutes = db.Column(db.Float, default=0)
+
+    tools = db.relationship(
+        'Tool',
+        secondary=task_tools,
+        lazy='subquery',
+        backref=db.backref('tasks', lazy=True)
     )
 
 
-# ============================================================
-# SERVIR LE SVG
-# ============================================================
-@activities_map_bp.route("/svg")
-def serve_svg():
-    active_entity = Entity.get_active()
-    
-    if not active_entity:
-        return jsonify({"error": "Aucune entité active"}), 404
-    
-    svg_path = get_entity_svg_path(active_entity.id)
-    
-    if not os.path.exists(svg_path) and os.path.exists(OLD_SVG_PATH):
-        svg_path = OLD_SVG_PATH
-    
-    if not os.path.exists(svg_path):
-        return jsonify({"error": "SVG non trouvé"}), 404
-    
-    return send_file(svg_path, mimetype='image/svg+xml')
+class Tool(db.Model):
+    __tablename__ = 'tools'
 
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    entity_id = db.Column(db.Integer, db.ForeignKey('entities.id'), nullable=True, index=True)
+    name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
 
-# ============================================================
-# API ENTITÉS
-# ============================================================
-@activities_map_bp.route("/api/entities", methods=["GET"])
-def list_entities():
-    from flask import session
-    
-    user_id = session.get('user_id')
-    active_entity_id = session.get('active_entity_id')
-    
-    if not user_id:
-        return jsonify([])  # Pas connecté = pas d'entités
-    
-    # STRICT: Seulement les entités de l'utilisateur
-    entities = Entity.query.filter_by(owner_id=user_id).order_by(Entity.name).all()
-    
-    return jsonify([
-        {
-            "id": e.id,
-            "name": e.name,
-            "description": e.description,
-            "svg_filename": e.svg_filename,
-            "is_active": (e.id == active_entity_id),
-            "activities_count": Activities.query.filter_by(entity_id=e.id).count()
-        }
-        for e in entities
-    ])
-
-
-@activities_map_bp.route("/api/entities", methods=["POST"])
-def create_entity():
-    from flask import session
-    
-    data = request.get_json()
-    
-    if not data or not data.get("name"):
-        return jsonify({"error": "Nom requis"}), 400
-    
-    user_id = session.get('user_id')
-    
-    entity = Entity(
-        name=data["name"],
-        description=data.get("description", ""),
-        owner_id=user_id,
-        is_active=False
+    __table_args__ = (
+        db.UniqueConstraint('entity_id', 'name', name='uq_entity_tool_name'),
     )
-    db.session.add(entity)
-    db.session.commit()
-    
-    ensure_entity_dir(entity.id)
-    
-    return jsonify({
-        "status": "ok",
-        "entity": {
-            "id": entity.id,
-            "name": entity.name,
-            "description": entity.description,
-            "is_active": entity.is_active
-        }
-    })
+
+    @classmethod
+    def for_active_entity(cls):
+        active_entity_id = Entity.get_active_id()
+        if active_entity_id:
+            return cls.query.filter_by(entity_id=active_entity_id)
+        return cls.query.filter(cls.id < 0)
 
 
-@activities_map_bp.route("/api/entities/<int:entity_id>/activate", methods=["POST"])
-def activate_entity(entity_id):
-    """Active une entité pour l'utilisateur courant (stocké dans la session)."""
-    from flask import session
-    
-    user_id = session.get('user_id')
-    
-    if not user_id:
-        return jsonify({"error": "Non connecté"}), 401
-    
-    # STRICT: Vérifier que l'entité appartient à l'utilisateur
-    entity = Entity.query.filter_by(id=entity_id, owner_id=user_id).first()
-    
-    if not entity:
-        return jsonify({"error": "Entité non trouvée ou non autorisée"}), 404
-    
-    try:
-        # Stocker l'entité active dans la session
-        session['active_entity_id'] = entity.id
-        
-        return jsonify({
-            "status": "ok",
-            "message": f"Entité '{entity.name}' activée"
-        })
-        
-    except Exception as e:
-        print(f"[ACTIVATE] Erreur: {e}")
-        return jsonify({"error": str(e)}), 500
+class Competency(db.Model):
+    __tablename__ = 'competencies'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    description = db.Column(db.Text, nullable=False)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
 
 
-@activities_map_bp.route("/api/entities/<int:entity_id>", methods=["DELETE"])
-def delete_entity(entity_id):
-    from flask import session
-    
-    user_id = session.get('user_id')
-    
-    if not user_id:
-        return jsonify({"error": "Non connecté"}), 401
-    
-    # STRICT: Vérifier que l'entité appartient à l'utilisateur
-    entity = Entity.query.filter_by(id=entity_id, owner_id=user_id).first()
-    
-    if not entity:
-        return jsonify({"error": "Entité non trouvée ou non autorisée"}), 404
-    
-    activities_count = Activities.query.filter_by(entity_id=entity_id).count()
-    
-    entity_dir = os.path.join(ENTITIES_DIR, f"entity_{entity_id}")
-    if os.path.exists(entity_dir):
-        shutil.rmtree(entity_dir)
-    
-    entity_name = entity.name
-    
-    try:
-        db.session.delete(entity)
-        db.session.commit()
-        
-        # Si l'entité supprimée était l'active, en choisir une autre
-        if session.get('active_entity_id') == entity_id:
-            first = Entity.query.filter_by(owner_id=user_id).first()
-            if first:
-                session['active_entity_id'] = first.id
-            else:
-                session.pop('active_entity_id', None)
-        
-        return jsonify({
-            "status": "ok",
-            "message": f"Entité '{entity_name}' supprimée ({activities_count} activités supprimées)"
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+class Softskill(db.Model):
+    __tablename__ = 'softskills'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    habilete = db.Column(db.String(255), nullable=False)
+    niveau = db.Column(db.String(10), nullable=False)
+    justification = db.Column(db.Text, nullable=True)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
 
 
-@activities_map_bp.route("/api/entities/<int:entity_id>", methods=["PATCH"])
-def update_entity(entity_id):
-    from flask import session
-    
-    user_id = session.get('user_id')
-    
-    if not user_id:
-        return jsonify({"error": "Non connecté"}), 401
-    
-    # STRICT: Vérifier que l'entité appartient à l'utilisateur
-    entity = Entity.query.filter_by(id=entity_id, owner_id=user_id).first()
-    
-    if not entity:
-        return jsonify({"error": "Entité non trouvée ou non autorisée"}), 404
-    
-    data = request.get_json()
-    
-    if data.get("name"):
-        entity.name = data["name"]
-    if "description" in data:
-        entity.description = data["description"]
-    
-    db.session.commit()
-    
-    return jsonify({
-        "status": "ok",
-        "entity": {
-            "id": entity.id,
-            "name": entity.name,
-            "description": entity.description
-        }
-    })
+class Role(db.Model):
+    __tablename__ = 'roles'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    entity_id = db.Column(db.Integer, db.ForeignKey('entities.id'), nullable=True, index=True)
+    name = db.Column(db.String(100), nullable=False)
+    onboarding_plan = db.Column(db.Text, nullable=True)
+
+    __table_args__ = (
+        db.UniqueConstraint('entity_id', 'name', name='uq_entity_role_name'),
+    )
+
+    @classmethod
+    def for_active_entity(cls):
+        active_entity_id = Entity.get_active_id()
+        if active_entity_id:
+            return cls.query.filter_by(entity_id=active_entity_id)
+        return cls.query.filter(cls.id < 0)
 
 
-# ============================================================
-# EXTRACTION DES ACTIVITÉS DEPUIS LE SVG
-# ============================================================
+class Link(db.Model):
+    __tablename__ = 'links'
 
-def extract_activities_from_svg(svg_path):
-    """
-    Parse un fichier SVG Visio et extrait les activités valides.
-    
-    LOGIQUE:
-    - Les VRAIES activités sont sur le layer 1 (v:layerMember="1")
-    - Ce sont les rectangles colorés principaux de la cartographie
-    - Le nom de l'activité est le TEXTE à l'intérieur de la forme
-    
-    Layers Visio:
-    - Layer 1: Activités principales (rectangles colorés) ✓
-    - Layer 2: Noms des swimlanes (légendes)
-    - Layer 6: Activités client/fournisseur (flags)
-    - Layer 8: Cercles de retour (références)
-    - Layer 9: Documents/Résultats (données)
-    - Layer 10: Déclencheurs (flags)
-    """
-    activities = []
-    seen_names = set()
-    
-    print(f"[EXTRACT] Parsing SVG: {svg_path}")
-    
-    try:
-        tree = ET.parse(svg_path)
-        root = tree.getroot()
-        
-        # Namespaces
-        SVG_NS = "http://www.w3.org/2000/svg"
-        VISIO_NS = "http://schemas.microsoft.com/visio/2003/SVGExtensions/"
-        
-        # Chercher tous les éléments avec v:mID
-        for elem in root.iter():
-            mid = elem.get(f"{{{VISIO_NS}}}mID")
-            if not mid:
-                continue
-            
-            # FILTRE PRINCIPAL: Seulement le layer 1 (activités principales)
-            layer = elem.get(f"{{{VISIO_NS}}}layerMember", "")
-            if layer != "1":
-                continue
-            
-            # Chercher le TEXTE à l'intérieur de l'élément
-            text_content = None
-            for text_elem in elem.iter(f"{{{SVG_NS}}}text"):
-                t = "".join(text_elem.itertext()).strip()
-                if t and len(t) > 2:
-                    text_content = t
-                    break  # Prendre le premier texte significatif
-            
-            # Si pas de texte, ignorer
-            if not text_content:
-                continue
-            
-            # Ignorer les textes trop longs (descriptions)
-            if len(text_content) > 80:
-                continue
-            
-            # Éviter les doublons par nom
-            if text_content.lower() not in seen_names:
-                seen_names.add(text_content.lower())
-                activities.append({
-                    "shape_id": mid,
-                    "name": text_content
-                })
-                print(f"[EXTRACT] ✓ Activité: shape_id={mid}, name={text_content}")
-        
-        print(f"[EXTRACT] Total activités extraites: {len(activities)}")
-        
-    except Exception as e:
-        print(f"[EXTRACT] Erreur: {e}")
-        import traceback
-        traceback.print_exc()
-    
-    return activities
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    entity_id = db.Column(db.Integer, db.ForeignKey('entities.id'), nullable=True, index=True)
+    source_activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=True)
+    source_data_id = db.Column(db.Integer, db.ForeignKey('data.id'), nullable=True)
+    target_activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=True)
+    target_data_id = db.Column(db.Integer, db.ForeignKey('data.id'), nullable=True)
+    type = db.Column(db.String(50), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+
+    @property
+    def source_id(self):
+        return self.source_activity_id if self.source_activity_id is not None else self.source_data_id
+
+    @property
+    def target_id(self):
+        return self.target_activity_id if self.target_activity_id is not None else self.target_data_id
+
+    @classmethod
+    def for_active_entity(cls):
+        active_entity_id = Entity.get_active_id()
+        if active_entity_id:
+            return cls.query.filter_by(entity_id=active_entity_id)
+        return cls.query.filter(cls.id < 0)
 
 
-def sync_activities_with_svg(entity_id, svg_path):
-    """
-    Synchronise INTELLIGEMMENT les activités en base avec celles du SVG.
-    
-    Logique basée sur le shape_id (identifiant unique Visio) :
-    - shape_id dans SVG mais pas en base → CRÉER
-    - shape_id existe en base avec nom différent → RENOMMER (garder les données)
-    - shape_id en base mais pas dans SVG → SIGNALER comme supprimé
-    """
-    stats = {
-        "added": 0,
-        "renamed": 0,
-        "unchanged": 0,
-        "deleted_warning": 0,
-        "skipped": 0,
-        "total_in_svg": 0,
-        "renamed_list": [],      # Liste des renommages effectués
-        "deleted_list": [],      # Liste des activités potentiellement supprimées
-        "errors": []
-    }
-    
-    print(f"[SYNC] Démarrage pour entity_id={entity_id}")
-    
-    svg_activities = extract_activities_from_svg(svg_path)
-    stats["total_in_svg"] = len(svg_activities)
-    
-    if not svg_activities:
-        print("[SYNC] Aucune activité extraite!")
-        return stats
-    
-    # Créer un dictionnaire shape_id -> name depuis le SVG
-    svg_shape_map = {str(act["shape_id"]): act["name"] for act in svg_activities}
-    svg_shape_ids = set(svg_shape_map.keys())
-    
-    # Récupérer les activités existantes pour cette entité
-    existing_activities = Activities.query.filter_by(entity_id=entity_id).all()
-    existing_shape_map = {str(a.shape_id): a for a in existing_activities if a.shape_id}
-    existing_shape_ids = set(existing_shape_map.keys())
-    
-    print(f"[SYNC] SVG: {len(svg_shape_ids)} activités | Base: {len(existing_shape_ids)} activités")
-    
-    # === 1. NOUVELLES ACTIVITÉS (dans SVG mais pas en base) ===
-    new_shape_ids = svg_shape_ids - existing_shape_ids
-    for shape_id in new_shape_ids:
-        name = svg_shape_map[shape_id]
-        try:
-            new_activity = Activities(
-                entity_id=entity_id,
-                shape_id=shape_id,
-                name=name,
-                description="",
-                is_result=False,
-                duration_minutes=0,
-                delay_minutes=0
-            )
-            db.session.add(new_activity)
-            db.session.commit()
-            stats["added"] += 1
-            print(f"[SYNC] ✓ AJOUTÉ: {name} (shape_id={shape_id})")
-        except Exception as e:
-            db.session.rollback()
-            stats["skipped"] += 1
-            stats["errors"].append(f"{name}: {str(e)[:100]}")
-            print(f"[SYNC] ❌ ERREUR ajout '{name}': {e}")
-    
-    # === 2. ACTIVITÉS EXISTANTES - vérifier les renommages ===
-    common_shape_ids = svg_shape_ids & existing_shape_ids
-    for shape_id in common_shape_ids:
-        svg_name = svg_shape_map[shape_id]
-        db_activity = existing_shape_map[shape_id]
-        
-        if db_activity.name != svg_name:
-            # Renommage détecté !
-            old_name = db_activity.name
-            db_activity.name = svg_name
+class Performance(db.Model):
+    __tablename__ = 'performances'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    link_id = db.Column(db.Integer, db.ForeignKey('links.id', ondelete='CASCADE'), unique=True)
+    link = db.relationship('Link', backref=db.backref('performance', uselist=False))
+
+
+class PerformancePersonnalisee(db.Model):
+    __tablename__ = 'performance_personnalisee'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    activity_id = db.Column(db.Integer, nullable=False)
+
+    content = db.Column('content', db.Text, nullable=True)
+    validation_status = db.Column(db.String(20), default='non-validee')
+    validation_date = db.Column(db.String(10), nullable=True)
+    created_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
+    updated_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
+    deleted = db.Column(db.Boolean, default=False)
+
+
+class Constraint(db.Model):
+    __tablename__ = 'constraints'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    description = db.Column(db.Text, nullable=False)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
+
+
+class Savoir(db.Model):
+    __tablename__ = 'savoirs'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    description = db.Column(db.Text, nullable=False)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
+
+
+class SavoirFaire(db.Model):
+    __tablename__ = 'savoir_faires'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    description = db.Column(db.Text, nullable=False)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
+
+
+class Aptitude(db.Model):
+    __tablename__ = 'aptitudes'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    description = db.Column(db.Text, nullable=False)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
+
+
+class User(db.Model):
+    __tablename__ = 'users'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    entity_id = db.Column(db.Integer, db.ForeignKey('entities.id'), nullable=True, index=True)
+    first_name = db.Column(db.String(100), nullable=False)
+    last_name = db.Column(db.String(100), nullable=False)
+    age = db.Column(db.Integer, nullable=True)
+    email = db.Column(db.String(200), nullable=False, unique=True)
+    password = db.Column(db.String(200), nullable=False)
+    status = db.Column(db.String(20), nullable=False, default='user')
+    manager_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+
+    subordinates = db.relationship('User', backref=db.backref('manager', remote_side=[id]))
+    evaluations = db.relationship('CompetencyEvaluation', back_populates='user', cascade='all, delete-orphan')
+
+    @classmethod
+    def for_active_entity(cls):
+        active_entity_id = Entity.get_active_id()
+        if active_entity_id:
+            return cls.query.filter_by(entity_id=active_entity_id)
+        return cls.query.filter(cls.id < 0)
+
+
+class UserRole(db.Model):
+    __tablename__ = 'user_roles'
+
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)
+    role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), primary_key=True)
+
+    user = db.relationship('User', backref='user_roles')
+    role = db.relationship('Role', backref='user_roles')
+
+
+class CompetencyEvaluation(db.Model):
+    __tablename__ = 'competency_evaluation'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
+
+    item_id = db.Column(db.Integer, nullable=True)
+    item_type = db.Column(db.String(50), nullable=True)
+    eval_number = db.Column(db.String(50), nullable=False)
+    note = db.Column(db.String(10), nullable=False)
+    created_at = db.Column(db.Text, default=datetime.utcnow)
+
+    user = db.relationship('User', back_populates='evaluations')
+
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'activity_id', 'item_id', 'item_type', 'eval_number'),
+    )
+
+
+class TimeAnalysis(db.Model):
+    __tablename__ = 'time_analysis'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    duration = db.Column(db.Integer, nullable=False)
+    recurrence = db.Column(db.String(20), nullable=False)
+    frequency = db.Column(db.Integer, nullable=False)
+    delay = db.Column(db.Integer, nullable=True)
+
+    type = db.Column(db.String(20), nullable=False)
+
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=True)
+    task_id = db.Column(db.Integer, db.ForeignKey('tasks.id'), nullable=True)
+    role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+
+    nb_people = db.Column(db.Integer, nullable=False, default=1)
+    impact_unit = db.Column(db.String(20), nullable=True)
+    delay_increase = db.Column(db.Float, nullable=True)
+    delay_percentage = db.Column(db.Float, nullable=True)
+
+    activity = db.relationship('Activities', backref='time_analyses')
+    task = db.relationship('Task', backref='time_analyses')
+    role = db.relationship('Role', backref='time_analyses')
+    user = db.relationship('User', backref='time_analyses')
+
+    @property
+    def recurrence_factor(self):
+        return {
+            "journalier": 220,
+            "hebdo": 42,
+            "mensuel": 10.5,
+            "annuel": 1
+        }.get(self.recurrence, 0)
+
+    @property
+    def annual_time(self):
+        return self.duration * self.recurrence_factor * self.frequency * self.nb_people
+
+    @property
+    def delay_gap(self):
+        if self.delay and self.delay_increase:
+            return self.delay + self.delay_increase
+        elif self.delay:
+            return self.delay
+        else:
+            return self.delay_increase or 0
+
+    @property
+    def delay_ratio(self):
+        if self.delay and self.delay_increase:
             try:
-                db.session.commit()
-                stats["renamed"] += 1
-                stats["renamed_list"].append({
-                    "old": old_name,
-                    "new": svg_name,
-                    "shape_id": shape_id
-                })
-                print(f"[SYNC] ✏️ RENOMMÉ: '{old_name}' → '{svg_name}'")
-            except Exception as e:
-                db.session.rollback()
-                print(f"[SYNC] ❌ ERREUR renommage: {e}")
-        else:
-            stats["unchanged"] += 1
-    
-    # === 3. ACTIVITÉS SUPPRIMÉES (en base mais plus dans SVG) ===
-    deleted_shape_ids = existing_shape_ids - svg_shape_ids
-    for shape_id in deleted_shape_ids:
-        db_activity = existing_shape_map[shape_id]
-        stats["deleted_warning"] += 1
-        stats["deleted_list"].append({
-            "id": db_activity.id,
-            "name": db_activity.name,
-            "shape_id": shape_id
-        })
-        print(f"[SYNC] ⚠️ SUPPRIMÉ DU SVG: '{db_activity.name}' (shape_id={shape_id})")
-    
-    print(f"[SYNC] Terminé: +{stats['added']} ajoutées, ✏️{stats['renamed']} renommées, ⚠️{stats['deleted_warning']} supprimées du SVG")
-    return stats
+                return round((self.delay_increase / self.delay) * 100, 1)
+            except ZeroDivisionError:
+                return 0
+        return 0
 
 
-# ============================================================
-# UPLOAD CARTOGRAPHIE
-# ============================================================
-@activities_map_bp.route("/upload-carto", methods=["POST"])
-def upload_carto():
-    """Upload une nouvelle cartographie SVG."""
-    print("[UPLOAD] Début upload")
-    
-    if "file" not in request.files:
-        return jsonify({"error": "Aucun fichier reçu"}), 400
-    
-    file = request.files["file"]
-    
-    if file.filename == "":
-        return jsonify({"error": "Nom de fichier vide"}), 400
-    
-    filename_lower = file.filename.lower()
-    
-    if not filename_lower.endswith(".svg"):
-        return jsonify({"error": "Format SVG requis"}), 400
-    
-    active_entity = Entity.get_active()
-    
-    if not active_entity:
-        return jsonify({"error": "Aucune entité active"}), 400
-    
-    print(f"[UPLOAD] Entité: {active_entity.name} (id={active_entity.id})")
-    
-    try:
-        entity_dir = ensure_entity_dir(active_entity.id)
-        svg_path = os.path.join(entity_dir, "carto.svg")
-        
-        file.save(svg_path)
-        print(f"[UPLOAD] Fichier sauvegardé: {svg_path}")
-        
-        active_entity.svg_filename = "carto.svg"
-        db.session.commit()
-        
-        # Synchroniser les activités
-        sync_stats = sync_activities_with_svg(active_entity.id, svg_path)
-        
-        return jsonify({
-            "status": "ok",
-            "message": f"Cartographie mise à jour",
-            "sync": sync_stats
-        })
-        
-    except Exception as e:
-        print(f"[UPLOAD] Erreur: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+# -------------------------------------------------------------------
+# Modèles "Temps"
+# -------------------------------------------------------------------
+class TimeProject(db.Model):
+    __tablename__ = 'time_project'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    entity_id = db.Column(db.Integer, db.ForeignKey('entities.id'), nullable=True, index=True)
+    name = db.Column(db.String(120))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    lines = db.relationship('TimeProjectLine', backref='project', cascade="all, delete-orphan")
+
+    @classmethod
+    def for_active_entity(cls):
+        active_entity_id = Entity.get_active_id()
+        if active_entity_id:
+            return cls.query.filter_by(entity_id=active_entity_id)
+        return cls.query.filter(cls.id < 0)
 
 
-# ============================================================
-# RE-SYNCHRONISATION MANUELLE
-# ============================================================
-@activities_map_bp.route("/resync", methods=["POST"])
-def resync_activities():
-    """Re-synchronise les activités depuis le SVG existant."""
-    active_entity = Entity.get_active()
-    
-    if not active_entity:
-        return jsonify({"error": "Aucune entité active"}), 400
-    
-    svg_path = get_entity_svg_path(active_entity.id)
-    
-    if not os.path.exists(svg_path) and os.path.exists(OLD_SVG_PATH):
-        svg_path = OLD_SVG_PATH
-    
-    if not os.path.exists(svg_path):
-        return jsonify({"error": "SVG non trouvé"}), 404
-    
-    try:
-        sync_stats = sync_activities_with_svg(active_entity.id, svg_path)
-        
-        return jsonify({
-            "status": "ok",
-            "message": f"Re-synchronisation terminée",
-            "sync": sync_stats
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+class TimeProjectLine(db.Model):
+    __tablename__ = 'time_project_line'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('time_project.id', ondelete="CASCADE"), nullable=False)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
+    duration_minutes = db.Column(db.Float, nullable=False, default=0)
+    delay_minutes = db.Column(db.Float, nullable=False, default=0)
+    nb_people = db.Column(db.Integer, nullable=False, default=1)
 
 
-@activities_map_bp.route("/update-cartography")
-def update_cartography():
-    return jsonify({"status": "ok", "message": "Cartographie rechargée"}), 200
+class TimeRoleAnalysis(db.Model):
+    __tablename__ = 'time_role_analysis'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), nullable=False)
+    name = db.Column(db.String(120), default='Analyse rôle')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    lines = db.relationship('TimeRoleLine', backref='role_analysis', cascade="all, delete-orphan")
 
 
-# ============================================================
-# DIAGNOSTIC BASE DE DONNÉES (pour débug)
-# ============================================================
-@activities_map_bp.route("/api/diagnostic")
-def diagnostic_db():
-    """Route de diagnostic pour vérifier les index et les activités."""
-    from sqlalchemy import text
-    
-    result = {
-        "indexes": [],
-        "entities": [],
-        "problem_detected": False,
-        "problem_description": None,
-        "database_type": "unknown"
-    }
-    
-    # Détecter le type de base de données
-    try:
-        db.session.execute(text("SELECT version()"))
-        result["database_type"] = "postgresql"
-    except:
-        result["database_type"] = "sqlite"
-    
-    # Vérifier les index sur activities
-    try:
-        if result["database_type"] == "postgresql":
-            indexes = db.session.execute(text("""
-                SELECT indexname, indexdef 
-                FROM pg_indexes 
-                WHERE tablename = 'activities'
-            """)).fetchall()
-        else:
-            indexes = db.session.execute(text("""
-                SELECT name, sql 
-                FROM sqlite_master 
-                WHERE type='index' AND tbl_name='activities' AND sql IS NOT NULL
-            """)).fetchall()
-        
-        for row in indexes:
-            name, sql = row[0], row[1]
-            result["indexes"].append({"name": name, "sql": sql})
-            
-            # Détecter un index UNIQUE sur shape_id seul
-            if sql and "shape_id" in sql.lower():
-                # Si c'est un index sur shape_id sans entity_id
-                if "ix_activities_shape_id" in name.lower():
-                    result["problem_detected"] = True
-                    result["problem_description"] = f"Index UNIQUE sur shape_id seul détecté: {name}"
-                elif "unique" in sql.lower() and "entity_id" not in sql.lower():
-                    result["problem_detected"] = True
-                    result["problem_description"] = f"Index UNIQUE sur shape_id seul: {name}"
-                    
-    except Exception as e:
-        result["index_error"] = str(e)[:200]
-    
-    # Vérifier les entités et leurs activités
-    try:
-        entities = Entity.query.all()
-        for e in entities:
-            count = Activities.query.filter_by(entity_id=e.id).count()
-            result["entities"].append({
-                "id": e.id,
-                "name": e.name,
-                "is_active": e.is_active,
-                "activities_count": count
-            })
-    except Exception as e:
-        result["entity_error"] = str(e)[:200]
-    
-    return jsonify(result)
+class TimeRoleLine(db.Model):
+    __tablename__ = 'time_role_line'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    role_analysis_id = db.Column(db.Integer, db.ForeignKey('time_role_analysis.id', ondelete="CASCADE"), nullable=False)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
+    recurrence = db.Column(db.String(32), nullable=False)
+    frequency = db.Column(db.Integer, nullable=False, default=1)
+    duration_minutes = db.Column(db.Float, nullable=False, default=0)
+    delay_minutes = db.Column(db.Float, nullable=False, default=0)
+    nb_people = db.Column(db.Integer, nullable=False, default=1)
 
 
-@activities_map_bp.route("/api/drop-bad-index", methods=["POST"])
-def drop_bad_index():
-    """Force la suppression de l'index ix_activities_shape_id."""
-    from sqlalchemy import text
-    import time
-    
-    result = {
-        "status": "pending",
-        "attempts": [],
-        "final_check": None
-    }
-    
-    # Essayer plusieurs fois
-    for attempt in range(5):
-        try:
-            db.session.execute(text("DROP INDEX IF EXISTS ix_activities_shape_id"))
-            db.session.commit()
-            result["attempts"].append(f"Tentative {attempt + 1}: SUCCESS")
-            result["status"] = "ok"
-            break
-        except Exception as e:
-            db.session.rollback()
-            result["attempts"].append(f"Tentative {attempt + 1}: {str(e)[:80]}")
-            time.sleep(0.5)  # Attendre un peu avant de réessayer
-    
-    # Vérifier si l'index existe encore
-    try:
-        check = db.session.execute(text("""
-            SELECT indexname FROM pg_indexes 
-            WHERE tablename = 'activities' AND indexname = 'ix_activities_shape_id'
-        """)).fetchone()
-        
-        if check:
-            result["final_check"] = "ÉCHEC - L'index existe toujours!"
-            result["status"] = "failed"
-        else:
-            result["final_check"] = "OK - L'index a été supprimé"
-            result["status"] = "ok"
-    except Exception as e:
-        result["final_check"] = f"Erreur vérification: {str(e)[:80]}"
-    
-    return jsonify(result)
-
-
-@activities_map_bp.route("/api/fix-index", methods=["POST"])
-def fix_shape_id_index():
-    """Corrige l'index UNIQUE sur shape_id pour permettre les doublons entre entités."""
-    from sqlalchemy import text
-    
-    result = {
-        "status": "ok",
-        "actions": [],
-        "errors": []
-    }
-    
-    try:
-        # 1. Supprimer l'ancien index problématique
-        try:
-            db.session.execute(text("DROP INDEX IF EXISTS ix_activities_shape_id"))
-            db.session.commit()
-            result["actions"].append("DROP ix_activities_shape_id: OK")
-        except Exception as e:
-            db.session.rollback()
-            result["actions"].append(f"DROP ix_activities_shape_id: {str(e)[:100]}")
-        
-        # 2. Vérifier les index existants (PostgreSQL)
-        try:
-            indexes = db.session.execute(text("""
-                SELECT indexname FROM pg_indexes 
-                WHERE tablename = 'activities' AND indexname LIKE '%shape%'
-            """)).fetchall()
-            result["existing_indexes"] = [row[0] for row in indexes]
-        except Exception as e:
-            result["existing_indexes"] = f"Erreur: {str(e)[:100]}"
-        
-        # 3. Créer le nouvel index si nécessaire
-        try:
-            # Vérifier si l'index correct existe
-            check = db.session.execute(text("""
-                SELECT 1 FROM pg_indexes 
-                WHERE tablename = 'activities' AND indexname = 'ix_activities_entity_shape'
-            """)).fetchone()
-            
-            if not check:
-                db.session.execute(text("""
-                    CREATE UNIQUE INDEX ix_activities_entity_shape 
-                    ON activities(entity_id, shape_id)
-                    WHERE shape_id IS NOT NULL
-                """))
-                db.session.commit()
-                result["actions"].append("CREATE ix_activities_entity_shape: OK")
-            else:
-                result["actions"].append("ix_activities_entity_shape existe déjà")
-        except Exception as e:
-            db.session.rollback()
-            result["errors"].append(f"CREATE index: {str(e)[:150]}")
-        
-        # 4. Vérification finale
-        try:
-            final_indexes = db.session.execute(text("""
-                SELECT indexname, indexdef FROM pg_indexes 
-                WHERE tablename = 'activities' AND indexname LIKE '%shape%'
-            """)).fetchall()
-            result["final_indexes"] = [{"name": row[0], "def": row[1]} for row in final_indexes]
-        except Exception as e:
-            result["final_indexes"] = f"Erreur: {str(e)[:100]}"
-            
-    except Exception as e:
-        result["status"] = "error"
-        result["errors"].append(str(e)[:200])
-        db.session.rollback()
-    
-    return jsonify(result)
+class TimeWeakness(db.Model):
+    __tablename__ = 'time_weakness'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
+    task_id = db.Column(db.Integer, db.ForeignKey('tasks.id'))
+    duration_std_minutes = db.Column(db.Float, nullable=False, default=0)
+    delay_std_minutes = db.Column(db.Float, nullable=False, default=0)
+    recurrence = db.Column(db.String(32), nullable=False)
+    frequency = db.Column(db.Integer, nullable=False, default=1)
+    weakness = db.Column(db.Text)
+    work_added_qty = db.Column(db.Float, nullable=False, default=0)
+    work_added_unit = db.Column(db.String(16), nullable=False, default='minutes')
+    wait_added_qty = db.Column(db.Float, nullable=False, default=0)
+    wait_added_unit = db.Column(db.String(16), nullable=False, default='minutes')
+    prob_denom = db.Column(db.Integer, nullable=False, default=1)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
