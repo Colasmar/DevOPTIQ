@@ -1,5 +1,6 @@
 /* ============================================================
    CARTOGRAPHIE DES ACTIVITÉS - VERSION SVG INLINE + ENTITÉS
+   + IMPORT DES CONNEXIONS VSDX
    
    Cette version charge le SVG inline dans le DOM, ce qui permet
    un contrôle total sur les événements (pan + clic activités)
@@ -40,6 +41,9 @@ const ZOOM_MAX = 10;
 
 // Entité actuellement sélectionnée dans le gestionnaire
 let selectedEntityId = null;
+
+// Fichier VSDX pour import des connexions (stocké après preview)
+let pendingConnectionsFile = null;
 
 /* ============================================================
    CENTRER LA CARTOGRAPHIE AU CHARGEMENT
@@ -470,6 +474,30 @@ function initPopup() {
 }
 
 /* ============================================================
+   ONGLETS DE LA POPUP
+============================================================ */
+function initTabs() {
+  const tabs = document.querySelectorAll(".popup-tab");
+  const contents = document.querySelectorAll(".tab-content");
+
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      // Désactiver tous les onglets
+      tabs.forEach((t) => t.classList.remove("active"));
+      contents.forEach((c) => c.classList.remove("active"));
+
+      // Activer l'onglet cliqué
+      tab.classList.add("active");
+      const targetId = tab.dataset.tab;
+      const targetContent = document.getElementById(targetId);
+      if (targetContent) {
+        targetContent.classList.add("active");
+      }
+    });
+  });
+}
+
+/* ============================================================
    DROPZONE DANS POPUP ACTIONS CARTOGRAPHIE
 ============================================================ */
 function initCartoDropzone() {
@@ -621,6 +649,328 @@ function initResyncButton() {
       btn.disabled = false;
     }
   };
+}
+
+/* ============================================================
+   DROPZONE CONNEXIONS (VSDX)
+============================================================ */
+function initDropzoneConnections() {
+  const zone = document.getElementById("dropzone-connections");
+  const status = document.getElementById("dropzone-connections-status");
+  if (!zone || !status) return;
+
+  zone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    zone.classList.add("dragover");
+  });
+
+  zone.addEventListener("dragleave", () => {
+    zone.classList.remove("dragover");
+  });
+
+  zone.addEventListener("drop", async (e) => {
+    e.preventDefault();
+    zone.classList.remove("dragover");
+
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      await analyzeVsdxFile(file, status);
+    }
+  });
+
+  // Permettre aussi le clic pour sélectionner un fichier
+  zone.addEventListener("click", () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".vsdx";
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        await analyzeVsdxFile(file, status);
+      }
+    };
+    input.click();
+  });
+}
+
+async function analyzeVsdxFile(file, status) {
+  if (!file.name.toLowerCase().endsWith(".vsdx")) {
+    status.textContent = "❌ Format invalide — fichier .vsdx requis";
+    status.className = "dropzone-status error";
+    return;
+  }
+
+  status.textContent = "⏳ Analyse en cours...";
+  status.className = "dropzone-status loading";
+
+  // Stocker le fichier pour l'import ultérieur
+  pendingConnectionsFile = file;
+
+  const form = new FormData();
+  form.append("file", file);
+
+  try {
+    const res = await fetch("/activities/preview-connections", {
+      method: "POST",
+      body: form,
+    });
+
+    const data = await res.json();
+
+    if (data.error || data.errors) {
+      status.textContent = "❌ " + (data.error || data.errors.join(", "));
+      status.className = "dropzone-status error";
+      return;
+    }
+
+    status.textContent = `✓ ${data.total_connections} connexion(s) trouvée(s)`;
+    status.className = "dropzone-status success";
+    displayConnectionsPreview(data);
+  } catch (err) {
+    status.textContent = "❌ Erreur lors de l'analyse";
+    status.className = "dropzone-status error";
+    console.error(err);
+  }
+}
+
+/* ============================================================
+   AFFICHAGE PREVIEW CONNEXIONS
+============================================================ */
+function displayConnectionsPreview(data) {
+  const preview = document.getElementById("connections-preview");
+  const statsDiv = document.getElementById("connections-stats");
+  const tbody = document.getElementById("connections-tbody");
+  const missingWarning = document.getElementById("missing-activities-warning");
+  const missingList = document.getElementById("missing-activities-list");
+  const importBtn = document.getElementById("import-connections-btn");
+
+  if (!preview || !statsDiv || !tbody) return;
+
+  // Afficher la section preview
+  preview.classList.remove("hidden");
+
+  // Statistiques
+  statsDiv.innerHTML = `
+    <div class="stat-box">
+      <div class="stat-value">${data.total_connections}</div>
+      <div class="stat-label">Total</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-value">${data.valid_connections}</div>
+      <div class="stat-label">Valides</div>
+    </div>
+    <div class="stat-box ${data.invalid_connections > 0 ? 'warning' : ''}">
+      <div class="stat-value">${data.invalid_connections}</div>
+      <div class="stat-label">Invalides</div>
+    </div>
+  `;
+
+  // Activités manquantes
+  if (data.missing_activities && data.missing_activities.length > 0) {
+    missingWarning.classList.remove("hidden");
+    missingList.innerHTML = data.missing_activities
+      .map((name) => `<li>${name}</li>`)
+      .join("");
+  } else {
+    missingWarning.classList.add("hidden");
+  }
+
+  // Tableau des connexions
+  tbody.innerHTML = data.connections
+    .map((conn) => {
+      const typeClass = conn.data_type
+        ? conn.data_type === "déclenchante"
+          ? "declenchante"
+          : "nourrissante"
+        : "";
+      const statusClass = conn.valid ? "status-valid" : "status-invalid";
+      const statusText = conn.valid ? "✓ OK" : "✗ Manquante";
+
+      return `
+      <tr>
+        <td>${conn.source}</td>
+        <td class="arrow-cell">→</td>
+        <td>${conn.target}</td>
+        <td>${conn.data_name || "-"}</td>
+        <td>${
+          conn.data_type
+            ? `<span class="data-type ${typeClass}">${conn.data_type}</span>`
+            : "-"
+        }</td>
+        <td class="${statusClass}">${statusText}</td>
+      </tr>
+    `;
+    })
+    .join("");
+
+  // Activer/désactiver le bouton d'import
+  if (importBtn) {
+    importBtn.disabled = data.valid_connections === 0;
+  }
+}
+
+/* ============================================================
+   IMPORT DES CONNEXIONS
+============================================================ */
+function initImportConnections() {
+  const importBtn = document.getElementById("import-connections-btn");
+  if (!importBtn) return;
+
+  importBtn.addEventListener("click", async () => {
+    if (!pendingConnectionsFile) {
+      alert("Veuillez d'abord analyser un fichier VSDX");
+      return;
+    }
+
+    const clearExisting = document.getElementById("clear-existing-checkbox")?.checked || false;
+
+    importBtn.textContent = "⏳ Import en cours...";
+    importBtn.disabled = true;
+
+    const form = new FormData();
+    form.append("file", pendingConnectionsFile);
+    form.append("clear_existing", clearExisting.toString());
+
+    try {
+      const res = await fetch("/activities/import-connections", {
+        method: "POST",
+        body: form,
+      });
+
+      const data = await res.json();
+
+      if (data.error) {
+        alert("Erreur: " + data.error);
+        importBtn.textContent = "✅ Importer les connexions valides";
+        importBtn.disabled = false;
+        return;
+      }
+
+      alert(
+        `Import terminé!\n\n` +
+          `• ${data.imported} connexion(s) importée(s)\n` +
+          `• ${data.skipped} connexion(s) ignorée(s) (déjà existantes)\n` +
+          `• ${data.invalid} connexion(s) invalide(s)`
+      );
+
+      // Recharger les connexions actuelles
+      loadCurrentConnections();
+
+      importBtn.textContent = "✅ Importer les connexions valides";
+      importBtn.disabled = false;
+    } catch (err) {
+      alert("Erreur lors de l'import");
+      console.error(err);
+      importBtn.textContent = "✅ Importer les connexions valides";
+      importBtn.disabled = false;
+    }
+  });
+}
+
+/* ============================================================
+   CHARGER LES CONNEXIONS ACTUELLES
+============================================================ */
+async function loadCurrentConnections() {
+  const container = document.getElementById("current-connections");
+  const countDiv = document.getElementById("current-connections-count");
+  const tbody = document.getElementById("current-connections-tbody");
+
+  if (!container || !countDiv || !tbody) return;
+
+  try {
+    const res = await fetch("/activities/list-connections");
+    const data = await res.json();
+
+    if (!data.connections || data.connections.length === 0) {
+      container.classList.remove("hidden");
+      countDiv.textContent = "Aucune connexion enregistrée";
+      tbody.innerHTML = "";
+      return;
+    }
+
+    container.classList.remove("hidden");
+    countDiv.textContent = `${data.count} connexion(s) enregistrée(s)`;
+
+    tbody.innerHTML = data.connections
+      .map((conn) => {
+        const typeClass = conn.data_type
+          ? conn.data_type === "déclenchante"
+            ? "declenchante"
+            : "nourrissante"
+          : "";
+
+        return `
+        <tr>
+          <td>${conn.source}</td>
+          <td class="arrow-cell">→</td>
+          <td>${conn.target}</td>
+          <td>${conn.data_name || "-"}</td>
+          <td>${
+            conn.data_type
+              ? `<span class="data-type ${typeClass}">${conn.data_type}</span>`
+              : "-"
+          }</td>
+          <td>
+            <button class="btn-delete-small" data-id="${conn.id}">🗑️</button>
+          </td>
+        </tr>
+      `;
+      })
+      .join("");
+
+    // Ajouter les handlers de suppression
+    tbody.querySelectorAll(".btn-delete-small").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const linkId = btn.dataset.id;
+        if (!confirm("Supprimer cette connexion ?")) return;
+
+        try {
+          await fetch(`/activities/delete-connection/${linkId}`, {
+            method: "DELETE",
+          });
+          loadCurrentConnections();
+        } catch (err) {
+          alert("Erreur lors de la suppression");
+        }
+      });
+    });
+  } catch (err) {
+    console.error("Erreur chargement connexions:", err);
+  }
+}
+
+function initLoadConnectionsButton() {
+  const btn = document.getElementById("load-connections-btn");
+  if (!btn) return;
+
+  btn.addEventListener("click", loadCurrentConnections);
+}
+
+function initClearConnectionsButton() {
+  const btn = document.getElementById("clear-connections-btn");
+  if (!btn) return;
+
+  btn.addEventListener("click", async () => {
+    if (
+      !confirm(
+        "⚠️ Supprimer TOUTES les connexions ?\n\nCette action est irréversible."
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const res = await fetch("/activities/clear-connections", {
+        method: "DELETE",
+      });
+      const data = await res.json();
+
+      alert(`${data.deleted} connexion(s) supprimée(s)`);
+      loadCurrentConnections();
+    } catch (err) {
+      alert("Erreur lors de la suppression");
+    }
+  });
 }
 
 /* ============================================================
@@ -993,9 +1343,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Initialiser les contrôles UI
   initListClicks();
   initPopup();
+  initTabs();
   initCartoDropzone();
   initResyncButton();
   initEntityManager();
+
+  // Initialiser les fonctionnalités de connexions
+  initDropzoneConnections();
+  initImportConnections();
+  initLoadConnectionsButton();
+  initClearConnectionsButton();
 
   // Initialiser pan et zoom
   initPan();
