@@ -801,13 +801,14 @@ def import_connections():
                     db.session.flush()  # Pour obtenir l'ID
                     data_id = new_data.id
 
-            # Créer le Link
+            link_type = conn.get('data_type', 'activity')  # Défaut à 'activity' si 'data_type' est manquant
+
             new_link = Link(
                 entity_id=entity_id,
                 source_activity_id=source_activity_id,
                 target_activity_id=target_activity_id,
                 source_data_id=data_id,
-                type=conn.get('data_type'),
+                type=link_type,  # Utiliser 'link_type' ici
                 description=conn.get('data_name')
             )
             db.session.add(new_link)
