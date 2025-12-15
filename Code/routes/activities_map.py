@@ -55,6 +55,26 @@ def ensure_entity_dir(entity_id):
     os.makedirs(entity_dir, exist_ok=True)
     return entity_dir
 
+def _normalize_link_type(raw):
+    """
+    Normalise le type de connexion pour la BDD.
+    Retourne 'déclenchante' | 'nourrissante' ou None si non déterminable.
+    """
+    if raw is None:
+        return None
+
+    t = str(raw).strip().lower()
+    if not t:
+        return None
+
+    mapping = {
+        "t link": "déclenchante",
+        "trigger": "déclenchante",
+        "déclenchante": "déclenchante",
+        "n link": "nourrissante",
+        "nourrissante": "nourrissante",
+    }
+    return mapping.get(t, None)
 
 # ============================================================
 # PAGE CARTOGRAPHIE
@@ -795,7 +815,7 @@ def import_connections():
                     new_data = Data(
                         entity_id=entity_id,
                         name=conn['data_name'],
-                        type=conn.get('data_type', 'donnée')
+                        type=_normalize_link_type(conn.get("data_type")) or "nourrissante"
                     )
                     db.session.add(new_data)
                     db.session.flush()  # Pour obtenir l'ID
@@ -803,16 +823,35 @@ def import_connections():
 
             link_type = conn.get('data_type', 'activity')  # Défaut à 'activity' si 'data_type' est manquant
 
+            # Déterminer un type NON-NULL pour Link.type (colonne NOT NULL en BDD)
+            raw_type = conn.get("data_type") or conn.get("type")
+            link_type = _normalize_link_type(raw_type)
+
+            # Fallback: si une Data existe, on peut réutiliser son type
+            if not link_type and data_id:
+                d = Data.query.get(data_id)
+                if d and getattr(d, "type", None):
+                    link_type = _normalize_link_type(d.type) or d.type
+
+            # Fallback final (obligatoire) : éviter NULL en base
+            if not link_type:
+                link_type = "nourrissante"
+
+            # Description: si rien, on laisse None (colonne nullable côté links.description)
+            description = conn.get("data_name") or conn.get("description")
+
             new_link = Link(
                 entity_id=entity_id,
                 source_activity_id=source_activity_id,
                 target_activity_id=target_activity_id,
                 source_data_id=data_id,
-                type=link_type,  # Utiliser 'link_type' ici
-                description=conn.get('data_name')
+                type=link_type,
+                description=description
             )
+
             db.session.add(new_link)
             imported_count += 1
+
 
         db.session.commit()
 
