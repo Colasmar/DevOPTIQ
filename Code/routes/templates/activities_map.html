@@ -139,42 +139,149 @@
   </div>
 
   <!-- ============================================================
-       POPUP ACTIONS CARTOGRAPHIE
+       POPUP ACTIONS CARTOGRAPHIE (AVEC ONGLETS)
   ============================================================ -->
   <div id="carto-actions-popup" class="popup hidden">
-    <div class="popup-content">
+    <div class="popup-content popup-medium">
       <h2>Actions sur la cartographie</h2>
 
-      <!-- SECTION 1: Upload/Rechargement de cartographie -->
-      <div class="action-section">
-        <h3>📤 Mettre à jour la cartographie</h3>
-        <p class="info-text-small">
-          Glissez un fichier SVG exporté depuis Visio pour mettre à jour la cartographie.
-        </p>
-        <div id="carto-dropzone" class="dropzone">
-          <span class="dropzone-icon">📁</span>
-          <span>Glissez votre fichier SVG ici</span>
-          <span class="dropzone-hint">ou cliquez pour sélectionner</span>
-          <input type="file" id="carto-file-input" accept=".svg" hidden>
+      <!-- ONGLETS -->
+      <div class="popup-tabs">
+        <button class="popup-tab active" data-tab="tab-svg">📊 Cartographie</button>
+        <button class="popup-tab" data-tab="tab-connections">🔗 Connexions</button>
+      </div>
+
+      <!-- ===================== ONGLET CARTOGRAPHIE ===================== -->
+      <div id="tab-svg" class="tab-content active">
+
+        <!-- SECTION 1: Upload/Rechargement de cartographie -->
+        <div class="action-section">
+          <h3>📤 Mettre à jour la cartographie</h3>
+          <p class="info-text-small">
+            Glissez un fichier SVG exporté depuis Visio pour mettre à jour la cartographie.
+          </p>
+          <div id="carto-dropzone" class="dropzone">
+            <span class="dropzone-icon">📁</span>
+            <span>Glissez votre fichier SVG ici</span>
+            <span class="dropzone-hint">ou cliquez pour sélectionner</span>
+            <input type="file" id="carto-file-input" accept=".svg" hidden>
+          </div>
+          <div id="carto-dropzone-status"></div>
         </div>
-        <div id="carto-dropzone-status"></div>
+
+        <hr>
+
+        <!-- SECTION 2: Synchronisation -->
+        <div class="action-section">
+          <h3>🔄 Synchronisation</h3>
+          <button id="resync-activities-btn" class="btn-green">
+            🔄 Re-synchroniser les activités
+          </button>
+          <p class="info-text-small">
+            Vérifie les différences entre le SVG et la base de données.
+          </p>
+        </div>
+      </div>
+
+      <!-- ===================== ONGLET CONNEXIONS ===================== -->
+      <div id="tab-connections" class="tab-content">
+        
+        <div class="connections-info">
+          <p>
+            <strong>💡 Import des connexions</strong><br>
+            Importez un fichier Visio (.vsdx) contenant les connexions entre activités.
+            Les flèches du fichier seront analysées et créeront automatiquement les liens
+            entrantes/sortantes dans la base de données.
+          </p>
+        </div>
+
+        <!-- SECTION 1: Analyser un VSDX -->
+        <div class="action-section">
+          <h3>1. Analyser un fichier VSDX</h3>
+          <div id="dropzone-connections" class="dropzone">
+            <span class="dropzone-icon">📄</span>
+            <span>Déposez un fichier .vsdx pour analyser les connexions</span>
+            <span class="dropzone-hint">ou cliquez pour sélectionner</span>
+          </div>
+          <div id="dropzone-connections-status"></div>
+        </div>
+
+        <!-- PREVIEW DES CONNEXIONS -->
+        <div id="connections-preview" class="connections-preview hidden">
+          <h4>Aperçu des connexions</h4>
+          
+          <div id="connections-stats" class="connections-stats"></div>
+          
+          <div id="missing-activities-warning" class="warning-box hidden">
+            <strong>⚠️ Activités non trouvées :</strong>
+            <ul id="missing-activities-list"></ul>
+          </div>
+          
+          <div class="connections-table-wrapper">
+            <table id="connections-table" class="connections-table">
+              <thead>
+                <tr>
+                  <th>Source</th>
+                  <th>→</th>
+                  <th>Cible</th>
+                  <th>Donnée</th>
+                  <th>Type</th>
+                  <th>Statut</th>
+                </tr>
+              </thead>
+              <tbody id="connections-tbody"></tbody>
+            </table>
+          </div>
+
+          <div class="import-options">
+            <label class="checkbox-label">
+              <input type="checkbox" id="clear-existing-checkbox">
+              Supprimer les connexions existantes avant import
+            </label>
+          </div>
+
+          <button id="import-connections-btn" class="btn-green">
+            ✅ Importer les connexions valides
+          </button>
+        </div>
+
+        <hr>
+
+        <!-- SECTION 2: Connexions actuelles -->
+        <div class="action-section">
+          <h3>2. Connexions actuelles</h3>
+          <div class="connections-buttons">
+            <button id="load-connections-btn" class="btn-blue">
+              📋 Voir les connexions existantes
+            </button>
+            <button id="clear-connections-btn" class="btn-red-outline">
+              🗑️ Tout supprimer
+            </button>
+          </div>
+        </div>
+
+        <div id="current-connections" class="current-connections hidden">
+          <div id="current-connections-count"></div>
+          <div class="connections-table-wrapper">
+            <table id="current-connections-table" class="connections-table">
+              <thead>
+                <tr>
+                  <th>Source</th>
+                  <th>→</th>
+                  <th>Cible</th>
+                  <th>Donnée</th>
+                  <th>Type</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="current-connections-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
 
       <hr>
-
-      <!-- SECTION 2: Synchronisation -->
-      <div class="action-section">
-        <h3>🔄 Synchronisation</h3>
-        <button id="resync-activities-btn" class="btn-green">
-          🔄 Re-synchroniser les activités
-        </button>
-        <p class="info-text-small">
-          Vérifie les différences entre le SVG et la base de données.
-        </p>
-      </div>
-
-      <hr>
-
       <button id="close-popup" class="btn-red">Fermer</button>
     </div>
   </div>
@@ -264,7 +371,6 @@
           <p class="hint">Créez des activités depuis la page "Liste des activités".</p>
         </div>
       {% endif %}
-        </div>
     </div>
 
   </div>
