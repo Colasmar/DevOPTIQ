@@ -2,16 +2,10 @@
 """
 Parseur de connexions VSDX pour l'import des liens entre activités.
 
-Ce module extrait les connexions (flèches) d'un fichier Visio (.vsdx)
-et retourne une liste de connexions avec :
-- source_shape_id / source_name
-- target_shape_id / target_name  
-- data_name (nom de la donnée qui transite)
-- data_type (déclenchante / nourrissante)
-
 CORRECTIONS:
 - v2: Utilisation de itertext() pour récupérer tout le texte
 - v3: Exclusion des drapeaux (layer 6) des connexions
+- v4: FIX data_name - utiliser le TEXT du connecteur, pas l'attribut Name
 """
 
 import zipfile
@@ -26,52 +20,30 @@ class VsdxConnectionParser:
     VISIO_NS = {'v': 'http://schemas.microsoft.com/office/visio/2012/main'}
     
     # Layers à exclure des connexions (drapeaux, légendes, etc.)
-    EXCLUDED_LAYERS = {'6'}  # 6 = Result/Drapeau (représentation visuelle, pas une vraie activité)
-    
-    # Layers des vraies activités
-    ACTIVITY_LAYERS = {'1'}  # 1 = Activity (rectangles)
+    EXCLUDED_LAYERS = {'6'}  # 6 = Result/Drapeau
     
     def __init__(self, vsdx_path: str):
-        """
-        Initialise le parser avec le chemin du fichier VSDX.
-        
-        Args:
-            vsdx_path: Chemin vers le fichier .vsdx
-        """
         self.vsdx_path = vsdx_path
         self.shape_info: Dict[str, Dict] = {}
         self.connections: List[Dict] = []
-        self.excluded_shape_ids: Set[str] = set()  # Shapes à ignorer (drapeaux)
+        self.excluded_shape_ids: Set[str] = set()
         
     def parse(self) -> Tuple[List[Dict], List[str]]:
-        """
-        Parse le fichier VSDX et extrait les connexions.
-        
-        Returns:
-            Tuple contenant:
-            - Liste des connexions
-            - Liste des erreurs/warnings
-        """
         errors = []
         
-        # Vérifier que le fichier existe
         if not os.path.exists(self.vsdx_path):
             return [], [f"Fichier non trouvé: {self.vsdx_path}"]
         
-        # Vérifier l'extension
         if not self.vsdx_path.lower().endswith('.vsdx'):
             return [], ["Le fichier doit être au format .vsdx"]
         
         try:
-            # Extraire et parser le fichier page1.xml
             with zipfile.ZipFile(self.vsdx_path, 'r') as zf:
-                # Lister les fichiers de pages disponibles
                 page_files = [f for f in zf.namelist() if 'pages/page' in f and f.endswith('.xml')]
                 
                 if not page_files:
                     return [], ["Aucune page trouvée dans le fichier VSDX"]
                 
-                # Parser la première page (ou toutes si plusieurs)
                 for page_file in page_files:
                     page_xml = zf.read(page_file)
                     self._parse_page(page_xml, errors)
@@ -84,15 +56,13 @@ class VsdxConnectionParser:
         return self.connections, errors
     
     def _parse_page(self, page_xml: bytes, errors: List[str]):
-        """Parse une page XML et extrait les shapes et connexions."""
-        
         try:
             root = ET.fromstring(page_xml)
         except ET.ParseError as e:
             errors.append(f"Erreur parsing XML: {str(e)}")
             return
         
-        # 1) Récupérer tous les shapes avec leurs infos ET identifier les drapeaux
+        # 1) Récupérer tous les shapes avec leurs infos
         shapes = root.findall('.//v:Shape', self.VISIO_NS)
         
         for shape in shapes:
@@ -102,7 +72,7 @@ class VsdxConnectionParser:
                 
             shape_name = shape.get('Name', '')
             
-            # Récupérer le layer du shape
+            # Récupérer le layer
             layer_cell = shape.find(".//v:Cell[@N='LayerMember']", self.VISIO_NS)
             layer = layer_cell.get('V') if layer_cell is not None else None
             
@@ -138,24 +108,20 @@ class VsdxConnectionParser:
             if from_sheet not in connectors:
                 connectors[from_sheet] = {'source': None, 'target': None}
             
-            # BeginX = début du connecteur (source)
-            # EndX = fin du connecteur (cible)
             if 'BeginX' in from_cell:
                 connectors[from_sheet]['source'] = to_sheet
             elif 'EndX' in from_cell:
                 connectors[from_sheet]['target'] = to_sheet
         
-        # 3) Construire la liste des connexions avec noms
-        # EN EXCLUANT les connexions vers/depuis des drapeaux (layer 6)
+        # 3) Construire la liste des connexions
         for conn_id, data in connectors.items():
             source_id = data.get('source')
             target_id = data.get('target')
             
-            # Ignorer les connexions incomplètes
             if not source_id or not target_id:
                 continue
             
-            # *** NOUVEAU: Ignorer les connexions impliquant des drapeaux ***
+            # Ignorer les connexions impliquant des drapeaux (layer 6)
             if source_id in self.excluded_shape_ids or target_id in self.excluded_shape_ids:
                 continue
             
@@ -166,19 +132,16 @@ class VsdxConnectionParser:
             source_name = source_info.get('text') or source_info.get('name', '')
             target_name = target_info.get('text') or target_info.get('name', '')
             
-            # Filtrer les shapes sans nom valide
             if not source_name or not target_name:
                 continue
             
-            # Ignorer les shapes "Résultat" qui sont des artefacts Visio
             if source_name.startswith('Résultat.') or target_name.startswith('Résultat.'):
                 continue
             
-            # Le nom du connecteur peut être le nom de la donnée qui transite
-            connector_text = conn_info.get('text') or ''
-            connector_name = conn_info.get('name') or ''
+            # *** FIX v4: Extraire correctement le nom et type de la donnée ***
+            connector_text = conn_info.get('text') or ''  # Le VRAI nom de la donnée
+            connector_name = conn_info.get('name') or ''  # Sert juste pour le type (T/N prefix)
             
-            # Extraire le type et le nom de la donnée
             data_type, data_name = self._extract_data_info(connector_name, connector_text)
             
             self.connections.append({
@@ -193,35 +156,41 @@ class VsdxConnectionParser:
     
     def _extract_data_info(self, connector_name: str, connector_text: str) -> Tuple[Optional[str], Optional[str]]:
         """
-        Extrait le type et le nom de la donnée depuis le connecteur.
+        Extrait le type et le nom de la donnée.
         
-        Convention Visio:
-        - "T xxx" ou "T- xxx" = donnée déclenchante
-        - "N xxx" ou "N- xxx" = donnée nourrissante
+        IMPORTANT v4:
+        - data_name = le TEXTE du connecteur (connector_text), c'est le vrai nom affiché
+        - data_type = extrait du préfixe de connector_name (T=déclenchante, N=nourrissante)
         
-        Returns:
-            Tuple (data_type, data_name)
+        L'attribut Name du connecteur (ex: "N- Project Management") indique le TYPE,
+        mais le TEXTE (ex: "Planning prévisionnel projet") est le vrai nom de la donnée.
         """
         data_type = None
-        data_name = connector_text or connector_name or None
         
-        # Analyser le préfixe du nom du connecteur
+        # Le nom de la donnée est TOUJOURS le texte affiché sur le connecteur
+        data_name = connector_text.strip() if connector_text else None
+        
+        # Le type est extrait du préfixe de l'attribut Name
         name = connector_name.strip()
         
-        if name.startswith('T ') or name.startswith('T-'):
+        if name.startswith('T ') or name.startswith('T-') or name.startswith('T '):
             data_type = 'déclenchante'
-            data_name = name[2:].strip() if len(name) > 2 else connector_text
-        elif name.startswith('N ') or name.startswith('N-'):
+        elif name.startswith('N ') or name.startswith('N-') or name.startswith('N '):
             data_type = 'nourrissante'
-            data_name = name[2:].strip() if len(name) > 2 else connector_text
         
-        if data_name and data_name.strip() == '':
+        # Si pas de texte mais un name avec préfixe, utiliser la partie après le préfixe
+        if not data_name and name:
+            if name.startswith(('T ', 'T-', 'N ', 'N-')):
+                data_name = name[2:].strip() if len(name) > 2 else None
+            else:
+                data_name = name
+        
+        if data_name == '':
             data_name = None
             
         return data_type, data_name
     
     def get_unique_activities(self) -> List[str]:
-        """Retourne la liste des noms d'activités uniques trouvées dans les connexions."""
         activities = set()
         for conn in self.connections:
             activities.add(conn['source_name'])
@@ -229,7 +198,6 @@ class VsdxConnectionParser:
         return sorted(list(activities))
     
     def get_excluded_shapes(self) -> List[Dict]:
-        """Retourne les shapes exclus (drapeaux) pour info."""
         return [
             {'shape_id': sid, 'text': self.shape_info.get(sid, {}).get('text', '?')}
             for sid in self.excluded_shape_ids
@@ -237,15 +205,11 @@ class VsdxConnectionParser:
 
 
 def parse_vsdx_connections(vsdx_path: str) -> Tuple[List[Dict], List[str]]:
-    """
-    Fonction utilitaire pour parser les connexions d'un fichier VSDX.
-    """
     parser = VsdxConnectionParser(vsdx_path)
     return parser.parse()
 
 
 def normalize_activity_name(name: str) -> str:
-    """Normalise un nom d'activité pour la comparaison."""
     if not name:
         return ''
     name = name.replace("'", "'").replace("'", "'").replace("`", "'")
@@ -257,15 +221,10 @@ def validate_connections_against_activities(
     connections: List[Dict], 
     existing_activities: Dict[str, int]
 ) -> Tuple[List[Dict], List[Dict], List[str]]:
-    """
-    Valide les connexions par rapport aux activités existantes.
-    Utilise normalize_activity_name() pour une comparaison robuste.
-    """
     valid_connections = []
     invalid_connections = []
     missing_activities = set()
     
-    # Créer un mapping normalisé
     normalized_activities = {}
     for name, act_id in existing_activities.items():
         norm_name = normalize_activity_name(name)
@@ -296,7 +255,6 @@ def validate_connections_against_activities(
     return valid_connections, invalid_connections, sorted(list(missing_activities))
 
 
-# Test du module
 if __name__ == '__main__':
     import sys
     
@@ -313,7 +271,6 @@ if __name__ == '__main__':
         for e in errors:
             print(f"  - {e}")
     
-    # Afficher les shapes exclus
     excluded = parser.get_excluded_shapes()
     if excluded:
         print(f"\nShapes exclus (drapeaux): {len(excluded)}")
@@ -322,4 +279,6 @@ if __name__ == '__main__':
     
     print(f"\nConnexions trouvées: {len(connections)}")
     for conn in connections:
-        print(f"  {conn['source_name']} → {conn['target_name']}")
+        dtype = f"[{conn['data_type']}]" if conn['data_type'] else ""
+        print(f"  {conn['source_name']} -> {conn['target_name']}")
+        print(f"    Data: '{conn['data_name']}' {dtype}")
