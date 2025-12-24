@@ -1,4 +1,4 @@
-# Code/utils/vsdx_connection_parser.py
+# Code/routes/vsdx_conection_parser.py
 """
 Parseur de connexions VSDX pour l'import des liens entre activités.
 
@@ -8,6 +8,9 @@ et retourne une liste de connexions avec :
 - target_shape_id / target_name  
 - data_name (nom de la donnée qui transite)
 - data_type (déclenchante / nourrissante)
+
+CORRECTION v2: Utilisation de itertext() pour récupérer tout le texte
+des shapes, y compris le texte dans les éléments imbriqués.
 """
 
 import zipfile
@@ -91,13 +94,15 @@ class VsdxConnectionParser:
                 
             shape_name = shape.get('Name', '')
             
-            # Chercher le texte du shape
+            # CORRECTION: Utiliser itertext() pour récupérer TOUT le texte
+            # y compris celui dans les éléments enfants (<cp>, <pp>, <tp>, etc.)
             text_elem = shape.find('.//v:Text', self.VISIO_NS)
             text = ''
-            if text_elem is not None and text_elem.text:
-                text = text_elem.text.strip()
-                # Nettoyer les caractères de contrôle
-                text = ''.join(c for c in text if c.isprintable())
+            if text_elem is not None:
+                # itertext() récupère le texte de l'élément ET de tous ses descendants
+                text = ''.join(text_elem.itertext()).strip()
+                # Nettoyer les caractères de contrôle et normaliser les espaces
+                text = ' '.join(text.split())
             
             self.shape_info[shape_id] = {
                 'name': shape_name,
@@ -228,12 +233,35 @@ def parse_vsdx_connections(vsdx_path: str) -> Tuple[List[Dict], List[str]]:
     return parser.parse()
 
 
+def normalize_activity_name(name: str) -> str:
+    """
+    Normalise un nom d'activité pour la comparaison.
+    
+    - Lowercase
+    - Espaces normalisés
+    - Apostrophes standardisées
+    """
+    if not name:
+        return ''
+    
+    # Normaliser les apostrophes (différents types Unicode)
+    name = name.replace("'", "'").replace("'", "'").replace("`", "'")
+    
+    # Lowercase et normaliser les espaces
+    name = ' '.join(name.lower().split())
+    
+    return name
+
+
 def validate_connections_against_activities(
     connections: List[Dict], 
     existing_activities: Dict[str, int]
 ) -> Tuple[List[Dict], List[Dict], List[str]]:
     """
     Valide les connexions par rapport aux activités existantes.
+    
+    CORRECTION v2: Utilise normalize_activity_name() pour une comparaison
+    insensible à la casse et aux variations d'apostrophes/espaces.
     
     Args:
         connections: Liste des connexions extraites du VSDX
@@ -249,24 +277,33 @@ def validate_connections_against_activities(
     invalid_connections = []
     missing_activities = set()
     
+    # Créer un mapping normalisé pour la recherche
+    normalized_activities = {}
+    for name, act_id in existing_activities.items():
+        norm_name = normalize_activity_name(name)
+        normalized_activities[norm_name] = (name, act_id)
+    
     for conn in connections:
         source_name = conn['source_name']
         target_name = conn['target_name']
         
-        source_exists = source_name in existing_activities
-        target_exists = target_name in existing_activities
+        source_norm = normalize_activity_name(source_name)
+        target_norm = normalize_activity_name(target_name)
         
-        if source_exists and target_exists:
+        source_match = normalized_activities.get(source_norm)
+        target_match = normalized_activities.get(target_norm)
+        
+        if source_match and target_match:
             # Ajouter les IDs des activités
             conn_with_ids = conn.copy()
-            conn_with_ids['source_activity_id'] = existing_activities[source_name]
-            conn_with_ids['target_activity_id'] = existing_activities[target_name]
+            conn_with_ids['source_activity_id'] = source_match[1]
+            conn_with_ids['target_activity_id'] = target_match[1]
             valid_connections.append(conn_with_ids)
         else:
             invalid_connections.append(conn)
-            if not source_exists:
+            if not source_match:
                 missing_activities.add(source_name)
-            if not target_exists:
+            if not target_match:
                 missing_activities.add(target_name)
     
     return valid_connections, invalid_connections, sorted(list(missing_activities))

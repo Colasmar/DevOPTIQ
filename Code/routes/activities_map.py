@@ -321,6 +321,12 @@ def delete_entity(entity_id):
     entity_name = entity.name
     
     try:
+        # CORRECTION: Supprimer les Links et Data AVANT l'entité
+        # Les Links ont des ForeignKeys vers Activities qui seraient
+        # supprimées par le cascade delete de l'Entity
+        links_count = Link.query.filter_by(entity_id=entity_id).delete(synchronize_session=False)
+        Data.query.filter_by(entity_id=entity_id).delete(synchronize_session=False)
+        
         db.session.delete(entity)
         db.session.commit()
         
@@ -334,7 +340,7 @@ def delete_entity(entity_id):
         
         return jsonify({
             "status": "ok",
-            "message": f"Entité '{entity_name}' supprimée ({activities_count} activités supprimées)"
+            "message": f"Entité '{entity_name}' supprimée ({activities_count} activités, {links_count} liens)"
         })
         
     except Exception as e:
