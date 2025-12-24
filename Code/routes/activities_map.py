@@ -321,12 +321,6 @@ def delete_entity(entity_id):
     entity_name = entity.name
     
     try:
-        # CORRECTION: Supprimer les Links et Data AVANT l'entité
-        # Les Links ont des ForeignKeys vers Activities qui seraient
-        # supprimées par le cascade delete de l'Entity
-        links_count = Link.query.filter_by(entity_id=entity_id).delete(synchronize_session=False)
-        Data.query.filter_by(entity_id=entity_id).delete(synchronize_session=False)
-        
         db.session.delete(entity)
         db.session.commit()
         
@@ -340,7 +334,7 @@ def delete_entity(entity_id):
         
         return jsonify({
             "status": "ok",
-            "message": f"Entité '{entity_name}' supprimée ({activities_count} activités, {links_count} liens)"
+            "message": f"Entité '{entity_name}' supprimée ({activities_count} activités supprimées)"
         })
         
     except Exception as e:
@@ -548,15 +542,32 @@ def sync_activities_with_svg(entity_id, svg_path):
     deleted_shape_ids = existing_shape_ids - svg_shape_ids
     for shape_id in deleted_shape_ids:
         db_activity = existing_shape_map[shape_id]
-        stats["deleted_warning"] += 1
-        stats["deleted_list"].append({
-            "id": db_activity.id,
-            "name": db_activity.name,
-            "shape_id": shape_id
-        })
-        print(f"[SYNC] ⚠️ SUPPRIMÉ DU SVG: '{db_activity.name}' (shape_id={shape_id})")
+        activity_id = db_activity.id
+        activity_name = db_activity.name
+        
+        try:
+            # Supprimer d'abord les Links qui référencent cette activité
+            Link.query.filter(
+                (Link.source_activity_id == activity_id) | 
+                (Link.target_activity_id == activity_id)
+            ).delete(synchronize_session=False)
+            
+            # Puis supprimer l'activité
+            db.session.delete(db_activity)
+            db.session.commit()
+            
+            stats["deleted_warning"] += 1
+            stats["deleted_list"].append({
+                "id": activity_id,
+                "name": activity_name,
+                "shape_id": shape_id
+            })
+            print(f"[SYNC] 🗑️ SUPPRIMÉ: '{activity_name}' (shape_id={shape_id})")
+        except Exception as e:
+            db.session.rollback()
+            print(f"[SYNC] ❌ ERREUR suppression '{activity_name}': {e}")
     
-    print(f"[SYNC] Terminé: +{stats['added']} ajoutées, ✏️{stats['renamed']} renommées, ⚠️{stats['deleted_warning']} supprimées du SVG")
+    print(f"[SYNC] Terminé: +{stats['added']} ajoutées, ✏️{stats['renamed']} renommées, 🗑️{stats['deleted_warning']} supprimées")
     return stats
 
 
