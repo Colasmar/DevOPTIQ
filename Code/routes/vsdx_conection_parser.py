@@ -9,13 +9,14 @@ et retourne une liste de connexions avec :
 - data_name (nom de la donnée qui transite)
 - data_type (déclenchante / nourrissante)
 
-CORRECTION v2: Utilisation de itertext() pour récupérer tout le texte
-des shapes, y compris le texte dans les éléments imbriqués.
+CORRECTIONS:
+- v2: Utilisation de itertext() pour récupérer tout le texte
+- v3: Exclusion des drapeaux (layer 6) des connexions
 """
 
 import zipfile
 import xml.etree.ElementTree as ET
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Set
 import os
 
 
@@ -23,6 +24,12 @@ class VsdxConnectionParser:
     """Parse les connexions d'un fichier VSDX."""
     
     VISIO_NS = {'v': 'http://schemas.microsoft.com/office/visio/2012/main'}
+    
+    # Layers à exclure des connexions (drapeaux, légendes, etc.)
+    EXCLUDED_LAYERS = {'6'}  # 6 = Result/Drapeau (représentation visuelle, pas une vraie activité)
+    
+    # Layers des vraies activités
+    ACTIVITY_LAYERS = {'1'}  # 1 = Activity (rectangles)
     
     def __init__(self, vsdx_path: str):
         """
@@ -34,6 +41,7 @@ class VsdxConnectionParser:
         self.vsdx_path = vsdx_path
         self.shape_info: Dict[str, Dict] = {}
         self.connections: List[Dict] = []
+        self.excluded_shape_ids: Set[str] = set()  # Shapes à ignorer (drapeaux)
         
     def parse(self) -> Tuple[List[Dict], List[str]]:
         """
@@ -84,7 +92,7 @@ class VsdxConnectionParser:
             errors.append(f"Erreur parsing XML: {str(e)}")
             return
         
-        # 1) Récupérer tous les shapes avec leurs infos
+        # 1) Récupérer tous les shapes avec leurs infos ET identifier les drapeaux
         shapes = root.findall('.//v:Shape', self.VISIO_NS)
         
         for shape in shapes:
@@ -94,19 +102,25 @@ class VsdxConnectionParser:
                 
             shape_name = shape.get('Name', '')
             
-            # CORRECTION: Utiliser itertext() pour récupérer TOUT le texte
-            # y compris celui dans les éléments enfants (<cp>, <pp>, <tp>, etc.)
+            # Récupérer le layer du shape
+            layer_cell = shape.find(".//v:Cell[@N='LayerMember']", self.VISIO_NS)
+            layer = layer_cell.get('V') if layer_cell is not None else None
+            
+            # Marquer les shapes à exclure (drapeaux layer 6)
+            if layer in self.EXCLUDED_LAYERS:
+                self.excluded_shape_ids.add(shape_id)
+            
+            # Récupérer le texte avec itertext()
             text_elem = shape.find('.//v:Text', self.VISIO_NS)
             text = ''
             if text_elem is not None:
-                # itertext() récupère le texte de l'élément ET de tous ses descendants
                 text = ''.join(text_elem.itertext()).strip()
-                # Nettoyer les caractères de contrôle et normaliser les espaces
                 text = ' '.join(text.split())
             
             self.shape_info[shape_id] = {
                 'name': shape_name,
-                'text': text
+                'text': text,
+                'layer': layer
             }
         
         # 2) Récupérer toutes les connexions
@@ -132,12 +146,17 @@ class VsdxConnectionParser:
                 connectors[from_sheet]['target'] = to_sheet
         
         # 3) Construire la liste des connexions avec noms
+        # EN EXCLUANT les connexions vers/depuis des drapeaux (layer 6)
         for conn_id, data in connectors.items():
             source_id = data.get('source')
             target_id = data.get('target')
             
             # Ignorer les connexions incomplètes
             if not source_id or not target_id:
+                continue
+            
+            # *** NOUVEAU: Ignorer les connexions impliquant des drapeaux ***
+            if source_id in self.excluded_shape_ids or target_id in self.excluded_shape_ids:
                 continue
             
             source_info = self.shape_info.get(source_id, {})
@@ -191,65 +210,46 @@ class VsdxConnectionParser:
         
         if name.startswith('T ') or name.startswith('T-'):
             data_type = 'déclenchante'
-            # Extraire le nom après le préfixe
             data_name = name[2:].strip() if len(name) > 2 else connector_text
         elif name.startswith('N ') or name.startswith('N-'):
             data_type = 'nourrissante'
             data_name = name[2:].strip() if len(name) > 2 else connector_text
         
-        # Nettoyer le nom si vide
         if data_name and data_name.strip() == '':
             data_name = None
             
         return data_type, data_name
     
     def get_unique_activities(self) -> List[str]:
-        """
-        Retourne la liste des noms d'activités uniques trouvées dans les connexions.
-        
-        Returns:
-            Liste des noms d'activités
-        """
+        """Retourne la liste des noms d'activités uniques trouvées dans les connexions."""
         activities = set()
         for conn in self.connections:
             activities.add(conn['source_name'])
             activities.add(conn['target_name'])
         return sorted(list(activities))
+    
+    def get_excluded_shapes(self) -> List[Dict]:
+        """Retourne les shapes exclus (drapeaux) pour info."""
+        return [
+            {'shape_id': sid, 'text': self.shape_info.get(sid, {}).get('text', '?')}
+            for sid in self.excluded_shape_ids
+        ]
 
 
 def parse_vsdx_connections(vsdx_path: str) -> Tuple[List[Dict], List[str]]:
     """
     Fonction utilitaire pour parser les connexions d'un fichier VSDX.
-    
-    Args:
-        vsdx_path: Chemin vers le fichier .vsdx
-        
-    Returns:
-        Tuple contenant:
-        - Liste des connexions
-        - Liste des erreurs/warnings
     """
     parser = VsdxConnectionParser(vsdx_path)
     return parser.parse()
 
 
 def normalize_activity_name(name: str) -> str:
-    """
-    Normalise un nom d'activité pour la comparaison.
-    
-    - Lowercase
-    - Espaces normalisés
-    - Apostrophes standardisées
-    """
+    """Normalise un nom d'activité pour la comparaison."""
     if not name:
         return ''
-    
-    # Normaliser les apostrophes (différents types Unicode)
     name = name.replace("'", "'").replace("'", "'").replace("`", "'")
-    
-    # Lowercase et normaliser les espaces
     name = ' '.join(name.lower().split())
-    
     return name
 
 
@@ -259,25 +259,13 @@ def validate_connections_against_activities(
 ) -> Tuple[List[Dict], List[Dict], List[str]]:
     """
     Valide les connexions par rapport aux activités existantes.
-    
-    CORRECTION v2: Utilise normalize_activity_name() pour une comparaison
-    insensible à la casse et aux variations d'apostrophes/espaces.
-    
-    Args:
-        connections: Liste des connexions extraites du VSDX
-        existing_activities: Dict {nom_activité: activity_id}
-        
-    Returns:
-        Tuple contenant:
-        - valid_connections: Connexions où source ET cible existent
-        - invalid_connections: Connexions avec activités manquantes
-        - missing_activities: Liste des noms d'activités non trouvées
+    Utilise normalize_activity_name() pour une comparaison robuste.
     """
     valid_connections = []
     invalid_connections = []
     missing_activities = set()
     
-    # Créer un mapping normalisé pour la recherche
+    # Créer un mapping normalisé
     normalized_activities = {}
     for name, act_id in existing_activities.items():
         norm_name = normalize_activity_name(name)
@@ -294,7 +282,6 @@ def validate_connections_against_activities(
         target_match = normalized_activities.get(target_norm)
         
         if source_match and target_match:
-            # Ajouter les IDs des activités
             conn_with_ids = conn.copy()
             conn_with_ids['source_activity_id'] = source_match[1]
             conn_with_ids['target_activity_id'] = target_match[1]
@@ -318,15 +305,21 @@ if __name__ == '__main__':
         sys.exit(1)
     
     vsdx_path = sys.argv[1]
-    connections, errors = parse_vsdx_connections(vsdx_path)
+    parser = VsdxConnectionParser(vsdx_path)
+    connections, errors = parser.parse()
     
     if errors:
         print("Erreurs:")
         for e in errors:
             print(f"  - {e}")
     
+    # Afficher les shapes exclus
+    excluded = parser.get_excluded_shapes()
+    if excluded:
+        print(f"\nShapes exclus (drapeaux): {len(excluded)}")
+        for ex in excluded:
+            print(f"  - Shape {ex['shape_id']}: {ex['text']}")
+    
     print(f"\nConnexions trouvées: {len(connections)}")
     for conn in connections:
         print(f"  {conn['source_name']} → {conn['target_name']}")
-        if conn['data_name']:
-            print(f"    [{conn['data_type'] or 'donnée'}] {conn['data_name']}")
