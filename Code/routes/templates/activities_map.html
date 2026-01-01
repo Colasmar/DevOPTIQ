@@ -5,6 +5,9 @@
   // Variables globales pour le JavaScript
   window.CARTO_SHAPE_MAP = {{ shape_activity_map | tojson | safe }};
   window.SVG_EXISTS = {{ svg_exists | tojson }};
+  window.VSDX_EXISTS = {{ vsdx_exists | tojson }};
+  window.CURRENT_SVG = {{ current_svg | tojson | safe }};
+  window.CURRENT_VSDX = {{ current_vsdx | tojson | safe }};
   window.ACTIVE_ENTITY = {{ active_entity | tojson | safe }};
   window.ALL_ENTITIES = {{ all_entities | tojson | safe }};
 </script>
@@ -34,8 +37,8 @@
       <button id="entity-manager-btn" class="btn-entity-manager">
         🏢 Gestionnaire d'entités
       </button>
-      <button id="carto-actions-btn" class="carto-actions-btn">
-        ⚙️ Actions cartographie
+      <button id="carto-wizard-btn" class="carto-wizard-btn">
+        📦 Gérer la cartographie
       </button>
     </div>
   </div>
@@ -113,7 +116,7 @@
             <!-- Actions sur l'entité -->
             <div class="entity-actions">
               <button id="activate-entity-btn" class="btn-blue">
-                ✓ Activer cette entité
+                ✔ Activer cette entité
               </button>
               <button id="rename-entity-btn" class="btn-gray">
                 ✏️ Renommer
@@ -121,15 +124,6 @@
               <button id="delete-entity-btn" class="btn-red">
                 🗑️ Supprimer
               </button>
-            </div>
-            
-            <!-- Upload SVG -->
-            <div class="entity-upload-section">
-              <h4>📁 Cartographie SVG</h4>
-              <div id="entity-dropzone" class="dropzone">
-                Glissez un fichier SVG ici ou cliquez pour sélectionner
-              </div>
-              <div id="entity-dropzone-status"></div>
             </div>
           </div>
         </div>
@@ -139,150 +133,359 @@
   </div>
 
   <!-- ============================================================
-       POPUP ACTIONS CARTOGRAPHIE (AVEC ONGLETS)
+       WIZARD CARTOGRAPHIE (3 ÉTAPES)
   ============================================================ -->
-  <div id="carto-actions-popup" class="popup hidden">
-    <div class="popup-content popup-medium">
-      <h2>Actions sur la cartographie</h2>
-
-      <!-- ONGLETS -->
-      <div class="popup-tabs">
-        <button class="popup-tab active" data-tab="tab-svg">📊 Cartographie</button>
-        <button class="popup-tab" data-tab="tab-connections">🔗 Connexions</button>
+  <div id="carto-wizard-popup" class="popup hidden">
+    <div class="wizard-overlay"></div>
+    <div class="wizard-container">
+      
+      <!-- HEADER WIZARD -->
+      <div class="wizard-header">
+        <h2>📦 Gestion de la cartographie</h2>
+        <button id="close-wizard" class="btn-close">✕</button>
       </div>
 
-      <!-- ===================== ONGLET CARTOGRAPHIE ===================== -->
-      <div id="tab-svg" class="tab-content active">
-
-        <!-- SECTION 1: Upload/Rechargement de cartographie -->
-        <div class="action-section">
-          <h3>📤 Mettre à jour la cartographie</h3>
-          <p class="info-text-small">
-            Glissez un fichier SVG exporté depuis Visio pour mettre à jour la cartographie.
-          </p>
-          <div id="carto-dropzone" class="dropzone">
-            <span class="dropzone-icon">📁</span>
-            <span>Glissez votre fichier SVG ici</span>
-            <span class="dropzone-hint">ou cliquez pour sélectionner</span>
-            <input type="file" id="carto-file-input" accept=".svg" hidden>
-          </div>
-          <div id="carto-dropzone-status"></div>
+      <!-- INDICATEUR DE PROGRESSION -->
+      <div class="wizard-progress" id="wizard-progress">
+        <div class="progress-step" data-step="1">
+          <div class="step-circle">1</div>
+          <span class="step-label">Connexions</span>
         </div>
-
-        <hr>
-
-        <!-- SECTION 2: Synchronisation -->
-        <div class="action-section">
-          <h3>🔄 Synchronisation</h3>
-          <button id="resync-activities-btn" class="btn-green">
-            🔄 Re-synchroniser les activités
-          </button>
-          <p class="info-text-small">
-            Vérifie les différences entre le SVG et la base de données.
-          </p>
+        <div class="progress-line" data-line="1"></div>
+        <div class="progress-step" data-step="2">
+          <div class="step-circle">2</div>
+          <span class="step-label">Cartographie</span>
+        </div>
+        <div class="progress-line" data-line="2"></div>
+        <div class="progress-step" data-step="3">
+          <div class="step-circle">3</div>
+          <span class="step-label">Récapitulatif</span>
         </div>
       </div>
 
-      <!-- ===================== ONGLET CONNEXIONS ===================== -->
-      <div id="tab-connections" class="tab-content">
-        
-        <div class="connections-info">
-          <p>
-            <strong>💡 Import des connexions</strong><br>
-            Importez un fichier Visio (.vsdx) contenant les connexions entre activités.
-            Les flèches du fichier seront analysées et créeront automatiquement les liens
-            entrantes/sortantes dans la base de données.
-          </p>
+      <!-- CONTENU DES ÉTAPES -->
+      <div class="wizard-content">
+
+        <!-- ==================== ÉCRAN D'ACCUEIL ==================== -->
+        <div id="wizard-screen-home" class="wizard-screen active">
+          <div class="wizard-home-content">
+            <div class="wizard-home-icon">🗺️</div>
+            <h3>Que souhaitez-vous faire ?</h3>
+            <p class="wizard-home-desc">
+              Importez vos fichiers Visio pour créer ou mettre à jour votre cartographie des activités.
+            </p>
+
+            <div class="wizard-home-actions">
+              <button id="wizard-new-btn" class="wizard-action-card">
+                <div class="action-card-icon">✨</div>
+                <div class="action-card-content">
+                  <strong>Nouvelle cartographie</strong>
+                  <span>Créer une cartographie à partir de zéro</span>
+                </div>
+              </button>
+
+              <button id="wizard-update-btn" class="wizard-action-card" {% if not svg_exists and not vsdx_exists %}disabled{% endif %}>
+                <div class="action-card-icon">🔄</div>
+                <div class="action-card-content">
+                  <strong>Modifier l'existante</strong>
+                  <span>Mettre à jour les fichiers actuels</span>
+                </div>
+              </button>
+            </div>
+
+            <!-- Info fichiers actuels -->
+            <div class="wizard-current-files">
+              <h4>Fichiers actuels</h4>
+              <div class="current-files-grid">
+                <div class="current-file-item {% if vsdx_exists %}exists{% else %}missing{% endif %}">
+                  <span class="file-icon">📄</span>
+                  <span class="file-type">VSDX</span>
+                  <span class="file-status">
+                    {% if vsdx_exists %}
+                      {{ current_vsdx or "Présent" }}
+                    {% else %}
+                      Non importé
+                    {% endif %}
+                  </span>
+                </div>
+                <div class="current-file-item {% if svg_exists %}exists{% else %}missing{% endif %}">
+                  <span class="file-icon">🖼️</span>
+                  <span class="file-type">SVG</span>
+                  <span class="file-status">
+                    {% if svg_exists %}
+                      {{ current_svg or "Présent" }}
+                    {% else %}
+                      Non importé
+                    {% endif %}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <!-- SECTION 1: Analyser un VSDX -->
-        <div class="action-section">
-          <h3>1. Analyser un fichier VSDX</h3>
-          <div id="dropzone-connections" class="dropzone">
-            <span class="dropzone-icon">📄</span>
-            <span>Déposez un fichier .vsdx pour analyser les connexions</span>
-            <span class="dropzone-hint">ou cliquez pour sélectionner</span>
-          </div>
-          <div id="dropzone-connections-status"></div>
-        </div>
-
-        <!-- PREVIEW DES CONNEXIONS -->
-        <div id="connections-preview" class="connections-preview hidden">
-          <h4>Aperçu des connexions</h4>
-          
-          <div id="connections-stats" class="connections-stats"></div>
-          
-          <div id="missing-activities-warning" class="warning-box hidden">
-            <strong>⚠️ Activités non trouvées :</strong>
-            <ul id="missing-activities-list"></ul>
-          </div>
-          
-          <div class="connections-table-wrapper">
-            <table id="connections-table" class="connections-table">
-              <thead>
-                <tr>
-                  <th>Source</th>
-                  <th>→</th>
-                  <th>Cible</th>
-                  <th>Donnée</th>
-                  <th>Type</th>
-                  <th>Statut</th>
-                </tr>
-              </thead>
-              <tbody id="connections-tbody"></tbody>
-            </table>
+        <!-- ==================== ÉTAPE 1 : VSDX ==================== -->
+        <div id="wizard-screen-step1" class="wizard-screen">
+          <div class="wizard-step-header">
+            <div class="step-icon vsdx">📄</div>
+            <div class="step-info">
+              <h3>Étape 1 : Fichier de connexions</h3>
+              <p>Importez votre fichier Visio (.vsdx) contenant les connexions entre activités</p>
+            </div>
           </div>
 
-          <div class="import-options">
-            <label class="checkbox-label">
-              <input type="checkbox" id="clear-existing-checkbox">
-              Supprimer les connexions existantes avant import
+          <!-- Option garder l'actuel (mode update) -->
+          <div id="keep-vsdx-option" class="keep-current-option hidden">
+            <label class="keep-checkbox">
+              <input type="checkbox" id="keep-vsdx-checkbox">
+              <span class="checkmark"></span>
+              <span class="keep-label">
+                <strong>Conserver le fichier actuel</strong>
+                <span class="keep-filename" id="current-vsdx-name"></span>
+              </span>
             </label>
           </div>
 
-          <button id="import-connections-btn" class="btn-green">
-            ✅ Importer les connexions valides
-          </button>
-        </div>
+          <!-- Dropzone VSDX -->
+          <div id="vsdx-dropzone-wrapper">
+            <div id="vsdx-dropzone" class="wizard-dropzone">
+              <div class="dropzone-content">
+                <div class="dropzone-icon">📁</div>
+                <p class="dropzone-text">Glissez votre fichier .vsdx ici</p>
+                <p class="dropzone-hint">ou cliquez pour sélectionner</p>
+              </div>
+              <input type="file" id="vsdx-file-input" accept=".vsdx" hidden>
+            </div>
 
-        <hr>
+            <!-- Aperçu fichier sélectionné -->
+            <div id="vsdx-preview" class="file-preview hidden">
+              <div class="preview-icon">📄</div>
+              <div class="preview-info">
+                <span class="preview-name" id="vsdx-filename"></span>
+                <span class="preview-size" id="vsdx-filesize"></span>
+              </div>
+              <button class="preview-remove" id="vsdx-remove">✕</button>
+            </div>
+          </div>
 
-        <!-- SECTION 2: Connexions actuelles -->
-        <div class="action-section">
-          <h3>2. Connexions actuelles</h3>
-          <div class="connections-buttons">
-            <button id="load-connections-btn" class="btn-blue">
-              📋 Voir les connexions existantes
-            </button>
-            <button id="clear-connections-btn" class="btn-red-outline">
-              🗑️ Tout supprimer
-            </button>
+          <!-- Info -->
+          <div class="wizard-step-info">
+            <div class="info-icon">💡</div>
+            <div class="info-text">
+              Le fichier VSDX contient les flèches de connexion entre vos activités.
+              Ces connexions définissent les flux entrants et sortants de chaque activité.
+            </div>
+          </div>
+
+          <!-- Navigation -->
+          <div class="wizard-nav">
+            <button id="step1-back" class="wizard-btn-secondary">← Retour</button>
+            <button id="step1-next" class="wizard-btn-primary">Continuer →</button>
           </div>
         </div>
 
-        <div id="current-connections" class="current-connections hidden">
-          <div id="current-connections-count"></div>
-          <div class="connections-table-wrapper">
-            <table id="current-connections-table" class="connections-table">
-              <thead>
-                <tr>
-                  <th>Source</th>
-                  <th>→</th>
-                  <th>Cible</th>
-                  <th>Donnée</th>
-                  <th>Type</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody id="current-connections-tbody"></tbody>
-            </table>
+        <!-- ==================== ÉTAPE 2 : SVG ==================== -->
+        <div id="wizard-screen-step2" class="wizard-screen">
+          <div class="wizard-step-header">
+            <div class="step-icon svg">🖼️</div>
+            <div class="step-info">
+              <h3>Étape 2 : Cartographie visuelle</h3>
+              <p>Importez votre fichier SVG exporté depuis Visio</p>
+            </div>
+          </div>
+
+          <!-- Option garder l'actuel (mode update) -->
+          <div id="keep-svg-option" class="keep-current-option hidden">
+            <label class="keep-checkbox">
+              <input type="checkbox" id="keep-svg-checkbox">
+              <span class="checkmark"></span>
+              <span class="keep-label">
+                <strong>Conserver le fichier actuel</strong>
+                <span class="keep-filename" id="current-svg-name"></span>
+              </span>
+            </label>
+          </div>
+
+          <!-- Dropzone SVG -->
+          <div id="svg-dropzone-wrapper">
+            <div id="svg-dropzone" class="wizard-dropzone">
+              <div class="dropzone-content">
+                <div class="dropzone-icon">🖼️</div>
+                <p class="dropzone-text">Glissez votre fichier .svg ici</p>
+                <p class="dropzone-hint">ou cliquez pour sélectionner</p>
+              </div>
+              <input type="file" id="svg-file-input" accept=".svg" hidden>
+            </div>
+
+            <!-- Aperçu fichier sélectionné -->
+            <div id="svg-preview" class="file-preview hidden">
+              <div class="preview-icon">🖼️</div>
+              <div class="preview-info">
+                <span class="preview-name" id="svg-filename"></span>
+                <span class="preview-size" id="svg-filesize"></span>
+              </div>
+              <button class="preview-remove" id="svg-remove">✕</button>
+            </div>
+          </div>
+
+          <!-- Info -->
+          <div class="wizard-step-info">
+            <div class="info-icon">💡</div>
+            <div class="info-text">
+              Le fichier SVG est l'image de votre cartographie.
+              Exportez-le depuis Visio via <strong>Fichier → Exporter → SVG</strong>.
+            </div>
+          </div>
+
+          <!-- Navigation -->
+          <div class="wizard-nav">
+            <button id="step2-back" class="wizard-btn-secondary">← Retour</button>
+            <button id="step2-next" class="wizard-btn-primary">Continuer →</button>
+          </div>
+        </div>
+
+        <!-- ==================== ÉTAPE 3 : RÉCAPITULATIF ==================== -->
+        <div id="wizard-screen-step3" class="wizard-screen">
+          <div class="wizard-step-header">
+            <div class="step-icon recap">📋</div>
+            <div class="step-info">
+              <h3>Étape 3 : Récapitulatif</h3>
+              <p>Vérifiez les informations avant de valider</p>
+            </div>
+          </div>
+
+          <!-- Récap des fichiers -->
+          <div class="recap-files">
+            <div class="recap-file-card" id="recap-vsdx">
+              <div class="recap-file-icon vsdx">📄</div>
+              <div class="recap-file-info">
+                <span class="recap-file-type">Fichier VSDX</span>
+                <span class="recap-file-name" id="recap-vsdx-name">-</span>
+              </div>
+              <div class="recap-file-status" id="recap-vsdx-status"></div>
+            </div>
+            <div class="recap-file-card" id="recap-svg">
+              <div class="recap-file-icon svg">🖼️</div>
+              <div class="recap-file-info">
+                <span class="recap-file-type">Fichier SVG</span>
+                <span class="recap-file-name" id="recap-svg-name">-</span>
+              </div>
+              <div class="recap-file-status" id="recap-svg-status"></div>
+            </div>
+          </div>
+
+          <!-- Aperçu des connexions (si VSDX fourni) -->
+          <div id="connections-preview-section" class="connections-preview-section hidden">
+            <h4>Aperçu des connexions</h4>
+            
+            <div class="connections-stats" id="wizard-connections-stats">
+              <!-- Stats remplies dynamiquement -->
+            </div>
+
+            <div id="wizard-missing-warning" class="warning-box hidden">
+              <strong>⚠️ Activités non trouvées :</strong>
+              <ul id="wizard-missing-list"></ul>
+            </div>
+
+            <div class="connections-table-wrapper">
+              <table class="connections-table" id="wizard-connections-table">
+                <thead>
+                  <tr>
+                    <th>Source</th>
+                    <th class="arrow-col">→</th>
+                    <th>Cible</th>
+                    <th>Donnée</th>
+                    <th>Type</th>
+                    <th>Statut</th>
+                  </tr>
+                </thead>
+                <tbody id="wizard-connections-tbody">
+                  <!-- Rempli dynamiquement -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Option suppression connexions existantes -->
+            <div class="import-option">
+              <label class="import-checkbox">
+                <input type="checkbox" id="clear-connections-checkbox">
+                <span class="checkmark"></span>
+                <span>Supprimer les connexions existantes avant import</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Message si pas de VSDX -->
+          <div id="no-vsdx-message" class="no-vsdx-message hidden">
+            <div class="info-icon">ℹ️</div>
+            <p>Aucun fichier VSDX fourni — les connexions existantes seront conservées.</p>
+          </div>
+
+          <!-- Navigation -->
+          <div class="wizard-nav">
+            <button id="step3-back" class="wizard-btn-secondary">← Retour</button>
+            <button id="step3-submit" class="wizard-btn-success">✓ Valider et importer</button>
+          </div>
+        </div>
+
+        <!-- ==================== ÉCRAN TRAITEMENT ==================== -->
+        <div id="wizard-screen-processing" class="wizard-screen">
+          <div class="processing-content">
+            <div class="processing-spinner">
+              <div class="spinner-ring"></div>
+              <div class="spinner-ring"></div>
+              <div class="spinner-ring"></div>
+            </div>
+            <h3 id="processing-title">Traitement en cours...</h3>
+            <p id="processing-message">Veuillez patienter</p>
+            
+            <div class="processing-steps">
+              <div class="processing-step" id="proc-step-svg">
+                <span class="proc-icon">⏳</span>
+                <span class="proc-label">Importation de la cartographie</span>
+              </div>
+              <div class="processing-step" id="proc-step-vsdx">
+                <span class="proc-icon">⏳</span>
+                <span class="proc-label">Analyse des connexions</span>
+              </div>
+              <div class="processing-step" id="proc-step-save">
+                <span class="proc-icon">⏳</span>
+                <span class="proc-label">Enregistrement</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== ÉCRAN SUCCÈS ==================== -->
+        <div id="wizard-screen-success" class="wizard-screen">
+          <div class="success-content">
+            <div class="success-icon">✓</div>
+            <h3>Importation réussie !</h3>
+            <p id="success-message">Votre cartographie a été mise à jour avec succès.</p>
+            
+            <div class="success-stats" id="success-stats">
+              <!-- Stats remplies dynamiquement -->
+            </div>
+
+            <button id="success-close" class="wizard-btn-primary">Fermer et actualiser</button>
+          </div>
+        </div>
+
+        <!-- ==================== ÉCRAN ERREUR ==================== -->
+        <div id="wizard-screen-error" class="wizard-screen">
+          <div class="error-content">
+            <div class="error-icon">✕</div>
+            <h3>Une erreur s'est produite</h3>
+            <p id="error-message">Impossible de terminer l'importation.</p>
+            
+            <div class="error-actions">
+              <button id="error-retry" class="wizard-btn-secondary">Réessayer</button>
+              <button id="error-close" class="wizard-btn-primary">Fermer</button>
+            </div>
           </div>
         </div>
 
       </div>
-
-      <hr>
-      <button id="close-popup" class="btn-red">Fermer</button>
     </div>
   </div>
 
@@ -368,7 +571,7 @@
       {% else %}
         <div class="no-activities">
           <p>Aucune activité pour cette entité.</p>
-          <p class="hint">Créez des activités depuis la page "Liste des activités".</p>
+          <p class="hint">Utilisez "📦 Gérer la cartographie" pour importer vos fichiers.</p>
         </div>
       {% endif %}
     </div>

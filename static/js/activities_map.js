@@ -1,13 +1,13 @@
 /* ============================================================
    CARTOGRAPHIE DES ACTIVITÉS - VERSION SVG INLINE + ENTITÉS
-   + IMPORT DES CONNEXIONS VSDX
-   
-   Cette version charge le SVG inline dans le DOM, ce qui permet
-   un contrôle total sur les événements (pan + clic activités)
+   + WIZARD CARTOGRAPHIE (SVG + VSDX)
 ============================================================ */
 
 const SHAPE_ACTIVITY_MAP = window.CARTO_SHAPE_MAP || {};
 const SVG_EXISTS = window.SVG_EXISTS || false;
+const VSDX_EXISTS = window.VSDX_EXISTS || false;
+const CURRENT_SVG = window.CURRENT_SVG || null;
+const CURRENT_VSDX = window.CURRENT_VSDX || null;
 const ACTIVE_ENTITY = window.ACTIVE_ENTITY || null;
 const ALL_ENTITIES = window.ALL_ENTITIES || [];
 
@@ -18,39 +18,56 @@ const VISIO_NS = "http://schemas.microsoft.com/visio/2003/SVGExtensions/";
 ============================================================ */
 let svgElement = null;
 let currentScale = 0.5;
-
 let panX = 0;
 let panY = 0;
-
-// Pour le pan (drag)
 let isPanning = false;
 let startX = 0;
 let startY = 0;
 let hasMoved = false;
-
-// Dimensions du SVG
 let svgWidth = 0;
 let svgHeight = 0;
-
-// Éléments cliquables (activités)
 let clickableElements = new Set();
-
-// Limites de zoom
 const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 10;
 
-// Entité actuellement sélectionnée dans le gestionnaire
+// Entité sélectionnée dans le gestionnaire
 let selectedEntityId = null;
 
-// Fichier VSDX pour import des connexions (stocké après preview)
-let pendingConnectionsFile = null;
+/* ============================================================
+   ÉTAT DU WIZARD
+============================================================ */
+const wizardState = {
+  mode: null, // 'new' | 'update'
+  currentStep: 0, // 0=home, 1, 2, 3
+  vsdxFile: null,
+  svgFile: null,
+  keepVsdx: false,
+  keepSvg: false,
+  connectionsPreview: null
+};
 
 /* ============================================================
-   CENTRER LA CARTOGRAPHIE AU CHARGEMENT
+   UTILITAIRES
+============================================================ */
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => document.querySelectorAll(sel);
+
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' octets';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' Ko';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' Mo';
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/* ============================================================
+   PAN / ZOOM
 ============================================================ */
 function centerCartography() {
-  const wrapper = document.getElementById("carto-pan-wrapper");
-  const panInner = document.getElementById("pan-inner");
+  const wrapper = $("#carto-pan-wrapper");
+  const panInner = $("#pan-inner");
   if (!wrapper || !panInner || !svgWidth || !svgHeight) return;
 
   const wrapperRect = wrapper.getBoundingClientRect();
@@ -60,38 +77,26 @@ function centerCartography() {
   panX = (wrapperRect.width - scaledWidth) / 2;
   panY = (wrapperRect.height - scaledHeight) / 2;
 
-  if (scaledWidth > wrapperRect.width) {
-    panX = 20;
-  }
-  if (scaledHeight > wrapperRect.height) {
-    panY = 20;
-  }
+  if (scaledWidth > wrapperRect.width) panX = 20;
+  if (scaledHeight > wrapperRect.height) panY = 20;
 
   panInner.style.transform = `translate(${panX}px, ${panY}px) scale(${currentScale})`;
   updateZoomDisplay();
 }
 
-/* ============================================================
-   ZOOM
-============================================================ */
 function updateZoomDisplay() {
-  const btn = document.getElementById("carto-zoom-reset");
-  if (btn) {
-    btn.textContent = `${Math.round(currentScale * 100)}%`;
-  }
+  const btn = $("#carto-zoom-reset");
+  if (btn) btn.textContent = `${Math.round(currentScale * 100)}%`;
 }
 
 function applyTransform() {
-  const panInner = document.getElementById("pan-inner");
+  const panInner = $("#pan-inner");
   if (!panInner) return;
   panInner.style.transform = `translate(${panX}px, ${panY}px) scale(${currentScale})`;
   updateZoomDisplay();
 }
 
 function zoomAtPoint(delta, mouseX, mouseY) {
-  const wrapper = document.getElementById("carto-pan-wrapper");
-  if (!wrapper) return;
-
   const oldScale = currentScale;
   const zoomStep = 0.15;
 
@@ -109,30 +114,23 @@ function zoomAtPoint(delta, mouseX, mouseY) {
 }
 
 function zoomAtCenter(delta) {
-  const wrapper = document.getElementById("carto-pan-wrapper");
+  const wrapper = $("#carto-pan-wrapper");
   if (!wrapper) return;
 
   const rect = wrapper.getBoundingClientRect();
-  const centerX = rect.width / 2;
-  const centerY = rect.height / 2;
-
-  zoomAtPoint(delta, centerX, centerY);
+  zoomAtPoint(delta, rect.width / 2, rect.height / 2);
 }
 
 function initZoomButtons() {
-  const btnIn = document.getElementById("carto-zoom-in");
-  const btnOut = document.getElementById("carto-zoom-out");
-  const btnReset = document.getElementById("carto-zoom-reset");
+  const btnIn = $("#carto-zoom-in");
+  const btnOut = $("#carto-zoom-out");
+  const btnReset = $("#carto-zoom-reset");
 
-  if (btnIn) {
-    btnIn.onclick = () => zoomAtCenter(1);
-  }
-  if (btnOut) {
-    btnOut.onclick = () => zoomAtCenter(-1);
-  }
+  if (btnIn) btnIn.onclick = () => zoomAtCenter(1);
+  if (btnOut) btnOut.onclick = () => zoomAtCenter(-1);
   if (btnReset) {
     btnReset.onclick = () => {
-      const wrapper = document.getElementById("carto-pan-wrapper");
+      const wrapper = $("#carto-pan-wrapper");
       if (wrapper && svgWidth && svgHeight) {
         const wrapperRect = wrapper.getBoundingClientRect();
         const scaleX = (wrapperRect.width - 40) / svgWidth;
@@ -147,12 +145,9 @@ function initZoomButtons() {
   }
 }
 
-/* ============================================================
-   PAN (DÉPLACEMENT À LA SOURIS)
-============================================================ */
 function initPan() {
-  const wrapper = document.getElementById("carto-pan-wrapper");
-  const panInner = document.getElementById("pan-inner");
+  const wrapper = $("#carto-pan-wrapper");
+  const panInner = $("#pan-inner");
   if (!wrapper || !panInner) return;
 
   const MOVE_THRESHOLD = 5;
@@ -161,7 +156,6 @@ function initPan() {
 
   wrapper.addEventListener("mousedown", (e) => {
     if (e.button !== 0) return;
-    
     e.preventDefault();
 
     isPanning = true;
@@ -170,7 +164,7 @@ function initPan() {
     startY = e.clientY;
     startPanX = panX;
     startPanY = panY;
-    
+
     wrapper.classList.add("panning");
     panInner.classList.add("no-transition");
   });
@@ -182,119 +176,82 @@ function initPan() {
     const dy = e.clientY - startY;
     const distance = Math.sqrt(dx * dx + dy * dy);
 
-    if (distance > MOVE_THRESHOLD && !hasMoved) {
-      hasMoved = true;
-    }
+    if (distance > MOVE_THRESHOLD && !hasMoved) hasMoved = true;
 
     panX = startPanX + dx;
     panY = startPanY + dy;
     applyTransform();
   });
 
-  window.addEventListener("mouseup", (e) => {
+  window.addEventListener("mouseup", () => {
     if (!isPanning) return;
 
     isPanning = false;
     wrapper.classList.remove("panning");
     panInner.classList.remove("no-transition");
 
-    setTimeout(() => {
-      hasMoved = false;
-    }, 10);
+    setTimeout(() => { hasMoved = false; }, 10);
   });
 
   wrapper.addEventListener("dragstart", (e) => e.preventDefault());
 }
 
-/* ============================================================
-   ZOOM À LA MOLETTE
-============================================================ */
 function initWheelZoom() {
-  const wrapper = document.getElementById("carto-pan-wrapper");
+  const wrapper = $("#carto-pan-wrapper");
   if (!wrapper) return;
 
-  wrapper.addEventListener(
-    "wheel",
-    (e) => {
-      e.preventDefault();
-
-      const delta = e.deltaY > 0 ? -1 : 1;
-
-      const rect = wrapper.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
-
-      zoomAtPoint(delta, mouseX, mouseY);
-    },
-    { passive: false }
-  );
+  wrapper.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -1 : 1;
+    const rect = wrapper.getBoundingClientRect();
+    zoomAtPoint(delta, e.clientX - rect.left, e.clientY - rect.top);
+  }, { passive: false });
 }
 
 /* ============================================================
    CHARGEMENT DU SVG INLINE
 ============================================================ */
 async function loadSvgInline() {
-  const container = document.getElementById("svg-container");
-  if (!container) {
-    console.error("[CARTO] Container svg-container non trouvé !");
-    return;
-  }
-
-  console.log("[CARTO] SVG_EXISTS =", SVG_EXISTS);
+  const container = $("#svg-container");
+  if (!container) return;
 
   if (!SVG_EXISTS) {
     container.innerHTML = `
       <div class="svg-placeholder">
         <p>🗺️ Aucune cartographie disponible</p>
-        <p>Utilisez le <strong>Gestionnaire d'entités</strong> pour importer un fichier SVG</p>
+        <p>Utilisez "📦 Gérer la cartographie" pour importer vos fichiers</p>
       </div>
     `;
     return;
   }
 
   try {
-    // Charger le SVG depuis l'API
     const svgUrl = "/activities/svg?t=" + Date.now();
-    console.log("[CARTO] Chargement du SVG depuis:", svgUrl);
-    
     const response = await fetch(svgUrl);
-    
-    if (!response.ok) {
-      throw new Error(`Fichier SVG introuvable (${response.status})`);
-    }
+
+    if (!response.ok) throw new Error(`SVG introuvable (${response.status})`);
 
     const svgText = await response.text();
-    console.log("[CARTO] SVG chargé, taille:", svgText.length, "caractères");
-    
     container.innerHTML = svgText;
 
-    // Récupérer l'élément SVG
     svgElement = container.querySelector("svg");
-    if (!svgElement) {
-      throw new Error("Pas d'élément <svg> trouvé dans le fichier");
-    }
+    if (!svgElement) throw new Error("Pas d'élément <svg> trouvé");
 
-    // Configurer le SVG
     setupSvg();
-
   } catch (error) {
-    console.error("[CARTO] Erreur chargement SVG:", error);
+    console.error("[CARTO] Erreur:", error);
     container.innerHTML = `
       <div class="svg-error">
-        <p>❌ Erreur de chargement de la cartographie</p>
+        <p>❌ Erreur de chargement</p>
         <p>${error.message}</p>
       </div>
     `;
   }
 }
 
-/* ============================================================
-   CONFIGURATION DU SVG APRÈS CHARGEMENT
-============================================================ */
 function setupSvg() {
   if (!svgElement) return;
 
-  // Récupérer les dimensions via viewBox en priorité
   const vb = svgElement.viewBox && svgElement.viewBox.baseVal;
   if (vb && vb.width > 0 && vb.height > 0) {
     svgWidth = vb.width;
@@ -302,7 +259,6 @@ function setupSvg() {
   } else {
     const widthAttr = svgElement.getAttribute("width");
     const heightAttr = svgElement.getAttribute("height");
-    
     if (widthAttr && heightAttr) {
       svgWidth = parseFloat(widthAttr) || 1000;
       svgHeight = parseFloat(heightAttr) || 800;
@@ -313,22 +269,15 @@ function setupSvg() {
     }
   }
 
-  console.log(`[CARTO] Dimensions SVG: ${svgWidth} x ${svgHeight}`);
-
-  // Appliquer les dimensions au SVG
   svgElement.style.width = svgWidth + "px";
   svgElement.style.height = svgHeight + "px";
   svgElement.style.display = "block";
   svgElement.style.overflow = "visible";
 
-  // Activer les clics sur les activités
   activateSvgClicks();
-
-  // Initialiser zoom
   initZoomButtons();
-  
-  // Calculer le scale initial
-  const wrapper = document.getElementById("carto-pan-wrapper");
+
+  const wrapper = $("#carto-pan-wrapper");
   if (wrapper) {
     const wrapperRect = wrapper.getBoundingClientRect();
     const scaleX = (wrapperRect.width - 40) / svgWidth;
@@ -336,45 +285,19 @@ function setupSvg() {
     currentScale = Math.min(scaleX, scaleY, 1);
     currentScale = Math.max(currentScale, 0.1);
   }
-  
-  setTimeout(() => {
-    centerCartography();
-  }, 50);
 
-  console.log(`[CARTO] SVG configuré: scale=${Math.round(currentScale * 100)}%`);
+  setTimeout(centerCartography, 50);
 }
 
-/* ============================================================
-   ACTIVATION DES CLICS SUR LES ACTIVITÉS
-============================================================ */
 function activateSvgClicks() {
-  if (!svgElement) {
-    console.error("[CARTO] svgElement est null");
-    return;
-  }
-
-  console.log("[CARTO] === ACTIVATION DES CLICS ===");
-  console.log("[CARTO] SHAPE_ACTIVITY_MAP:", SHAPE_ACTIVITY_MAP);
-  console.log("[CARTO] Nombre d'entrées:", Object.keys(SHAPE_ACTIVITY_MAP).length);
+  if (!svgElement) return;
 
   const allElements = svgElement.querySelectorAll("*");
-  console.log("[CARTO] Éléments dans le SVG:", allElements.length);
-
-  let foundMids = [];
-  let activatedCount = 0;
 
   allElements.forEach((el) => {
-    // Chercher l'attribut mID (plusieurs méthodes)
     let mid = el.getAttributeNS(VISIO_NS, "mID");
-    
-    if (!mid) {
-      mid = el.getAttribute("v:mID");
-    }
-    
-    if (!mid) {
-      mid = el.getAttribute("data-mid");
-    }
-    
+    if (!mid) mid = el.getAttribute("v:mID");
+    if (!mid) mid = el.getAttribute("data-mid");
     if (!mid) {
       for (let attr of el.attributes || []) {
         if (attr.name.toLowerCase().includes("mid") || attr.name.toLowerCase().includes("shapeid")) {
@@ -384,29 +307,17 @@ function activateSvgClicks() {
       }
     }
 
-    if (mid) {
-      foundMids.push(mid);
-    }
-
     if (!mid) return;
 
     const activityId = SHAPE_ACTIVITY_MAP[mid];
-    
     if (!activityId) return;
 
-    activatedCount++;
-    console.log(`[CARTO] ✓ Activité: mID="${mid}" → id=${activityId}`);
-
-    // Marquer comme cliquable
     clickableElements.add(el);
     el.dataset.activityId = activityId;
     el.dataset.mid = mid;
-
-    // Style
     el.style.cursor = "pointer";
     el.classList.add("carto-activity");
 
-    // Effets au survol
     el.addEventListener("mouseenter", () => {
       el.style.filter = "drop-shadow(0 0 8px #22c55e)";
       el.style.opacity = "0.85";
@@ -417,606 +328,674 @@ function activateSvgClicks() {
       el.style.opacity = "1";
     });
 
-    // Clic sur l'activité
     el.addEventListener("click", (e) => {
       if (!hasMoved) {
         e.stopPropagation();
         e.preventDefault();
-        const url = `/activities/view?activity_id=${activityId}`;
-        console.log(`[CARTO] Navigation vers: ${url}`);
-        window.location.href = url;
+        window.location.href = `/activities/view?activity_id=${activityId}`;
       }
     });
   });
-
-  console.log("[CARTO] === RÉSUMÉ ===");
-  console.log(`[CARTO] mIDs trouvés: ${foundMids.length}`);
-  console.log(`[CARTO] Activités cliquables: ${activatedCount}`);
-  
-  if (activatedCount === 0 && Object.keys(SHAPE_ACTIVITY_MAP).length > 0) {
-    console.warn("[CARTO] ⚠️ Aucune activité cliquable !");
-    console.warn("[CARTO] mIDs dans SVG:", [...new Set(foundMids)].slice(0, 20));
-    console.warn("[CARTO] mIDs attendus:", Object.keys(SHAPE_ACTIVITY_MAP).slice(0, 20));
-  }
 }
 
 /* ============================================================
-   LISTE DES ACTIVITÉS (colonne de droite)
+   LISTE DES ACTIVITÉS
 ============================================================ */
 function initListClicks() {
-  document.querySelectorAll(".activity-item").forEach((li) => {
+  $$(".activity-item").forEach((li) => {
     li.addEventListener("click", () => {
       const id = li.dataset.id;
-      if (!id) return;
-      window.location.href = `/activities/view?activity_id=${id}`;
+      if (id) window.location.href = `/activities/view?activity_id=${id}`;
     });
   });
 }
 
 /* ============================================================
-   POPUP ACTIONS CARTOGRAPHIE
+   WIZARD - INITIALISATION
 ============================================================ */
-function initPopup() {
-  const popup = document.getElementById("carto-actions-popup");
-  const btnOpen = document.getElementById("carto-actions-btn");
-  const btnClose = document.getElementById("close-popup");
+function initWizard() {
+  const popup = $("#carto-wizard-popup");
+  const btnOpen = $("#carto-wizard-btn");
+  const btnClose = $("#close-wizard");
 
-  if (!popup || !btnOpen || !btnClose) return;
+  if (!popup || !btnOpen) return;
 
-  btnOpen.onclick = () => popup.classList.remove("hidden");
-  btnClose.onclick = () => popup.classList.add("hidden");
+  // Ouvrir le wizard
+  btnOpen.onclick = () => {
+    resetWizard();
+    popup.classList.remove("hidden");
+  };
 
+  // Fermer le wizard
+  if (btnClose) {
+    btnClose.onclick = () => popup.classList.add("hidden");
+  }
+
+  // Fermer en cliquant sur l'overlay
   popup.addEventListener("click", (e) => {
-    if (e.target === popup) {
+    if (e.target.classList.contains("wizard-overlay")) {
       popup.classList.add("hidden");
     }
   });
-}
 
-/* ============================================================
-   ONGLETS DE LA POPUP
-============================================================ */
-function initTabs() {
-  const tabs = document.querySelectorAll(".popup-tab");
-  const contents = document.querySelectorAll(".tab-content");
+  // Boutons écran d'accueil
+  $("#wizard-new-btn")?.addEventListener("click", () => startWizard("new"));
+  $("#wizard-update-btn")?.addEventListener("click", () => startWizard("update"));
 
-  tabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
-      // Désactiver tous les onglets
-      tabs.forEach((t) => t.classList.remove("active"));
-      contents.forEach((c) => c.classList.remove("active"));
+  // Navigation étape 1
+  $("#step1-back")?.addEventListener("click", () => goToScreen("home"));
+  $("#step1-next")?.addEventListener("click", () => goToStep(2));
 
-      // Activer l'onglet cliqué
-      tab.classList.add("active");
-      const targetId = tab.dataset.tab;
-      const targetContent = document.getElementById(targetId);
-      if (targetContent) {
-        targetContent.classList.add("active");
-      }
-    });
+  // Navigation étape 2
+  $("#step2-back")?.addEventListener("click", () => goToStep(1));
+  $("#step2-next")?.addEventListener("click", () => goToStep(3));
+
+  // Navigation étape 3
+  $("#step3-back")?.addEventListener("click", () => goToStep(2));
+  $("#step3-submit")?.addEventListener("click", submitWizard);
+
+  // Écran succès
+  $("#success-close")?.addEventListener("click", () => window.location.reload());
+
+  // Écran erreur
+  $("#error-retry")?.addEventListener("click", () => goToStep(3));
+  $("#error-close")?.addEventListener("click", () => {
+    $("#carto-wizard-popup")?.classList.add("hidden");
   });
+
+  // Checkboxes "garder l'actuel"
+  $("#keep-vsdx-checkbox")?.addEventListener("change", (e) => {
+    wizardState.keepVsdx = e.target.checked;
+    updateDropzoneState("vsdx");
+  });
+
+  $("#keep-svg-checkbox")?.addEventListener("change", (e) => {
+    wizardState.keepSvg = e.target.checked;
+    updateDropzoneState("svg");
+  });
+
+  // Initialiser les dropzones
+  initWizardDropzone("vsdx");
+  initWizardDropzone("svg");
+}
+
+function resetWizard() {
+  wizardState.mode = null;
+  wizardState.currentStep = 0;
+  wizardState.vsdxFile = null;
+  wizardState.svgFile = null;
+  wizardState.keepVsdx = false;
+  wizardState.keepSvg = false;
+  wizardState.connectionsPreview = null;
+
+  // Reset checkboxes
+  const keepVsdxCb = $("#keep-vsdx-checkbox");
+  const keepSvgCb = $("#keep-svg-checkbox");
+  if (keepVsdxCb) keepVsdxCb.checked = false;
+  if (keepSvgCb) keepSvgCb.checked = false;
+
+  // Reset previews
+  $("#vsdx-preview")?.classList.add("hidden");
+  $("#svg-preview")?.classList.add("hidden");
+  $("#vsdx-dropzone")?.classList.remove("hidden");
+  $("#svg-dropzone")?.classList.remove("hidden");
+
+  // Reset file inputs
+  const vsdxInput = $("#vsdx-file-input");
+  const svgInput = $("#svg-file-input");
+  if (vsdxInput) vsdxInput.value = "";
+  if (svgInput) svgInput.value = "";
+
+  // Afficher écran d'accueil
+  goToScreen("home");
+  updateProgress(0);
+}
+
+function startWizard(mode) {
+  wizardState.mode = mode;
+
+  // Configurer les options "garder l'actuel"
+  const keepVsdxOption = $("#keep-vsdx-option");
+  const keepSvgOption = $("#keep-svg-option");
+
+  if (mode === "update") {
+    // Mode modification : afficher les options si fichiers existants
+    if (VSDX_EXISTS && keepVsdxOption) {
+      keepVsdxOption.classList.remove("hidden");
+      $("#current-vsdx-name").textContent = CURRENT_VSDX || "Fichier actuel";
+    }
+    if (SVG_EXISTS && keepSvgOption) {
+      keepSvgOption.classList.remove("hidden");
+      $("#current-svg-name").textContent = CURRENT_SVG || "Fichier actuel";
+    }
+  } else {
+    // Mode création : cacher les options
+    keepVsdxOption?.classList.add("hidden");
+    keepSvgOption?.classList.add("hidden");
+  }
+
+  goToStep(1);
+}
+
+function goToScreen(screenId) {
+  // Cacher tous les écrans
+  $$(".wizard-screen").forEach(s => s.classList.remove("active"));
+
+  // Afficher l'écran demandé
+  $(`#wizard-screen-${screenId}`)?.classList.add("active");
+
+  // Cacher/afficher la progression
+  const progressEl = $("#wizard-progress");
+  if (progressEl) {
+    progressEl.style.display = screenId === "home" ? "none" : "flex";
+  }
+}
+
+function goToStep(step) {
+  wizardState.currentStep = step;
+
+  // Mettre à jour la progression
+  updateProgress(step);
+
+  // Afficher l'écran correspondant
+  if (step === 1) {
+    goToScreen("step1");
+    updateDropzoneState("vsdx");
+  } else if (step === 2) {
+    goToScreen("step2");
+    updateDropzoneState("svg");
+  } else if (step === 3) {
+    prepareRecap();
+    goToScreen("step3");
+  }
+}
+
+function updateProgress(step) {
+  const progressEl = $("#wizard-progress");
+  if (!progressEl) return;
+
+  // Afficher la barre de progression
+  progressEl.style.display = step > 0 ? "flex" : "none";
+
+  // Mettre à jour les cercles
+  for (let i = 1; i <= 3; i++) {
+    const stepEl = $(`.progress-step[data-step="${i}"]`);
+    if (!stepEl) continue;
+
+    stepEl.classList.remove("active", "completed");
+
+    if (i < step) {
+      stepEl.classList.add("completed");
+    } else if (i === step) {
+      stepEl.classList.add("active");
+    }
+  }
+
+  // Mettre à jour les lignes
+  for (let i = 1; i <= 2; i++) {
+    const lineEl = $(`.progress-line[data-line="${i}"]`);
+    if (!lineEl) continue;
+
+    if (i < step) {
+      lineEl.classList.add("filled");
+    } else {
+      lineEl.classList.remove("filled");
+    }
+  }
+}
+
+function updateDropzoneState(type) {
+  const isKeeping = type === "vsdx" ? wizardState.keepVsdx : wizardState.keepSvg;
+  const dropzoneWrapper = $(`#${type}-dropzone-wrapper`);
+
+  if (dropzoneWrapper) {
+    const dropzone = $(`#${type}-dropzone`);
+    if (dropzone) {
+      if (isKeeping) {
+        dropzone.classList.add("disabled");
+      } else {
+        dropzone.classList.remove("disabled");
+      }
+    }
+  }
 }
 
 /* ============================================================
-   DROPZONE DANS POPUP ACTIONS CARTOGRAPHIE
+   WIZARD - DROPZONES
 ============================================================ */
-function initCartoDropzone() {
-  const dropzone = document.getElementById("carto-dropzone");
-  const fileInput = document.getElementById("carto-file-input");
-  const status = document.getElementById("carto-dropzone-status");
-  
+function initWizardDropzone(type) {
+  const dropzone = $(`#${type}-dropzone`);
+  const fileInput = $(`#${type}-file-input`);
+  const preview = $(`#${type}-preview`);
+  const removeBtn = $(`#${type}-remove`);
+
   if (!dropzone || !fileInput) return;
-  
-  // Clic sur la dropzone = ouvrir le sélecteur de fichier
-  dropzone.onclick = () => fileInput.click();
-  
+
+  // Clic sur la dropzone
+  dropzone.addEventListener("click", () => {
+    if (dropzone.classList.contains("disabled")) return;
+    fileInput.click();
+  });
+
   // Drag & drop
   dropzone.addEventListener("dragover", (e) => {
     e.preventDefault();
-    dropzone.classList.add("dragover");
+    if (!dropzone.classList.contains("disabled")) {
+      dropzone.classList.add("dragover");
+    }
   });
-  
+
   dropzone.addEventListener("dragleave", () => {
     dropzone.classList.remove("dragover");
   });
-  
-  dropzone.addEventListener("drop", async (e) => {
+
+  dropzone.addEventListener("drop", (e) => {
     e.preventDefault();
     dropzone.classList.remove("dragover");
+
+    if (dropzone.classList.contains("disabled")) return;
+
     const file = e.dataTransfer.files[0];
-    if (file) await uploadCartoFile(file, status);
+    if (file) handleFileSelect(type, file);
   });
-  
-  // Sélection via input file
-  fileInput.addEventListener("change", async (e) => {
-    const file = e.target.files[0];
-    if (file) await uploadCartoFile(file, status);
+
+  // Sélection via input
+  fileInput.addEventListener("change", () => {
+    const file = fileInput.files[0];
+    if (file) handleFileSelect(type, file);
   });
+
+  // Bouton supprimer
+  if (removeBtn) {
+    removeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      clearFile(type);
+    });
+  }
 }
 
-async function uploadCartoFile(file, statusEl) {
-  if (!file.name.toLowerCase().endsWith(".svg")) {
-    statusEl.innerHTML = '<span class="status-error">❌ Format invalide - fichier SVG requis</span>';
+function handleFileSelect(type, file) {
+  const expectedExt = type === "vsdx" ? ".vsdx" : ".svg";
+
+  if (!file.name.toLowerCase().endsWith(expectedExt)) {
+    alert(`Format invalide. Fichier ${expectedExt.toUpperCase()} requis.`);
     return;
   }
-  
-  statusEl.innerHTML = '<span class="status-loading">⏳ Upload en cours...</span>';
-  
+
+  // Stocker le fichier
+  if (type === "vsdx") {
+    wizardState.vsdxFile = file;
+  } else {
+    wizardState.svgFile = file;
+  }
+
+  // Afficher l'aperçu
+  const dropzone = $(`#${type}-dropzone`);
+  const preview = $(`#${type}-preview`);
+  const filenameEl = $(`#${type}-filename`);
+  const filesizeEl = $(`#${type}-filesize`);
+
+  if (dropzone) dropzone.classList.add("hidden");
+  if (preview) preview.classList.remove("hidden");
+  if (filenameEl) filenameEl.textContent = file.name;
+  if (filesizeEl) filesizeEl.textContent = formatFileSize(file.size);
+
+  // Si VSDX, lancer l'analyse des connexions
+  if (type === "vsdx") {
+    analyzeVsdxConnections(file);
+  }
+}
+
+function clearFile(type) {
+  if (type === "vsdx") {
+    wizardState.vsdxFile = null;
+    wizardState.connectionsPreview = null;
+  } else {
+    wizardState.svgFile = null;
+  }
+
+  const dropzone = $(`#${type}-dropzone`);
+  const preview = $(`#${type}-preview`);
+  const fileInput = $(`#${type}-file-input`);
+
+  if (dropzone) dropzone.classList.remove("hidden");
+  if (preview) preview.classList.add("hidden");
+  if (fileInput) fileInput.value = "";
+}
+
+/* ============================================================
+   WIZARD - ANALYSE VSDX
+============================================================ */
+async function analyzeVsdxConnections(file) {
   const formData = new FormData();
   formData.append("file", file);
-  
+
   try {
-    const res = await fetch("/activities/upload-carto", {
+    const response = await fetch("/activities/preview-connections", {
       method: "POST",
       body: formData
     });
-    
-    const data = await res.json();
-    
+
+    const data = await response.json();
+
     if (data.error) {
-      statusEl.innerHTML = `<span class="status-error">❌ ${data.error}</span>`;
-      return;
-    }
-    
-    // Afficher le résumé de la synchronisation
-    const sync = data.sync || {};
-    let html = '<div class="sync-result">';
-    html += '<h4>✅ Cartographie mise à jour</h4>';
-    html += '<ul>';
-    html += `<li>📊 Total dans SVG: <strong>${sync.total_in_svg || 0}</strong></li>`;
-    html += `<li>➕ Nouvelles activités: <strong>${sync.added || 0}</strong></li>`;
-    html += `<li>✏️ Renommées: <strong>${sync.renamed || 0}</strong></li>`;
-    html += `<li>⚠️ Supprimées du SVG: <strong>${sync.deleted_warning || 0}</strong></li>`;
-    html += '</ul>';
-    
-    // Afficher les renommages
-    if (sync.renamed_list && sync.renamed_list.length > 0) {
-      html += '<div class="sync-details"><strong>Renommages:</strong><ul>';
-      sync.renamed_list.forEach(r => {
-        html += `<li>"${r.old}" → "${r.new}"</li>`;
-      });
-      html += '</ul></div>';
-    }
-    
-    // Afficher les suppressions potentielles
-    if (sync.deleted_list && sync.deleted_list.length > 0) {
-      html += '<div class="sync-warning"><strong>⚠️ Activités absentes du SVG:</strong>';
-      html += '<p class="hint">Ces activités existent en base mais ne sont plus dans le SVG. Leurs données sont conservées.</p><ul>';
-      sync.deleted_list.forEach(d => {
-        html += `<li>${d.name}</li>`;
-      });
-      html += '</ul></div>';
-    }
-    
-    html += '<button onclick="window.location.reload()" class="btn-blue">🔄 Recharger la page</button>';
-    html += '</div>';
-    
-    statusEl.innerHTML = html;
-    
-  } catch (e) {
-    statusEl.innerHTML = `<span class="status-error">❌ Erreur réseau: ${e}</span>`;
-  }
-}
-
-function initResyncButton() {
-  const btn = document.getElementById("resync-activities-btn");
-  if (!btn) return;
-
-  btn.onclick = async () => {
-    btn.textContent = "⏳ Re-synchronisation...";
-    btn.disabled = true;
-
-    try {
-      const res = await fetch("/activities/resync", { method: "POST" });
-      const data = await res.json();
-
-      if (data.error) {
-        alert("Erreur: " + data.error);
-        btn.textContent = "🔄 Re-synchroniser les activités";
-        btn.disabled = false;
-        return;
-      }
-
-      // Construire le message avec les nouvelles stats
-      const sync = data.sync || {};
-      let msg = `Re-synchronisation terminée!\n\n`;
-      msg += `📊 Total dans SVG: ${sync.total_in_svg || 0}\n`;
-      msg += `➕ Nouvelles activités: ${sync.added || 0}\n`;
-      msg += `✏️ Renommées: ${sync.renamed || 0}\n`;
-      msg += `✓ Inchangées: ${sync.unchanged || 0}\n`;
-      msg += `⚠️ Absentes du SVG: ${sync.deleted_warning || 0}\n`;
-      
-      if (sync.renamed_list && sync.renamed_list.length > 0) {
-        msg += `\nRenommages:\n`;
-        sync.renamed_list.forEach(r => {
-          msg += `  • "${r.old}" → "${r.new}"\n`;
-        });
-      }
-      
-      if (sync.deleted_list && sync.deleted_list.length > 0) {
-        msg += `\n⚠️ Activités absentes du SVG (données conservées):\n`;
-        sync.deleted_list.forEach(d => {
-          msg += `  • ${d.name}\n`;
-        });
-      }
-      
-      alert(msg);
-      window.location.reload();
-
-    } catch (e) {
-      alert("Erreur réseau: " + e);
-      btn.textContent = "🔄 Re-synchroniser les activités";
-      btn.disabled = false;
-    }
-  };
-}
-
-/* ============================================================
-   DROPZONE CONNEXIONS (VSDX)
-============================================================ */
-function initDropzoneConnections() {
-  const zone = document.getElementById("dropzone-connections");
-  const status = document.getElementById("dropzone-connections-status");
-  if (!zone || !status) return;
-
-  zone.addEventListener("dragover", (e) => {
-    e.preventDefault();
-    zone.classList.add("dragover");
-  });
-
-  zone.addEventListener("dragleave", () => {
-    zone.classList.remove("dragover");
-  });
-
-  zone.addEventListener("drop", async (e) => {
-    e.preventDefault();
-    zone.classList.remove("dragover");
-
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      await analyzeVsdxFile(file, status);
-    }
-  });
-
-  // Permettre aussi le clic pour sélectionner un fichier
-  zone.addEventListener("click", () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".vsdx";
-    input.onchange = async (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        await analyzeVsdxFile(file, status);
-      }
-    };
-    input.click();
-  });
-}
-
-async function analyzeVsdxFile(file, status) {
-  if (!file.name.toLowerCase().endsWith(".vsdx")) {
-    status.textContent = "❌ Format invalide — fichier .vsdx requis";
-    status.className = "dropzone-status error";
-    return;
-  }
-
-  status.textContent = "⏳ Analyse en cours...";
-  status.className = "dropzone-status loading";
-
-  // Stocker le fichier pour l'import ultérieur
-  pendingConnectionsFile = file;
-
-  const form = new FormData();
-  form.append("file", file);
-
-  try {
-    const res = await fetch("/activities/preview-connections", {
-      method: "POST",
-      body: form,
-    });
-
-    const data = await res.json();
-
-    if (data.error || data.errors) {
-      status.textContent = "❌ " + (data.error || data.errors.join(", "));
-      status.className = "dropzone-status error";
+      console.error("Erreur analyse VSDX:", data.error);
+      wizardState.connectionsPreview = null;
       return;
     }
 
-    status.textContent = `✓ ${data.total_connections} connexion(s) trouvée(s)`;
-    status.className = "dropzone-status success";
-    displayConnectionsPreview(data);
+    wizardState.connectionsPreview = data;
   } catch (err) {
-    status.textContent = "❌ Erreur lors de l'analyse";
-    status.className = "dropzone-status error";
-    console.error(err);
+    console.error("Erreur analyse VSDX:", err);
+    wizardState.connectionsPreview = null;
   }
 }
 
 /* ============================================================
-   AFFICHAGE PREVIEW CONNEXIONS
+   WIZARD - RÉCAPITULATIF
 ============================================================ */
-function displayConnectionsPreview(data) {
-  const preview = document.getElementById("connections-preview");
-  const statsDiv = document.getElementById("connections-stats");
-  const tbody = document.getElementById("connections-tbody");
-  const missingWarning = document.getElementById("missing-activities-warning");
-  const missingList = document.getElementById("missing-activities-list");
-  const importBtn = document.getElementById("import-connections-btn");
+function prepareRecap() {
+  // Récap VSDX
+  const recapVsdxName = $("#recap-vsdx-name");
+  const recapVsdxStatus = $("#recap-vsdx-status");
+  const recapVsdxCard = $("#recap-vsdx");
 
-  if (!preview || !statsDiv || !tbody) return;
+  if (recapVsdxCard) {
+    recapVsdxCard.classList.remove("new-file", "kept-file");
+  }
 
-  // Afficher la section preview
-  preview.classList.remove("hidden");
+  if (wizardState.vsdxFile) {
+    if (recapVsdxName) recapVsdxName.textContent = wizardState.vsdxFile.name;
+    if (recapVsdxStatus) {
+      recapVsdxStatus.textContent = "Nouveau";
+      recapVsdxStatus.className = "recap-file-status new";
+    }
+    if (recapVsdxCard) recapVsdxCard.classList.add("new-file");
+  } else if (wizardState.keepVsdx && VSDX_EXISTS) {
+    if (recapVsdxName) recapVsdxName.textContent = CURRENT_VSDX || "Fichier actuel";
+    if (recapVsdxStatus) {
+      recapVsdxStatus.textContent = "Conservé";
+      recapVsdxStatus.className = "recap-file-status kept";
+    }
+    if (recapVsdxCard) recapVsdxCard.classList.add("kept-file");
+  } else {
+    if (recapVsdxName) recapVsdxName.textContent = "Aucun fichier";
+    if (recapVsdxStatus) {
+      recapVsdxStatus.textContent = "-";
+      recapVsdxStatus.className = "recap-file-status none";
+    }
+  }
 
-  // Statistiques
-  statsDiv.innerHTML = `
-    <div class="stat-box">
-      <div class="stat-value">${data.total_connections}</div>
-      <div class="stat-label">Total</div>
-    </div>
-    <div class="stat-box">
-      <div class="stat-value">${data.valid_connections}</div>
-      <div class="stat-label">Valides</div>
-    </div>
-    <div class="stat-box ${data.invalid_connections > 0 ? 'warning' : ''}">
-      <div class="stat-value">${data.invalid_connections}</div>
-      <div class="stat-label">Invalides</div>
-    </div>
-  `;
+  // Récap SVG
+  const recapSvgName = $("#recap-svg-name");
+  const recapSvgStatus = $("#recap-svg-status");
+  const recapSvgCard = $("#recap-svg");
+
+  if (recapSvgCard) {
+    recapSvgCard.classList.remove("new-file", "kept-file");
+  }
+
+  if (wizardState.svgFile) {
+    if (recapSvgName) recapSvgName.textContent = wizardState.svgFile.name;
+    if (recapSvgStatus) {
+      recapSvgStatus.textContent = "Nouveau";
+      recapSvgStatus.className = "recap-file-status new";
+    }
+    if (recapSvgCard) recapSvgCard.classList.add("new-file");
+  } else if (wizardState.keepSvg && SVG_EXISTS) {
+    if (recapSvgName) recapSvgName.textContent = CURRENT_SVG || "Fichier actuel";
+    if (recapSvgStatus) {
+      recapSvgStatus.textContent = "Conservé";
+      recapSvgStatus.className = "recap-file-status kept";
+    }
+    if (recapSvgCard) recapSvgCard.classList.add("kept-file");
+  } else {
+    if (recapSvgName) recapSvgName.textContent = "Aucun fichier";
+    if (recapSvgStatus) {
+      recapSvgStatus.textContent = "-";
+      recapSvgStatus.className = "recap-file-status none";
+    }
+  }
+
+  // Afficher ou cacher la section connexions
+  const connectionsSection = $("#connections-preview-section");
+  const noVsdxMessage = $("#no-vsdx-message");
+
+  if (wizardState.vsdxFile && wizardState.connectionsPreview) {
+    if (connectionsSection) connectionsSection.classList.remove("hidden");
+    if (noVsdxMessage) noVsdxMessage.classList.add("hidden");
+    displayConnectionsTable(wizardState.connectionsPreview);
+  } else if (wizardState.keepVsdx && VSDX_EXISTS) {
+    if (connectionsSection) connectionsSection.classList.add("hidden");
+    if (noVsdxMessage) {
+      noVsdxMessage.classList.remove("hidden");
+      noVsdxMessage.querySelector("p").textContent =
+        "Le fichier VSDX actuel sera conservé — les connexions ne seront pas modifiées.";
+    }
+  } else {
+    if (connectionsSection) connectionsSection.classList.add("hidden");
+    if (noVsdxMessage) {
+      noVsdxMessage.classList.remove("hidden");
+      noVsdxMessage.querySelector("p").textContent =
+        "Aucun fichier VSDX fourni — les connexions existantes seront conservées.";
+    }
+  }
+}
+
+function displayConnectionsTable(data) {
+  // Stats
+  const statsEl = $("#wizard-connections-stats");
+  if (statsEl) {
+    statsEl.innerHTML = `
+      <div class="stat-box">
+        <div class="stat-value">${data.total_connections || 0}</div>
+        <div class="stat-label">Total</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">${data.valid_connections || 0}</div>
+        <div class="stat-label">Valides</div>
+      </div>
+      <div class="stat-box ${(data.invalid_connections || 0) > 0 ? 'warning' : ''}">
+        <div class="stat-value">${data.invalid_connections || 0}</div>
+        <div class="stat-label">Invalides</div>
+      </div>
+    `;
+  }
 
   // Activités manquantes
+  const missingWarning = $("#wizard-missing-warning");
+  const missingList = $("#wizard-missing-list");
+
   if (data.missing_activities && data.missing_activities.length > 0) {
-    missingWarning.classList.remove("hidden");
-    missingList.innerHTML = data.missing_activities
-      .map((name) => `<li>${name}</li>`)
-      .join("");
+    if (missingWarning) missingWarning.classList.remove("hidden");
+    if (missingList) {
+      missingList.innerHTML = data.missing_activities
+        .map(name => `<li>${name}</li>`)
+        .join("");
+    }
   } else {
-    missingWarning.classList.add("hidden");
+    if (missingWarning) missingWarning.classList.add("hidden");
   }
 
-  // Tableau des connexions
-  tbody.innerHTML = data.connections
-    .map((conn) => {
+  // Tableau
+  const tbody = $("#wizard-connections-tbody");
+  if (tbody && data.connections) {
+    tbody.innerHTML = data.connections.map(conn => {
       const typeClass = conn.data_type
-        ? conn.data_type === "déclenchante"
-          ? "declenchante"
-          : "nourrissante"
+        ? (conn.data_type === "déclenchante" ? "declenchante" : "nourrissante")
         : "";
       const statusClass = conn.valid ? "status-valid" : "status-invalid";
       const statusText = conn.valid ? "✓ OK" : "✗ Manquante";
 
       return `
-      <tr>
-        <td>${conn.source}</td>
-        <td class="arrow-cell">→</td>
-        <td>${conn.target}</td>
-        <td>${conn.data_name || "-"}</td>
-        <td>${
-          conn.data_type
-            ? `<span class="data-type ${typeClass}">${conn.data_type}</span>`
-            : "-"
-        }</td>
-        <td class="${statusClass}">${statusText}</td>
-      </tr>
-    `;
-    })
-    .join("");
-
-  // Activer/désactiver le bouton d'import
-  if (importBtn) {
-    importBtn.disabled = data.valid_connections === 0;
-  }
-}
-
-/* ============================================================
-   IMPORT DES CONNEXIONS
-============================================================ */
-function initImportConnections() {
-  const importBtn = document.getElementById("import-connections-btn");
-  if (!importBtn) return;
-
-  importBtn.addEventListener("click", async () => {
-    if (!pendingConnectionsFile) {
-      alert("Veuillez d'abord analyser un fichier VSDX");
-      return;
-    }
-
-    const clearExisting = document.getElementById("clear-existing-checkbox")?.checked || false;
-
-    importBtn.textContent = "⏳ Import en cours...";
-    importBtn.disabled = true;
-
-    const form = new FormData();
-    form.append("file", pendingConnectionsFile);
-    form.append("clear_existing", clearExisting.toString());
-
-    try {
-      const res = await fetch("/activities/import-connections", {
-        method: "POST",
-        body: form,
-      });
-
-      const data = await res.json();
-
-      if (data.error) {
-        alert("Erreur: " + data.error);
-        importBtn.textContent = "✅ Importer les connexions valides";
-        importBtn.disabled = false;
-        return;
-      }
-
-      alert(
-        `Import terminé!\n\n` +
-          `• ${data.imported} connexion(s) importée(s)\n` +
-          `• ${data.skipped} connexion(s) ignorée(s) (déjà existantes)\n` +
-          `• ${data.invalid} connexion(s) invalide(s)`
-      );
-
-      // Recharger les connexions actuelles
-      loadCurrentConnections();
-
-      importBtn.textContent = "✅ Importer les connexions valides";
-      importBtn.disabled = false;
-    } catch (err) {
-      alert("Erreur lors de l'import");
-      console.error(err);
-      importBtn.textContent = "✅ Importer les connexions valides";
-      importBtn.disabled = false;
-    }
-  });
-}
-
-/* ============================================================
-   CHARGER LES CONNEXIONS ACTUELLES
-============================================================ */
-async function loadCurrentConnections() {
-  const container = document.getElementById("current-connections");
-  const countDiv = document.getElementById("current-connections-count");
-  const tbody = document.getElementById("current-connections-tbody");
-
-  if (!container || !countDiv || !tbody) return;
-
-  try {
-    const res = await fetch("/activities/list-connections");
-    const data = await res.json();
-
-    if (!data.connections || data.connections.length === 0) {
-      container.classList.remove("hidden");
-      countDiv.textContent = "Aucune connexion enregistrée";
-      tbody.innerHTML = "";
-      return;
-    }
-
-    container.classList.remove("hidden");
-    countDiv.textContent = `${data.count} connexion(s) enregistrée(s)`;
-
-    tbody.innerHTML = data.connections
-      .map((conn) => {
-        const typeClass = conn.data_type
-          ? conn.data_type === "déclenchante"
-            ? "declenchante"
-            : "nourrissante"
-          : "";
-
-        return `
         <tr>
-          <td>${conn.source}</td>
+          <td>${conn.source || "-"}</td>
           <td class="arrow-cell">→</td>
-          <td>${conn.target}</td>
+          <td>${conn.target || "-"}</td>
           <td>${conn.data_name || "-"}</td>
-          <td>${
-            conn.data_type
-              ? `<span class="data-type ${typeClass}">${conn.data_type}</span>`
-              : "-"
-          }</td>
-          <td>
-            <button class="btn-delete-small" data-id="${conn.id}">🗑️</button>
-          </td>
+          <td>${conn.data_type ? `<span class="data-type ${typeClass}">${conn.data_type}</span>` : "-"}</td>
+          <td class="${statusClass}">${statusText}</td>
         </tr>
       `;
-      })
-      .join("");
-
-    // Ajouter les handlers de suppression
-    tbody.querySelectorAll(".btn-delete-small").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const linkId = btn.dataset.id;
-        if (!confirm("Supprimer cette connexion ?")) return;
-
-        try {
-          await fetch(`/activities/delete-connection/${linkId}`, {
-            method: "DELETE",
-          });
-          loadCurrentConnections();
-        } catch (err) {
-          alert("Erreur lors de la suppression");
-        }
-      });
-    });
-  } catch (err) {
-    console.error("Erreur chargement connexions:", err);
+    }).join("");
   }
 }
 
-function initLoadConnectionsButton() {
-  const btn = document.getElementById("load-connections-btn");
-  if (!btn) return;
+/* ============================================================
+   WIZARD - SOUMISSION
+============================================================ */
+async function submitWizard() {
+  // Vérifier qu'on a au moins un fichier
+  const hasSvg = wizardState.svgFile || (wizardState.keepSvg && SVG_EXISTS);
+  const hasVsdx = wizardState.vsdxFile || (wizardState.keepVsdx && VSDX_EXISTS);
 
-  btn.addEventListener("click", loadCurrentConnections);
-}
+  if (!hasSvg && wizardState.mode === "new") {
+    alert("Veuillez fournir au moins un fichier SVG pour créer une cartographie.");
+    return;
+  }
 
-function initClearConnectionsButton() {
-  const btn = document.getElementById("clear-connections-btn");
-  if (!btn) return;
+  // Afficher l'écran de traitement
+  goToScreen("processing");
+  updateProcessingStep("svg", "active");
 
-  btn.addEventListener("click", async () => {
-    if (
-      !confirm(
-        "⚠️ Supprimer TOUTES les connexions ?\n\nCette action est irréversible."
-      )
-    ) {
+  const formData = new FormData();
+  formData.append("mode", wizardState.mode);
+
+  if (wizardState.svgFile) {
+    formData.append("svg_file", wizardState.svgFile);
+  }
+  formData.append("keep_svg", wizardState.keepSvg.toString());
+
+  if (wizardState.vsdxFile) {
+    formData.append("vsdx_file", wizardState.vsdxFile);
+  }
+  formData.append("keep_vsdx", wizardState.keepVsdx.toString());
+
+  const clearConnections = $("#clear-connections-checkbox")?.checked || false;
+  formData.append("clear_connections", clearConnections.toString());
+
+  try {
+    // Simuler une progression visuelle
+    await sleep(500);
+    updateProcessingStep("svg", "done");
+    updateProcessingStep("vsdx", "active");
+
+    // Envoyer la requête
+    const response = await fetch("/activities/upload-cartography", {
+      method: "POST",
+      body: formData
+    });
+
+    await sleep(500);
+    updateProcessingStep("vsdx", "done");
+    updateProcessingStep("save", "active");
+
+    const data = await response.json();
+
+    await sleep(400);
+    updateProcessingStep("save", "done");
+
+    if (data.error) {
+      showError(data.error);
       return;
     }
 
-    try {
-      const res = await fetch("/activities/clear-connections", {
-        method: "DELETE",
-      });
-      const data = await res.json();
+    // Succès
+    showSuccess(data);
 
-      alert(`${data.deleted} connexion(s) supprimée(s)`);
-      loadCurrentConnections();
-    } catch (err) {
-      alert("Erreur lors de la suppression");
-    }
-  });
+  } catch (err) {
+    console.error("Erreur soumission:", err);
+    showError("Erreur réseau. Veuillez réessayer.");
+  }
+}
+
+function updateProcessingStep(stepId, status) {
+  const stepEl = $(`#proc-step-${stepId}`);
+  if (!stepEl) return;
+
+  stepEl.classList.remove("active", "done");
+  stepEl.classList.add(status);
+
+  const iconEl = stepEl.querySelector(".proc-icon");
+  if (iconEl) {
+    if (status === "active") iconEl.textContent = "⏳";
+    else if (status === "done") iconEl.textContent = "✓";
+    else iconEl.textContent = "○";
+  }
+}
+
+function showSuccess(data) {
+  goToScreen("success");
+
+  const messageEl = $("#success-message");
+  const statsEl = $("#success-stats");
+
+  if (messageEl) {
+    messageEl.textContent = "Votre cartographie a été mise à jour avec succès.";
+  }
+
+  if (statsEl && data.stats) {
+    statsEl.innerHTML = `
+      <div class="stat-item">
+        <span class="stat-value">${data.stats.activities || 0}</span>
+        <span class="stat-label">Activités</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-value">${data.stats.connections || 0}</span>
+        <span class="stat-label">Connexions</span>
+      </div>
+    `;
+  }
+}
+
+function showError(message) {
+  goToScreen("error");
+
+  const messageEl = $("#error-message");
+  if (messageEl) messageEl.textContent = message;
 }
 
 /* ============================================================
    GESTIONNAIRE D'ENTITÉS
 ============================================================ */
 function initEntityManager() {
-  const popup = document.getElementById("entity-manager-popup");
-  const btnOpen = document.getElementById("entity-manager-btn");
-  const btnClose = document.getElementById("close-entity-manager");
+  const popup = $("#entity-manager-popup");
+  const btnOpen = $("#entity-manager-btn");
+  const btnClose = $("#close-entity-manager");
 
   if (!popup || !btnOpen) return;
 
   btnOpen.onclick = () => {
-    popup.classList.remove("hidden");
     loadEntitiesList();
+    popup.classList.remove("hidden");
   };
-  
+
   if (btnClose) {
     btnClose.onclick = () => popup.classList.add("hidden");
   }
 
   popup.addEventListener("click", (e) => {
-    if (e.target === popup) {
-      popup.classList.add("hidden");
-    }
+    if (e.target === popup) popup.classList.add("hidden");
   });
 
-  // Bouton créer entité
-  const createBtn = document.getElementById("create-entity-btn");
-  if (createBtn) {
-    createBtn.onclick = createEntity;
-  }
+  // Création d'entité
+  $("#create-entity-btn")?.addEventListener("click", createEntity);
+  $("#new-entity-name")?.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") createEntity();
+  });
 
-  // Boutons d'action
-  document.getElementById("activate-entity-btn")?.addEventListener("click", activateEntity);
-  document.getElementById("rename-entity-btn")?.addEventListener("click", showRenameModal);
-  document.getElementById("delete-entity-btn")?.addEventListener("click", showDeleteModal);
+  // Actions entité
+  $("#activate-entity-btn")?.addEventListener("click", activateEntity);
+  $("#rename-entity-btn")?.addEventListener("click", showRenameModal);
+  $("#delete-entity-btn")?.addEventListener("click", showDeleteModal);
 
-  // Modals
-  document.getElementById("cancel-delete-btn")?.addEventListener("click", hideDeleteModal);
-  document.getElementById("confirm-delete-btn")?.addEventListener("click", confirmDelete);
-  document.getElementById("cancel-rename-btn")?.addEventListener("click", hideRenameModal);
-  document.getElementById("confirm-rename-btn")?.addEventListener("click", confirmRename);
+  // Modal suppression
+  $("#cancel-delete-btn")?.addEventListener("click", hideDeleteModal);
+  $("#confirm-delete-btn")?.addEventListener("click", confirmDelete);
 
-  // Dropzone entité
-  initEntityDropzone();
+  // Modal renommage
+  $("#cancel-rename-btn")?.addEventListener("click", hideRenameModal);
+  $("#confirm-rename-btn")?.addEventListener("click", confirmRename);
 }
 
 async function loadEntitiesList() {
@@ -1024,7 +1003,7 @@ async function loadEntitiesList() {
     const response = await fetch("/activities/api/entities");
     const entities = await response.json();
 
-    const list = document.getElementById("entities-list");
+    const list = $("#entities-list");
     if (!list) return;
 
     if (entities.length === 0) {
@@ -1036,57 +1015,56 @@ async function loadEntitiesList() {
       <li class="entity-item ${e.is_active ? 'active' : ''}" data-id="${e.id}">
         <span class="entity-name">${e.name}</span>
         ${e.is_active ? '<span class="entity-active-badge">Active</span>' : ''}
-        <span class="entity-count">${e.activities_count} activités</span>
       </li>
     `).join("");
 
-    // Ajouter les clics
-    list.querySelectorAll(".entity-item").forEach(li => {
-      li.addEventListener("click", () => selectEntity(parseInt(li.dataset.id)));
+    // Ajouter les handlers de clic
+    list.querySelectorAll(".entity-item").forEach(item => {
+      item.addEventListener("click", () => selectEntity(item.dataset.id));
     });
 
-  } catch (error) {
-    console.error("Erreur chargement entités:", error);
+  } catch (err) {
+    console.error("Erreur chargement entités:", err);
   }
 }
 
-function selectEntity(entityId) {
-  selectedEntityId = entityId;
+async function selectEntity(id) {
+  selectedEntityId = id;
 
   // Highlight dans la liste
-  document.querySelectorAll(".entity-item").forEach(li => {
-    li.classList.toggle("selected", parseInt(li.dataset.id) === entityId);
+  $$(".entity-item").forEach(item => {
+    item.classList.toggle("selected", item.dataset.id === id);
   });
 
-  // Afficher les détails
-  const placeholder = document.getElementById("entity-details-placeholder");
-  const details = document.getElementById("entity-details");
-  
-  if (placeholder) placeholder.classList.add("hidden");
-  if (details) details.classList.remove("hidden");
+  // Charger les détails
+  try {
+    const response = await fetch("/activities/api/entities");
+    const entities = await response.json();
+    const entity = entities.find(e => e.id == id);
 
-  // Charger les infos
-  fetch(`/activities/api/entities`)
-    .then(r => r.json())
-    .then(entities => {
-      const entity = entities.find(e => e.id === entityId);
-      if (entity) {
-        document.getElementById("entity-detail-name").textContent = entity.name;
-        document.getElementById("entity-detail-description").textContent = entity.description || "Pas de description";
-        document.getElementById("entity-activities-count").textContent = entity.activities_count;
-        document.getElementById("entity-svg-status").textContent = entity.svg_filename ? "✓" : "—";
-        
-        // Masquer le bouton activer si déjà active
-        const activateBtn = document.getElementById("activate-entity-btn");
-        if (activateBtn) {
-          activateBtn.style.display = entity.is_active ? "none" : "inline-block";
-        }
-      }
-    });
+    if (!entity) return;
+
+    $("#entity-details-placeholder")?.classList.add("hidden");
+    $("#entity-details")?.classList.remove("hidden");
+
+    $("#entity-detail-name").textContent = entity.name;
+    $("#entity-detail-description").textContent = entity.description || "Aucune description";
+    $("#entity-activities-count").textContent = entity.activities_count || 0;
+    $("#entity-svg-status").textContent = entity.svg_filename ? "✓" : "—";
+
+    // Cacher le bouton activer si déjà active
+    const activateBtn = $("#activate-entity-btn");
+    if (activateBtn) {
+      activateBtn.style.display = entity.is_active ? "none" : "inline-block";
+    }
+
+  } catch (err) {
+    console.error("Erreur sélection entité:", err);
+  }
 }
 
 async function createEntity() {
-  const nameInput = document.getElementById("new-entity-name");
+  const nameInput = $("#new-entity-name");
   const name = nameInput?.value.trim();
 
   if (!name) {
@@ -1110,11 +1088,9 @@ async function createEntity() {
 
     nameInput.value = "";
     loadEntitiesList();
-    
-    // Sélectionner la nouvelle entité
     setTimeout(() => selectEntity(data.entity.id), 100);
 
-  } catch (error) {
+  } catch (err) {
     alert("Erreur réseau");
   }
 }
@@ -1134,21 +1110,20 @@ async function activateEntity() {
       return;
     }
 
-    // Recharger la page pour mettre à jour tout le contexte
     window.location.reload();
 
-  } catch (error) {
+  } catch (err) {
     alert("Erreur réseau");
   }
 }
 
 function showDeleteModal() {
   if (!selectedEntityId) return;
-  document.getElementById("confirm-delete-modal")?.classList.remove("hidden");
+  $("#confirm-delete-modal")?.classList.remove("hidden");
 }
 
 function hideDeleteModal() {
-  document.getElementById("confirm-delete-modal")?.classList.add("hidden");
+  $("#confirm-delete-modal")?.classList.add("hidden");
 }
 
 async function confirmDelete() {
@@ -1167,33 +1142,31 @@ async function confirmDelete() {
     }
 
     hideDeleteModal();
-    
-    // Recharger la page
     window.location.reload();
 
-  } catch (error) {
+  } catch (err) {
     alert("Erreur réseau");
   }
 }
 
 function showRenameModal() {
   if (!selectedEntityId) return;
-  
-  const currentName = document.getElementById("entity-detail-name")?.textContent || "";
-  const input = document.getElementById("rename-input");
+
+  const currentName = $("#entity-detail-name")?.textContent || "";
+  const input = $("#rename-input");
   if (input) input.value = currentName;
-  
-  document.getElementById("rename-modal")?.classList.remove("hidden");
+
+  $("#rename-modal")?.classList.remove("hidden");
 }
 
 function hideRenameModal() {
-  document.getElementById("rename-modal")?.classList.add("hidden");
+  $("#rename-modal")?.classList.add("hidden");
 }
 
 async function confirmRename() {
   if (!selectedEntityId) return;
 
-  const newName = document.getElementById("rename-input")?.value.trim();
+  const newName = $("#rename-input")?.value.trim();
   if (!newName) {
     alert("Veuillez entrer un nom");
     return;
@@ -1217,115 +1190,8 @@ async function confirmRename() {
     loadEntitiesList();
     selectEntity(selectedEntityId);
 
-  } catch (error) {
+  } catch (err) {
     alert("Erreur réseau");
-  }
-}
-
-/* ============================================================
-   DROPZONE ENTITÉ (Upload SVG)
-============================================================ */
-function initEntityDropzone() {
-  const zone = document.getElementById("entity-dropzone");
-  const status = document.getElementById("entity-dropzone-status");
-  if (!zone || !status) return;
-
-  // Input file caché
-  const fileInput = document.createElement("input");
-  fileInput.type = "file";
-  fileInput.accept = ".svg";
-  fileInput.style.display = "none";
-  document.body.appendChild(fileInput);
-
-  zone.addEventListener("click", () => {
-    if (!selectedEntityId && !ACTIVE_ENTITY) {
-      alert("Veuillez d'abord sélectionner ou activer une entité");
-      return;
-    }
-    fileInput.click();
-  });
-
-  fileInput.addEventListener("change", async () => {
-    const file = fileInput.files[0];
-    if (file) {
-      await uploadEntitySvg(file, status);
-    }
-  });
-
-  // Drag & drop
-  zone.addEventListener("dragover", (e) => {
-    e.preventDefault();
-    zone.classList.add("dragover");
-  });
-
-  zone.addEventListener("dragleave", () => {
-    zone.classList.remove("dragover");
-  });
-
-  zone.addEventListener("drop", async (e) => {
-    e.preventDefault();
-    zone.classList.remove("dragover");
-
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      await uploadEntitySvg(file, status);
-    }
-  });
-}
-
-async function uploadEntitySvg(file, status) {
-  if (!file.name.toLowerCase().endsWith(".svg")) {
-    status.innerHTML = "❌ Format invalide — fichier SVG requis";
-    status.className = "dropzone-status error";
-    return;
-  }
-
-  // Vérifier qu'on a une entité active ou sélectionnée
-  const targetEntityId = selectedEntityId || (ACTIVE_ENTITY ? ACTIVE_ENTITY.id : null);
-  
-  if (!targetEntityId) {
-    status.innerHTML = "❌ Aucune entité active";
-    status.className = "dropzone-status error";
-    return;
-  }
-
-  // Si l'entité sélectionnée n'est pas active, l'activer d'abord
-  if (selectedEntityId && (!ACTIVE_ENTITY || ACTIVE_ENTITY.id !== selectedEntityId)) {
-    status.innerHTML = "⏳ Activation de l'entité...";
-    status.className = "dropzone-status loading";
-    
-    await fetch(`/activities/api/entities/${selectedEntityId}/activate`, {
-      method: "POST"
-    });
-  }
-
-  status.innerHTML = "⏳ Upload en cours...";
-  status.className = "dropzone-status loading";
-
-  const form = new FormData();
-  form.append("file", file);
-
-  try {
-    const res = await fetch("/activities/upload-carto", {
-      method: "POST",
-      body: form,
-    });
-
-    const data = await res.json();
-
-    if (data.error) {
-      status.innerHTML = "❌ " + data.error;
-      status.className = "dropzone-status error";
-      return;
-    }
-
-    status.innerHTML = "✓ Cartographie installée — rechargement...";
-    status.className = "dropzone-status success";
-    setTimeout(() => window.location.reload(), 1200);
-
-  } catch (error) {
-    status.innerHTML = "❌ Erreur réseau";
-    status.className = "dropzone-status error";
   }
 }
 
@@ -1333,33 +1199,22 @@ async function uploadEntitySvg(file, status) {
    INITIALISATION GLOBALE
 ============================================================ */
 document.addEventListener("DOMContentLoaded", async () => {
-  console.log("[CARTO] ========================================");
-  console.log("[CARTO] Initialisation de la cartographie");
-  console.log("[CARTO] ACTIVE_ENTITY:", ACTIVE_ENTITY);
+  console.log("[CARTO] Initialisation...");
   console.log("[CARTO] SVG_EXISTS:", SVG_EXISTS);
-  console.log("[CARTO] SHAPE_ACTIVITY_MAP:", Object.keys(SHAPE_ACTIVITY_MAP).length, "entrées");
-  console.log("[CARTO] ========================================");
+  console.log("[CARTO] VSDX_EXISTS:", VSDX_EXISTS);
+  console.log("[CARTO] ACTIVE_ENTITY:", ACTIVE_ENTITY);
 
-  // Initialiser les contrôles UI
+  // Initialiser les composants
   initListClicks();
-  initPopup();
-  initTabs();
-  initCartoDropzone();
-  initResyncButton();
   initEntityManager();
-
-  // Initialiser les fonctionnalités de connexions
-  initDropzoneConnections();
-  initImportConnections();
-  initLoadConnectionsButton();
-  initClearConnectionsButton();
+  initWizard();
 
   // Initialiser pan et zoom
   initPan();
   initWheelZoom();
 
-  // Charger le SVG inline
+  // Charger le SVG
   await loadSvgInline();
-  
+
   console.log("[CARTO] Initialisation terminée");
 });
