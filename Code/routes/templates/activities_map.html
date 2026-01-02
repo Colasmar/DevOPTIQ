@@ -34,9 +34,6 @@
     </div>
 
     <div class="carto-header-right">
-      <button id="entity-manager-btn" class="btn-entity-manager">
-        🏢 Gestionnaire d'entités
-      </button>
       <button id="carto-wizard-btn" class="carto-wizard-btn">
         📦 Gérer la cartographie
       </button>
@@ -54,86 +51,7 @@
   </div>
 
   <!-- ============================================================
-       POPUP GESTIONNAIRE D'ENTITÉS
-  ============================================================ -->
-  <div id="entity-manager-popup" class="popup hidden">
-    <div class="popup-content popup-large">
-      
-      <div class="popup-header">
-        <h2>🏢 Gestionnaire d'entités</h2>
-        <button id="close-entity-manager" class="btn-close">✕</button>
-      </div>
-
-      <div class="entity-manager-layout">
-        
-        <!-- Colonne gauche: Liste des entités -->
-        <div class="entity-list-section">
-          <h3>Entités disponibles</h3>
-          
-          <!-- Formulaire nouvelle entité -->
-          <div class="new-entity-form">
-            <input type="text" id="new-entity-name" placeholder="Nom de la nouvelle entité" />
-            <button id="create-entity-btn" class="btn-green">+ Créer</button>
-          </div>
-          
-          <!-- Liste des entités -->
-          <ul id="entities-list" class="entities-list">
-            {% for entity in all_entities %}
-              <li class="entity-item {% if entity.is_active %}active{% endif %}" 
-                  data-id="{{ entity.id }}">
-                <span class="entity-name">{{ entity.name }}</span>
-                {% if entity.is_active %}
-                  <span class="entity-active-badge">Active</span>
-                {% endif %}
-              </li>
-            {% else %}
-              <li class="no-entity">Aucune entité créée</li>
-            {% endfor %}
-          </ul>
-        </div>
-
-        <!-- Colonne droite: Détails de l'entité sélectionnée -->
-        <div class="entity-details-section">
-          <div id="entity-details-placeholder" class="entity-placeholder">
-            <p>👈 Sélectionnez une entité pour voir ses détails</p>
-          </div>
-          
-          <div id="entity-details" class="entity-details hidden">
-            <h3 id="entity-detail-name">Nom de l'entité</h3>
-            <p id="entity-detail-description" class="entity-description"></p>
-            
-            <div class="entity-stats">
-              <div class="stat-item">
-                <span class="stat-value" id="entity-activities-count">0</span>
-                <span class="stat-label">Activités</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-value" id="entity-svg-status">-</span>
-                <span class="stat-label">Cartographie</span>
-              </div>
-            </div>
-            
-            <!-- Actions sur l'entité -->
-            <div class="entity-actions">
-              <button id="activate-entity-btn" class="btn-blue">
-                ✔ Activer cette entité
-              </button>
-              <button id="rename-entity-btn" class="btn-gray">
-                ✏️ Renommer
-              </button>
-              <button id="delete-entity-btn" class="btn-red">
-                🗑️ Supprimer
-              </button>
-            </div>
-          </div>
-        </div>
-        
-      </div>
-    </div>
-  </div>
-
-  <!-- ============================================================
-       WIZARD CARTOGRAPHIE (3 ÉTAPES)
+       WIZARD CARTOGRAPHIE UNIFIÉ
   ============================================================ -->
   <div id="carto-wizard-popup" class="popup hidden">
     <div class="wizard-overlay"></div>
@@ -141,12 +59,12 @@
       
       <!-- HEADER WIZARD -->
       <div class="wizard-header">
-        <h2>📦 Gestion de la cartographie</h2>
+        <h2 id="wizard-title">📦 Gestion de la cartographie</h2>
         <button id="close-wizard" class="btn-close">✕</button>
       </div>
 
-      <!-- INDICATEUR DE PROGRESSION -->
-      <div class="wizard-progress" id="wizard-progress">
+      <!-- INDICATEUR DE PROGRESSION (caché sur les premiers écrans) -->
+      <div class="wizard-progress hidden" id="wizard-progress">
         <div class="progress-step" data-step="1">
           <div class="step-circle">1</div>
           <span class="step-label">Connexions</span>
@@ -166,60 +84,112 @@
       <!-- CONTENU DES ÉTAPES -->
       <div class="wizard-content">
 
-        <!-- ==================== ÉCRAN D'ACCUEIL ==================== -->
-        <div id="wizard-screen-home" class="wizard-screen active">
-          <div class="wizard-home-content">
-            <div class="wizard-home-icon">🗺️</div>
-            <h3>Que souhaitez-vous faire ?</h3>
-            <p class="wizard-home-desc">
-              Importez vos fichiers Visio pour créer ou mettre à jour votre cartographie des activités.
-            </p>
+        <!-- ==================== ÉCRAN 0 : SÉLECTION ENTITÉ ==================== -->
+        <div id="wizard-screen-entities" class="wizard-screen active">
+          <div class="entities-screen">
+            <div class="entities-header">
+              <h3>🏢 Sélectionnez une entité</h3>
+              <p>Choisissez l'entité dont vous souhaitez gérer la cartographie</p>
+            </div>
 
-            <div class="wizard-home-actions">
+            <!-- Formulaire nouvelle entité -->
+            <div class="new-entity-inline">
+              <input type="text" id="wizard-new-entity-name" placeholder="Nom de la nouvelle entité..." />
+              <button id="wizard-create-entity-btn" class="btn-create-entity">+ Créer</button>
+            </div>
+
+            <!-- Liste des entités -->
+            <div class="entities-grid" id="wizard-entities-list">
+              <!-- Rempli dynamiquement -->
+            </div>
+
+            <div class="wizard-entities-empty hidden" id="wizard-entities-empty">
+              <div class="empty-icon">🏢</div>
+              <p>Aucune entité créée</p>
+              <p class="hint">Créez votre première entité pour commencer</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== ÉCRAN 1 : CHOIX ACTION ==================== -->
+        <div id="wizard-screen-action" class="wizard-screen">
+          <div class="action-screen">
+            
+            <!-- Info entité sélectionnée -->
+            <div class="selected-entity-card">
+              <div class="entity-card-header">
+                <div class="entity-card-icon">🏢</div>
+                <div class="entity-card-info">
+                  <h3 id="selected-entity-name">Nom de l'entité</h3>
+                  <div class="entity-card-stats">
+                    <span class="stat"><strong id="selected-entity-activities">0</strong> activités</span>
+                    <span class="stat-separator">•</span>
+                    <span class="stat"><strong id="selected-entity-connections">0</strong> connexions</span>
+                  </div>
+                </div>
+                <div class="entity-card-status">
+                  <span id="selected-entity-active-badge" class="active-badge hidden">Active</span>
+                </div>
+              </div>
+              
+              <!-- Fichiers actuels -->
+              <div class="entity-files-status">
+                <div class="file-status-item" id="selected-entity-svg-status">
+                  <span class="file-icon">🖼️</span>
+                  <span class="file-label">SVG</span>
+                  <span class="file-value">-</span>
+                </div>
+                <div class="file-status-item" id="selected-entity-vsdx-status">
+                  <span class="file-icon">📄</span>
+                  <span class="file-label">VSDX</span>
+                  <span class="file-value">-</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Actions cartographie -->
+            <div class="action-section-title">
+              <h4>Actions cartographie</h4>
+            </div>
+            
+            <div class="wizard-actions-grid">
               <button id="wizard-new-btn" class="wizard-action-card">
                 <div class="action-card-icon">✨</div>
                 <div class="action-card-content">
                   <strong>Nouvelle cartographie</strong>
-                  <span>Créer une cartographie à partir de zéro</span>
+                  <span>Remplacer tous les fichiers</span>
                 </div>
               </button>
 
-              <button id="wizard-update-btn" class="wizard-action-card" {% if not svg_exists and not vsdx_exists %}disabled{% endif %}>
+              <button id="wizard-update-btn" class="wizard-action-card" disabled>
                 <div class="action-card-icon">🔄</div>
                 <div class="action-card-content">
                   <strong>Modifier l'existante</strong>
-                  <span>Mettre à jour les fichiers actuels</span>
+                  <span>Mettre à jour les fichiers</span>
                 </div>
               </button>
             </div>
 
-            <!-- Info fichiers actuels -->
-            <div class="wizard-current-files">
-              <h4>Fichiers actuels</h4>
-              <div class="current-files-grid">
-                <div class="current-file-item {% if vsdx_exists %}exists{% else %}missing{% endif %}">
-                  <span class="file-icon">📄</span>
-                  <span class="file-type">VSDX</span>
-                  <span class="file-status">
-                    {% if vsdx_exists %}
-                      {{ current_vsdx or "Présent" }}
-                    {% else %}
-                      Non importé
-                    {% endif %}
-                  </span>
-                </div>
-                <div class="current-file-item {% if svg_exists %}exists{% else %}missing{% endif %}">
-                  <span class="file-icon">🖼️</span>
-                  <span class="file-type">SVG</span>
-                  <span class="file-status">
-                    {% if svg_exists %}
-                      {{ current_svg or "Présent" }}
-                    {% else %}
-                      Non importé
-                    {% endif %}
-                  </span>
-                </div>
-              </div>
+            <!-- Actions entité -->
+            <div class="action-section-title">
+              <h4>Actions entité</h4>
+            </div>
+            
+            <div class="entity-actions-row">
+              <button id="wizard-activate-btn" class="btn-action activate">
+                ✔ Activer
+              </button>
+              <button id="wizard-rename-btn" class="btn-action rename">
+                ✏️ Renommer
+              </button>
+              <button id="wizard-delete-btn" class="btn-action delete">
+                🗑️ Supprimer
+              </button>
+            </div>
+
+            <!-- Navigation -->
+            <div class="wizard-nav">
+              <button id="action-back" class="wizard-btn-secondary">← Retour aux entités</button>
             </div>
           </div>
         </div>
@@ -354,6 +324,12 @@
             </div>
           </div>
 
+          <!-- Entité cible -->
+          <div class="recap-entity">
+            <span class="recap-entity-label">Entité :</span>
+            <span class="recap-entity-name" id="recap-entity-name">-</span>
+          </div>
+
           <!-- Récap des fichiers -->
           <div class="recap-files">
             <div class="recap-file-card" id="recap-vsdx">
@@ -378,9 +354,7 @@
           <div id="connections-preview-section" class="connections-preview-section hidden">
             <h4>Aperçu des connexions</h4>
             
-            <div class="connections-stats" id="wizard-connections-stats">
-              <!-- Stats remplies dynamiquement -->
-            </div>
+            <div class="connections-stats" id="wizard-connections-stats"></div>
 
             <div id="wizard-missing-warning" class="warning-box hidden">
               <strong>⚠️ Activités non trouvées :</strong>
@@ -399,9 +373,7 @@
                     <th>Statut</th>
                   </tr>
                 </thead>
-                <tbody id="wizard-connections-tbody">
-                  <!-- Rempli dynamiquement -->
-                </tbody>
+                <tbody id="wizard-connections-tbody"></tbody>
               </table>
             </div>
 
@@ -463,9 +435,7 @@
             <h3>Importation réussie !</h3>
             <p id="success-message">Votre cartographie a été mise à jour avec succès.</p>
             
-            <div class="success-stats" id="success-stats">
-              <!-- Stats remplies dynamiquement -->
-            </div>
+            <div class="success-stats" id="success-stats"></div>
 
             <button id="success-close" class="wizard-btn-primary">Fermer et actualiser</button>
           </div>
@@ -548,7 +518,6 @@
 
       <div id="carto-pan-wrapper" class="carto-pan-wrapper">
         <div id="pan-inner">
-          <!-- Le SVG sera chargé ici par JavaScript -->
           <div id="svg-container"></div>
         </div>
       </div>
