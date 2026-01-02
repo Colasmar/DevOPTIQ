@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, jsonify, session
 from Code.extensions import db
 from Code.models.models import User, Role, UserRole, Entity
 from sqlalchemy.exc import IntegrityError
@@ -6,28 +6,44 @@ from sqlalchemy import text
 
 gestion_rh_bp = Blueprint('gestion_rh', __name__, url_prefix='/gestion_rh')
 
+
+def get_active_entity_id():
+    """Récupère l'ID de l'entité active depuis la session."""
+    return session.get('active_entity_id')
+
+
 @gestion_rh_bp.route('/')
 def gestion_rh_home():
-    # MODIFIÉ: Filtrer les paramètres par entité active
-    active_entity_id = Entity.get_active_id()
+    active_entity_id = get_active_entity_id()
+    
+    # Récupérer les paramètres entreprise
+    try:
+        if active_entity_id:
+            row = db.session.execute(
+                text("SELECT * FROM entreprise_settings WHERE entity_id = :eid LIMIT 1"),
+                {"eid": active_entity_id}
+            ).mappings().fetchone()
+        else:
+            row = db.session.execute(text("SELECT * FROM entreprise_settings LIMIT 1")).mappings().fetchone()
+        settings = dict(row) if row else {}
+    except Exception:
+        settings = {}
+    
+    # Filtrer par entité active
     if active_entity_id:
-        row = db.session.execute(
-            text("SELECT * FROM entreprise_settings WHERE entity_id = :eid LIMIT 1"),
-            {"eid": active_entity_id}
-        ).mappings().fetchone()
+        roles = Role.query.filter_by(entity_id=active_entity_id).order_by(Role.name).all()
+        users = User.query.filter_by(entity_id=active_entity_id).order_by(User.last_name).all()
     else:
-        row = db.session.execute(text("SELECT * FROM entreprise_settings LIMIT 1")).mappings().fetchone()
-    settings = dict(row) if row else {}
-    # MODIFIÉ: Filtrer par entité active
-    roles = Role.for_active_entity().order_by(Role.name).all()
-    users = User.for_active_entity().order_by(User.last_name).all()
+        roles = Role.query.order_by(Role.name).all()
+        users = User.query.order_by(User.last_name).all()
+    
     return render_template('gestion_rh.html', settings=settings, roles=roles, users=users)
+
 
 @gestion_rh_bp.route('/update_settings', methods=['POST'])
 def update_settings():
     data = request.form
-    # MODIFIÉ: Gérer les paramètres par entité
-    active_entity_id = Entity.get_active_id()
+    active_entity_id = get_active_entity_id()
     
     # Supprimer les anciens paramètres de cette entité
     if active_entity_id:
@@ -52,6 +68,7 @@ def update_settings():
     db.session.commit()
     return redirect(url_for('gestion_rh.gestion_rh_home'))
 
+
 @gestion_rh_bp.route('/assign_roles', methods=['POST'])
 def assign_roles():
     user_id = request.form.get("user_id")
@@ -70,6 +87,7 @@ import os
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+
 @gestion_rh_bp.route('/import_roles', methods=['POST'])
 def import_roles():
     file = request.files['role_file']
@@ -77,8 +95,7 @@ def import_roles():
         filepath = os.path.join(UPLOAD_FOLDER, secure_filename(file.filename))
         file.save(filepath)
 
-        # MODIFIÉ: Récupérer l'entité active pour associer les rôles importés
-        active_entity_id = Entity.get_active_id()
+        active_entity_id = get_active_entity_id()
 
         with open(filepath, newline='', encoding='utf-8') as csvfile:
             reader = csv.reader(csvfile)
@@ -87,7 +104,6 @@ def import_roles():
                     name = row[0].strip()
                     if name:
                         try:
-                            # MODIFIÉ: Ajouter entity_id lors de l'import
                             db.session.execute(
                                 text("INSERT INTO roles (name, entity_id) VALUES (:name, :entity_id)"), 
                                 {'name': name, 'entity_id': active_entity_id}
@@ -104,8 +120,7 @@ def update_single_setting():
     key = request.form.get("key")
     value = request.form.get("value")
     
-    # MODIFIÉ: Gérer les paramètres par entité
-    active_entity_id = Entity.get_active_id()
+    active_entity_id = get_active_entity_id()
 
     # Récupère ou crée la ligne entreprise_settings pour cette entité
     if active_entity_id:
@@ -136,7 +151,6 @@ def update_single_setting():
     return jsonify(success=True)
 
 
-
 @gestion_rh_bp.route('/role', methods=['POST'])
 def create_or_update_role():
     role_id = request.form.get('id')
@@ -147,12 +161,12 @@ def create_or_update_role():
         if role:
             role.name = name
     else:
-        # MODIFIÉ: Associer le nouveau rôle à l'entité active
-        active_entity_id = Entity.get_active_id()
+        active_entity_id = get_active_entity_id()
         new_role = Role(name=name, entity_id=active_entity_id)
         db.session.add(new_role)
     db.session.commit()
     return jsonify(success=True)
+
 
 @gestion_rh_bp.route('/delete_role/<int:role_id>', methods=['POST'])
 def delete_role(role_id):
@@ -169,8 +183,7 @@ def get_collaborateurs():
     search = request.args.get('search', '').lower()
     role_filter = request.args.get('role', '')
 
-    # MODIFIÉ: Filtrer par entité active
-    active_entity_id = Entity.get_active_id()
+    active_entity_id = get_active_entity_id()
     query = db.session.query(User).join(UserRole, isouter=True).join(Role, isouter=True)
     
     if active_entity_id:
@@ -265,12 +278,17 @@ def assign_manager():
     return jsonify({'success': True})
 
 
-
 @gestion_rh_bp.route('/roles')
 def get_all_roles():
-    # MODIFIÉ: Filtrer par entité active
-    roles = Role.for_active_entity().order_by(Role.name).all()
+    active_entity_id = get_active_entity_id()
+    
+    if active_entity_id:
+        roles = Role.query.filter_by(entity_id=active_entity_id).order_by(Role.name).all()
+    else:
+        roles = Role.query.order_by(Role.name).all()
+    
     return jsonify([{'id': r.id, 'name': r.name} for r in roles])
+
 
 @gestion_rh_bp.route('/users_by_roles')
 def get_users_by_roles():
@@ -292,10 +310,16 @@ def get_users_by_roles():
 
     return jsonify(list(users_map.values()))
 
+
 @gestion_rh_bp.route('/users_with_roles')
 def get_users_with_roles():
-    # MODIFIÉ: Filtrer par entité active
-    users = User.for_active_entity().all()
+    active_entity_id = get_active_entity_id()
+    
+    if active_entity_id:
+        users = User.query.filter_by(entity_id=active_entity_id).all()
+    else:
+        users = User.query.all()
+    
     result = []
     for user in users:
         roles = [ur.role.name for ur in user.user_roles if ur.role is not None]
@@ -308,12 +332,19 @@ def get_users_with_roles():
             })
     return jsonify(result)
 
+
 @gestion_rh_bp.route('/users_with_role')
 def get_users_with_role():
     role_name = request.args.get('role')
-    # MODIFIÉ: Filtrer par entité active
-    role = Role.for_active_entity().filter_by(name=role_name).first()
+    active_entity_id = get_active_entity_id()
+    
+    if active_entity_id:
+        role = Role.query.filter_by(name=role_name, entity_id=active_entity_id).first()
+    else:
+        role = Role.query.filter_by(name=role_name).first()
+    
     if not role:
         return jsonify([])
+    
     users = db.session.query(User).join(UserRole).filter(UserRole.role_id == role.id).all()
     return jsonify([{'id': u.id, 'first_name': u.first_name, 'last_name': u.last_name} for u in users])
