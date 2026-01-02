@@ -607,9 +607,19 @@ function prepareRecap() {
 
   // Connexions
   const connSection = $("#connections-preview-section"), noVsdx = $("#no-vsdx-message");
+  const connTitle = connSection?.querySelector("h4");
+  
   if (wizardState.vsdxFile && wizardState.connectionsPreview) {
     connSection?.classList.remove("hidden");
     noVsdx?.classList.add("hidden");
+    
+    // Adapter le titre selon le mode
+    if (connTitle) {
+      connTitle.textContent = wizardState.mode === "new" 
+        ? "Connexions à importer" 
+        : "Aperçu des connexions";
+    }
+    
     displayConnections(wizardState.connectionsPreview);
   } else {
     connSection?.classList.add("hidden");
@@ -621,27 +631,59 @@ function prepareRecap() {
 
 function displayConnections(data) {
   const stats = $("#wizard-connections-stats");
-  if (stats) stats.innerHTML = `
-    <div class="stat-box"><div class="stat-value">${data.total_connections || 0}</div><div class="stat-label">Total</div></div>
-    <div class="stat-box"><div class="stat-value">${data.valid_connections || 0}</div><div class="stat-label">Valides</div></div>
-    <div class="stat-box ${(data.invalid_connections || 0) > 0 ? 'warning' : ''}"><div class="stat-value">${data.invalid_connections || 0}</div><div class="stat-label">Invalides</div></div>
-  `;
+  const isNewMode = wizardState.mode === "new";
+  const newModeInfo = $("#new-mode-info");
+  
+  // Afficher le message info en mode création
+  if (newModeInfo) {
+    newModeInfo.classList.toggle("hidden", !isNewMode);
+  }
+  
+  // En mode "new", toutes les connexions seront créées avec les activités
+  if (stats) {
+    if (isNewMode) {
+      // Mode création : pas de notion valide/invalide
+      stats.innerHTML = `
+        <div class="stat-box"><div class="stat-value">${data.total_connections || 0}</div><div class="stat-label">Connexions</div></div>
+        <div class="stat-box"><div class="stat-value">${data.missing_activities?.length || 0}</div><div class="stat-label">Activités à créer</div></div>
+      `;
+    } else {
+      // Mode update : afficher valides/invalides
+      stats.innerHTML = `
+        <div class="stat-box"><div class="stat-value">${data.total_connections || 0}</div><div class="stat-label">Total</div></div>
+        <div class="stat-box"><div class="stat-value">${data.valid_connections || 0}</div><div class="stat-label">Valides</div></div>
+        <div class="stat-box ${(data.invalid_connections || 0) > 0 ? 'warning' : ''}"><div class="stat-value">${data.invalid_connections || 0}</div><div class="stat-label">Invalides</div></div>
+      `;
+    }
+  }
 
   const warn = $("#wizard-missing-warning"), list = $("#wizard-missing-list");
-  if (data.missing_activities?.length) {
+  // En mode new, ne pas afficher comme un warning mais comme info
+  if (data.missing_activities?.length && !isNewMode) {
     warn?.classList.remove("hidden");
     if (list) list.innerHTML = data.missing_activities.map(n => `<li>${n}</li>`).join("");
-  } else warn?.classList.add("hidden");
+  } else {
+    warn?.classList.add("hidden");
+  }
 
   const tbody = $("#wizard-connections-tbody");
   if (tbody && data.connections) {
     tbody.innerHTML = data.connections.slice(0, 50).map(c => {
       const tc = c.data_type === "déclenchante" ? "declenchante" : "nourrissante";
+      // En mode new, tout est "à créer" (neutre), sinon valid/invalid
+      let statusClass, statusIcon;
+      if (isNewMode) {
+        statusClass = "status-new";
+        statusIcon = "○";
+      } else {
+        statusClass = c.valid ? 'status-valid' : 'status-invalid';
+        statusIcon = c.valid ? '✓' : '✗';
+      }
       return `<tr>
         <td>${c.source || "-"}</td><td>→</td><td>${c.target || "-"}</td>
         <td>${c.data_name || "-"}</td>
         <td>${c.data_type ? `<span class="data-type ${tc}">${c.data_type}</span>` : "-"}</td>
-        <td class="${c.valid ? 'status-valid' : 'status-invalid'}">${c.valid ? '✓' : '✗'}</td>
+        <td class="${statusClass}">${statusIcon}</td>
       </tr>`;
     }).join("");
   }
