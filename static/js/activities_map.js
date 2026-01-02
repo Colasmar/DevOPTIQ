@@ -633,53 +633,68 @@ function displayConnections(data) {
   const stats = $("#wizard-connections-stats");
   const isNewMode = wizardState.mode === "new";
   const newModeInfo = $("#new-mode-info");
+  const missingCount = data.missing_activities?.length || 0;
+  const invalidCount = data.invalid_connections || 0;
   
   // Afficher le message info en mode création
   if (newModeInfo) {
     newModeInfo.classList.toggle("hidden", !isNewMode);
   }
   
-  // En mode "new", toutes les connexions seront créées avec les activités
+  // Stats adaptées au mode - TOUJOURS afficher les non compatibles
   if (stats) {
     if (isNewMode) {
-      // Mode création : pas de notion valide/invalide
+      // Mode création : afficher connexions + non compatibles
       stats.innerHTML = `
         <div class="stat-box"><div class="stat-value">${data.total_connections || 0}</div><div class="stat-label">Connexions</div></div>
-        <div class="stat-box"><div class="stat-value">${data.missing_activities?.length || 0}</div><div class="stat-label">Activités à créer</div></div>
+        <div class="stat-box"><div class="stat-value">${data.valid_connections || 0}</div><div class="stat-label">Compatibles</div></div>
+        <div class="stat-box ${missingCount > 0 ? 'warning' : ''}"><div class="stat-value">${missingCount}</div><div class="stat-label">Non compatibles</div></div>
       `;
     } else {
       // Mode update : afficher valides/invalides
       stats.innerHTML = `
         <div class="stat-box"><div class="stat-value">${data.total_connections || 0}</div><div class="stat-label">Total</div></div>
         <div class="stat-box"><div class="stat-value">${data.valid_connections || 0}</div><div class="stat-label">Valides</div></div>
-        <div class="stat-box ${(data.invalid_connections || 0) > 0 ? 'warning' : ''}"><div class="stat-value">${data.invalid_connections || 0}</div><div class="stat-label">Invalides</div></div>
+        <div class="stat-box ${invalidCount > 0 ? 'warning' : ''}"><div class="stat-value">${invalidCount}</div><div class="stat-label">Invalides</div></div>
       `;
     }
   }
 
+  // TOUJOURS afficher les activités manquantes si présentes (même en mode new)
   const warn = $("#wizard-missing-warning"), list = $("#wizard-missing-list");
-  // En mode new, ne pas afficher comme un warning mais comme info
-  if (data.missing_activities?.length && !isNewMode) {
+  const warnTitle = warn?.querySelector("strong");
+  
+  if (missingCount > 0) {
     warn?.classList.remove("hidden");
-    if (list) list.innerHTML = data.missing_activities.map(n => `<li>${n}</li>`).join("");
+    // Adapter le titre selon le mode
+    if (warnTitle) {
+      warnTitle.textContent = isNewMode 
+        ? "⚠️ Activités non compatibles (absentes du SVG) :" 
+        : "⚠️ Activités non trouvées :";
+    }
+    if (list) {
+      list.innerHTML = data.missing_activities.map(n => `<li>${n}</li>`).join("");
+    }
   } else {
     warn?.classList.add("hidden");
   }
 
+  // Tableau des connexions
   const tbody = $("#wizard-connections-tbody");
   if (tbody && data.connections) {
     tbody.innerHTML = data.connections.slice(0, 50).map(c => {
       const tc = c.data_type === "déclenchante" ? "declenchante" : "nourrissante";
-      // En mode new, tout est "à créer" (neutre), sinon valid/invalid
       let statusClass, statusIcon;
-      if (isNewMode) {
-        statusClass = "status-new";
-        statusIcon = "○";
+      
+      if (c.valid) {
+        statusClass = 'status-valid';
+        statusIcon = '✓';
       } else {
-        statusClass = c.valid ? 'status-valid' : 'status-invalid';
-        statusIcon = c.valid ? '✓' : '✗';
+        statusClass = 'status-invalid';
+        statusIcon = '✗';
       }
-      return `<tr>
+      
+      return `<tr class="${c.valid ? '' : 'row-invalid'}">
         <td>${c.source || "-"}</td><td>→</td><td>${c.target || "-"}</td>
         <td>${c.data_name || "-"}</td>
         <td>${c.data_type ? `<span class="data-type ${tc}">${c.data_type}</span>` : "-"}</td>
