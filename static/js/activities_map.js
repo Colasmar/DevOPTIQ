@@ -1,6 +1,6 @@
 /* ============================================================
-   CARTOGRAPHIE DES ACTIVITÉS - VERSION SVG INLINE + ENTITÉS
-   + WIZARD CARTOGRAPHIE (SVG + VSDX)
+   CARTOGRAPHIE DES ACTIVITÉS - WIZARD UNIFIÉ
+   Gestion des entités + Import SVG/VSDX
 ============================================================ */
 
 const SHAPE_ACTIVITY_MAP = window.CARTO_SHAPE_MAP || {};
@@ -30,20 +30,25 @@ let clickableElements = new Set();
 const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 10;
 
-// Entité sélectionnée dans le gestionnaire
-let selectedEntityId = null;
-
 /* ============================================================
    ÉTAT DU WIZARD
 ============================================================ */
 const wizardState = {
-  mode: null, // 'new' | 'update'
-  currentStep: 0, // 0=home, 1, 2, 3
+  // Entité sélectionnée dans le wizard
+  selectedEntity: null,
+  // Mode: 'new' | 'update'
+  mode: null,
+  // Étape courante
+  currentStep: 0,
+  // Fichiers
   vsdxFile: null,
   svgFile: null,
   keepVsdx: false,
   keepSvg: false,
-  connectionsPreview: null
+  // Preview des connexions
+  connectionsPreview: null,
+  // Cache des entités
+  entitiesCache: []
 };
 
 /* ============================================================
@@ -116,7 +121,6 @@ function zoomAtPoint(delta, mouseX, mouseY) {
 function zoomAtCenter(delta) {
   const wrapper = $("#carto-pan-wrapper");
   if (!wrapper) return;
-
   const rect = wrapper.getBoundingClientRect();
   zoomAtPoint(delta, rect.width / 2, rect.height / 2);
 }
@@ -157,27 +161,22 @@ function initPan() {
   wrapper.addEventListener("mousedown", (e) => {
     if (e.button !== 0) return;
     e.preventDefault();
-
     isPanning = true;
     hasMoved = false;
     startX = e.clientX;
     startY = e.clientY;
     startPanX = panX;
     startPanY = panY;
-
     wrapper.classList.add("panning");
     panInner.classList.add("no-transition");
   });
 
   window.addEventListener("mousemove", (e) => {
     if (!isPanning) return;
-
     const dx = e.clientX - startX;
     const dy = e.clientY - startY;
     const distance = Math.sqrt(dx * dx + dy * dy);
-
     if (distance > MOVE_THRESHOLD && !hasMoved) hasMoved = true;
-
     panX = startPanX + dx;
     panY = startPanY + dy;
     applyTransform();
@@ -185,11 +184,9 @@ function initPan() {
 
   window.addEventListener("mouseup", () => {
     if (!isPanning) return;
-
     isPanning = false;
     wrapper.classList.remove("panning");
     panInner.classList.remove("no-transition");
-
     setTimeout(() => { hasMoved = false; }, 10);
   });
 
@@ -199,7 +196,6 @@ function initPan() {
 function initWheelZoom() {
   const wrapper = $("#carto-pan-wrapper");
   if (!wrapper) return;
-
   wrapper.addEventListener("wheel", (e) => {
     e.preventDefault();
     const delta = e.deltaY > 0 ? -1 : 1;
@@ -228,15 +224,11 @@ async function loadSvgInline() {
   try {
     const svgUrl = "/activities/svg?t=" + Date.now();
     const response = await fetch(svgUrl);
-
     if (!response.ok) throw new Error(`SVG introuvable (${response.status})`);
-
     const svgText = await response.text();
     container.innerHTML = svgText;
-
     svgElement = container.querySelector("svg");
     if (!svgElement) throw new Error("Pas d'élément <svg> trouvé");
-
     setupSvg();
   } catch (error) {
     console.error("[CARTO] Erreur:", error);
@@ -292,9 +284,7 @@ function setupSvg() {
 function activateSvgClicks() {
   if (!svgElement) return;
 
-  const allElements = svgElement.querySelectorAll("*");
-
-  allElements.forEach((el) => {
+  svgElement.querySelectorAll("*").forEach((el) => {
     let mid = el.getAttributeNS(VISIO_NS, "mID");
     if (!mid) mid = el.getAttribute("v:mID");
     if (!mid) mid = el.getAttribute("data-mid");
@@ -306,7 +296,6 @@ function activateSvgClicks() {
         }
       }
     }
-
     if (!mid) return;
 
     const activityId = SHAPE_ACTIVITY_MAP[mid];
@@ -314,7 +303,6 @@ function activateSvgClicks() {
 
     clickableElements.add(el);
     el.dataset.activityId = activityId;
-    el.dataset.mid = mid;
     el.style.cursor = "pointer";
     el.classList.add("carto-activity");
 
@@ -338,9 +326,6 @@ function activateSvgClicks() {
   });
 }
 
-/* ============================================================
-   LISTE DES ACTIVITÉS
-============================================================ */
 function initListClicks() {
   $$(".activity-item").forEach((li) => {
     li.addEventListener("click", () => {
@@ -363,6 +348,7 @@ function initWizard() {
   // Ouvrir le wizard
   btnOpen.onclick = () => {
     resetWizard();
+    loadEntitiesList();
     popup.classList.remove("hidden");
   };
 
@@ -378,48 +364,60 @@ function initWizard() {
     }
   });
 
-  // Boutons écran d'accueil
-  $("#wizard-new-btn")?.addEventListener("click", () => startWizard("new"));
-  $("#wizard-update-btn")?.addEventListener("click", () => startWizard("update"));
+  // Création d'entité
+  $("#wizard-create-entity-btn")?.addEventListener("click", createEntityFromWizard);
+  $("#wizard-new-entity-name")?.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") createEntityFromWizard();
+  });
 
-  // Navigation étape 1
-  $("#step1-back")?.addEventListener("click", () => goToScreen("home"));
+  // Écran action
+  $("#action-back")?.addEventListener("click", () => goToScreen("entities"));
+  $("#wizard-new-btn")?.addEventListener("click", () => startWizardSteps("new"));
+  $("#wizard-update-btn")?.addEventListener("click", () => startWizardSteps("update"));
+
+  // Actions entité
+  $("#wizard-activate-btn")?.addEventListener("click", activateSelectedEntity);
+  $("#wizard-rename-btn")?.addEventListener("click", showRenameModal);
+  $("#wizard-delete-btn")?.addEventListener("click", showDeleteModal);
+
+  // Navigation étapes
+  $("#step1-back")?.addEventListener("click", () => goToScreen("action"));
   $("#step1-next")?.addEventListener("click", () => goToStep(2));
-
-  // Navigation étape 2
   $("#step2-back")?.addEventListener("click", () => goToStep(1));
   $("#step2-next")?.addEventListener("click", () => goToStep(3));
-
-  // Navigation étape 3
   $("#step3-back")?.addEventListener("click", () => goToStep(2));
   $("#step3-submit")?.addEventListener("click", submitWizard);
 
-  // Écran succès
+  // Écrans finaux
   $("#success-close")?.addEventListener("click", () => window.location.reload());
-
-  // Écran erreur
   $("#error-retry")?.addEventListener("click", () => goToStep(3));
   $("#error-close")?.addEventListener("click", () => {
     $("#carto-wizard-popup")?.classList.add("hidden");
   });
 
-  // Checkboxes "garder l'actuel"
+  // Checkboxes
   $("#keep-vsdx-checkbox")?.addEventListener("change", (e) => {
     wizardState.keepVsdx = e.target.checked;
     updateDropzoneState("vsdx");
   });
-
   $("#keep-svg-checkbox")?.addEventListener("change", (e) => {
     wizardState.keepSvg = e.target.checked;
     updateDropzoneState("svg");
   });
 
-  // Initialiser les dropzones
+  // Dropzones
   initWizardDropzone("vsdx");
   initWizardDropzone("svg");
+
+  // Modals
+  $("#cancel-delete-btn")?.addEventListener("click", hideDeleteModal);
+  $("#confirm-delete-btn")?.addEventListener("click", confirmDeleteEntity);
+  $("#cancel-rename-btn")?.addEventListener("click", hideRenameModal);
+  $("#confirm-rename-btn")?.addEventListener("click", confirmRenameEntity);
 }
 
 function resetWizard() {
+  wizardState.selectedEntity = null;
   wizardState.mode = null;
   wizardState.currentStep = 0;
   wizardState.vsdxFile = null;
@@ -428,48 +426,303 @@ function resetWizard() {
   wizardState.keepSvg = false;
   wizardState.connectionsPreview = null;
 
-  // Reset checkboxes
+  // Reset UI
   const keepVsdxCb = $("#keep-vsdx-checkbox");
   const keepSvgCb = $("#keep-svg-checkbox");
   if (keepVsdxCb) keepVsdxCb.checked = false;
   if (keepSvgCb) keepSvgCb.checked = false;
 
-  // Reset previews
   $("#vsdx-preview")?.classList.add("hidden");
   $("#svg-preview")?.classList.add("hidden");
-  $("#vsdx-dropzone")?.classList.remove("hidden");
-  $("#svg-dropzone")?.classList.remove("hidden");
+  $("#vsdx-dropzone")?.classList.remove("hidden", "disabled");
+  $("#svg-dropzone")?.classList.remove("hidden", "disabled");
 
-  // Reset file inputs
   const vsdxInput = $("#vsdx-file-input");
   const svgInput = $("#svg-file-input");
   if (vsdxInput) vsdxInput.value = "";
   if (svgInput) svgInput.value = "";
 
-  // Afficher écran d'accueil
-  goToScreen("home");
-  updateProgress(0);
+  goToScreen("entities");
+  $("#wizard-progress")?.classList.add("hidden");
 }
 
-function startWizard(mode) {
+/* ============================================================
+   WIZARD - LISTE DES ENTITÉS
+============================================================ */
+async function loadEntitiesList() {
+  const listEl = $("#wizard-entities-list");
+  const emptyEl = $("#wizard-entities-empty");
+  if (!listEl) return;
+
+  try {
+    const response = await fetch("/activities/api/entities");
+    const entities = await response.json();
+    wizardState.entitiesCache = entities;
+
+    if (entities.length === 0) {
+      listEl.innerHTML = "";
+      emptyEl?.classList.remove("hidden");
+      return;
+    }
+
+    emptyEl?.classList.add("hidden");
+
+    listEl.innerHTML = entities.map(e => `
+      <div class="entity-grid-item ${e.is_active ? 'active' : ''}" data-id="${e.id}">
+        <div class="entity-grid-icon">🏢</div>
+        <div class="entity-grid-info">
+          <span class="entity-grid-name">${e.name}</span>
+          <span class="entity-grid-stats">${e.activities_count || 0} activités</span>
+        </div>
+        ${e.is_active ? '<span class="entity-grid-badge">Active</span>' : ''}
+        ${e.svg_filename ? '<span class="entity-grid-svg">🖼️</span>' : ''}
+      </div>
+    `).join("");
+
+    // Ajouter les handlers
+    listEl.querySelectorAll(".entity-grid-item").forEach(item => {
+      item.addEventListener("click", () => selectEntityForAction(parseInt(item.dataset.id)));
+    });
+
+  } catch (err) {
+    console.error("Erreur chargement entités:", err);
+    listEl.innerHTML = '<p class="error">Erreur de chargement</p>';
+  }
+}
+
+async function createEntityFromWizard() {
+  const nameInput = $("#wizard-new-entity-name");
+  const name = nameInput?.value.trim();
+
+  if (!name) {
+    alert("Veuillez entrer un nom pour l'entité");
+    return;
+  }
+
+  try {
+    const response = await fetch("/activities/api/entities", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name })
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      alert("Erreur: " + data.error);
+      return;
+    }
+
+    nameInput.value = "";
+    await loadEntitiesList();
+    
+    // Sélectionner la nouvelle entité
+    setTimeout(() => selectEntityForAction(data.entity.id), 100);
+
+  } catch (err) {
+    alert("Erreur réseau");
+  }
+}
+
+/* ============================================================
+   WIZARD - SÉLECTION D'ENTITÉ
+============================================================ */
+async function selectEntityForAction(entityId) {
+  // Récupérer les infos de l'entité
+  const entity = wizardState.entitiesCache.find(e => e.id === entityId);
+  if (!entity) return;
+
+  // Charger les infos détaillées (connexions)
+  let connectionsCount = 0;
+  try {
+    const response = await fetch(`/activities/api/entities/${entityId}/details`);
+    if (response.ok) {
+      const details = await response.json();
+      connectionsCount = details.connections_count || 0;
+      entity.svg_exists = details.svg_exists;
+      entity.vsdx_exists = details.vsdx_exists;
+      entity.current_svg = details.current_svg;
+      entity.current_vsdx = details.current_vsdx;
+    }
+  } catch (err) {
+    console.log("Pas de détails supplémentaires");
+  }
+
+  wizardState.selectedEntity = entity;
+
+  // Mettre à jour l'affichage
+  $("#selected-entity-name").textContent = entity.name;
+  $("#selected-entity-activities").textContent = entity.activities_count || 0;
+  $("#selected-entity-connections").textContent = connectionsCount;
+
+  // Badge actif
+  const activeBadge = $("#selected-entity-active-badge");
+  if (activeBadge) {
+    activeBadge.classList.toggle("hidden", !entity.is_active);
+  }
+
+  // Bouton activer
+  const activateBtn = $("#wizard-activate-btn");
+  if (activateBtn) {
+    activateBtn.style.display = entity.is_active ? "none" : "";
+  }
+
+  // Status fichiers
+  const svgStatus = $("#selected-entity-svg-status .file-value");
+  const vsdxStatus = $("#selected-entity-vsdx-status .file-value");
+  
+  if (svgStatus) {
+    svgStatus.textContent = entity.svg_filename || entity.svg_exists ? "✓ Présent" : "—";
+    svgStatus.className = "file-value " + (entity.svg_filename || entity.svg_exists ? "present" : "missing");
+  }
+  if (vsdxStatus) {
+    vsdxStatus.textContent = entity.vsdx_exists ? "✓ Présent" : "—";
+    vsdxStatus.className = "file-value " + (entity.vsdx_exists ? "present" : "missing");
+  }
+
+  // Bouton modifier (actif seulement si des fichiers existent)
+  const updateBtn = $("#wizard-update-btn");
+  if (updateBtn) {
+    const hasFiles = entity.svg_filename || entity.svg_exists || entity.vsdx_exists;
+    updateBtn.disabled = !hasFiles;
+  }
+
+  // Passer à l'écran action
+  goToScreen("action");
+}
+
+/* ============================================================
+   WIZARD - ACTIONS ENTITÉ
+============================================================ */
+async function activateSelectedEntity() {
+  if (!wizardState.selectedEntity) return;
+
+  try {
+    const response = await fetch(`/activities/api/entities/${wizardState.selectedEntity.id}/activate`, {
+      method: "POST"
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      alert("Erreur: " + data.error);
+      return;
+    }
+
+    // Recharger la page pour mettre à jour le contexte
+    window.location.reload();
+
+  } catch (err) {
+    alert("Erreur réseau");
+  }
+}
+
+function showRenameModal() {
+  if (!wizardState.selectedEntity) return;
+  
+  const input = $("#rename-input");
+  if (input) input.value = wizardState.selectedEntity.name;
+  
+  $("#rename-modal")?.classList.remove("hidden");
+}
+
+function hideRenameModal() {
+  $("#rename-modal")?.classList.add("hidden");
+}
+
+async function confirmRenameEntity() {
+  if (!wizardState.selectedEntity) return;
+
+  const newName = $("#rename-input")?.value.trim();
+  if (!newName) {
+    alert("Veuillez entrer un nom");
+    return;
+  }
+
+  try {
+    const response = await fetch(`/activities/api/entities/${wizardState.selectedEntity.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newName })
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      alert("Erreur: " + data.error);
+      return;
+    }
+
+    hideRenameModal();
+    
+    // Mettre à jour et recharger
+    wizardState.selectedEntity.name = newName;
+    $("#selected-entity-name").textContent = newName;
+    await loadEntitiesList();
+
+  } catch (err) {
+    alert("Erreur réseau");
+  }
+}
+
+function showDeleteModal() {
+  if (!wizardState.selectedEntity) return;
+  $("#confirm-delete-modal")?.classList.remove("hidden");
+}
+
+function hideDeleteModal() {
+  $("#confirm-delete-modal")?.classList.add("hidden");
+}
+
+async function confirmDeleteEntity() {
+  if (!wizardState.selectedEntity) return;
+
+  try {
+    const response = await fetch(`/activities/api/entities/${wizardState.selectedEntity.id}`, {
+      method: "DELETE"
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      alert("Erreur: " + data.error);
+      return;
+    }
+
+    hideDeleteModal();
+    window.location.reload();
+
+  } catch (err) {
+    alert("Erreur réseau");
+  }
+}
+
+/* ============================================================
+   WIZARD - ÉTAPES D'IMPORT
+============================================================ */
+function startWizardSteps(mode) {
   wizardState.mode = mode;
 
   // Configurer les options "garder l'actuel"
   const keepVsdxOption = $("#keep-vsdx-option");
   const keepSvgOption = $("#keep-svg-option");
+  const entity = wizardState.selectedEntity;
 
-  if (mode === "update") {
-    // Mode modification : afficher les options si fichiers existants
-    if (VSDX_EXISTS && keepVsdxOption) {
+  if (mode === "update" && entity) {
+    if (entity.vsdx_exists && keepVsdxOption) {
       keepVsdxOption.classList.remove("hidden");
-      $("#current-vsdx-name").textContent = CURRENT_VSDX || "Fichier actuel";
+      $("#current-vsdx-name").textContent = entity.current_vsdx || "Fichier actuel";
+    } else {
+      keepVsdxOption?.classList.add("hidden");
     }
-    if (SVG_EXISTS && keepSvgOption) {
+
+    if ((entity.svg_filename || entity.svg_exists) && keepSvgOption) {
       keepSvgOption.classList.remove("hidden");
-      $("#current-svg-name").textContent = CURRENT_SVG || "Fichier actuel";
+      $("#current-svg-name").textContent = entity.current_svg || "Fichier actuel";
+    } else {
+      keepSvgOption?.classList.add("hidden");
     }
   } else {
-    // Mode création : cacher les options
     keepVsdxOption?.classList.add("hidden");
     keepSvgOption?.classList.add("hidden");
   }
@@ -478,26 +731,33 @@ function startWizard(mode) {
 }
 
 function goToScreen(screenId) {
-  // Cacher tous les écrans
   $$(".wizard-screen").forEach(s => s.classList.remove("active"));
-
-  // Afficher l'écran demandé
   $(`#wizard-screen-${screenId}`)?.classList.add("active");
 
-  // Cacher/afficher la progression
+  // Afficher/cacher la progression
   const progressEl = $("#wizard-progress");
   if (progressEl) {
-    progressEl.style.display = screenId === "home" ? "none" : "flex";
+    const showProgress = ["step1", "step2", "step3"].includes(screenId);
+    progressEl.classList.toggle("hidden", !showProgress);
+  }
+
+  // Titre
+  const titleEl = $("#wizard-title");
+  if (titleEl) {
+    if (screenId === "entities") {
+      titleEl.textContent = "📦 Gestion de la cartographie";
+    } else if (screenId === "action") {
+      titleEl.textContent = "📦 " + (wizardState.selectedEntity?.name || "Entité");
+    } else {
+      titleEl.textContent = "📦 Import cartographie";
+    }
   }
 }
 
 function goToStep(step) {
   wizardState.currentStep = step;
-
-  // Mettre à jour la progression
   updateProgress(step);
 
-  // Afficher l'écran correspondant
   if (step === 1) {
     goToScreen("step1");
     updateDropzoneState("vsdx");
@@ -514,49 +774,31 @@ function updateProgress(step) {
   const progressEl = $("#wizard-progress");
   if (!progressEl) return;
 
-  // Afficher la barre de progression
-  progressEl.style.display = step > 0 ? "flex" : "none";
+  progressEl.classList.remove("hidden");
 
-  // Mettre à jour les cercles
   for (let i = 1; i <= 3; i++) {
     const stepEl = $(`.progress-step[data-step="${i}"]`);
     if (!stepEl) continue;
 
     stepEl.classList.remove("active", "completed");
-
-    if (i < step) {
-      stepEl.classList.add("completed");
-    } else if (i === step) {
-      stepEl.classList.add("active");
-    }
+    if (i < step) stepEl.classList.add("completed");
+    else if (i === step) stepEl.classList.add("active");
   }
 
-  // Mettre à jour les lignes
   for (let i = 1; i <= 2; i++) {
     const lineEl = $(`.progress-line[data-line="${i}"]`);
-    if (!lineEl) continue;
-
-    if (i < step) {
-      lineEl.classList.add("filled");
-    } else {
-      lineEl.classList.remove("filled");
+    if (lineEl) {
+      lineEl.classList.toggle("filled", i < step);
     }
   }
 }
 
 function updateDropzoneState(type) {
   const isKeeping = type === "vsdx" ? wizardState.keepVsdx : wizardState.keepSvg;
-  const dropzoneWrapper = $(`#${type}-dropzone-wrapper`);
-
-  if (dropzoneWrapper) {
-    const dropzone = $(`#${type}-dropzone`);
-    if (dropzone) {
-      if (isKeeping) {
-        dropzone.classList.add("disabled");
-      } else {
-        dropzone.classList.remove("disabled");
-      }
-    }
+  const dropzone = $(`#${type}-dropzone`);
+  
+  if (dropzone) {
+    dropzone.classList.toggle("disabled", isKeeping);
   }
 }
 
@@ -566,46 +808,34 @@ function updateDropzoneState(type) {
 function initWizardDropzone(type) {
   const dropzone = $(`#${type}-dropzone`);
   const fileInput = $(`#${type}-file-input`);
-  const preview = $(`#${type}-preview`);
   const removeBtn = $(`#${type}-remove`);
 
   if (!dropzone || !fileInput) return;
 
-  // Clic sur la dropzone
   dropzone.addEventListener("click", () => {
-    if (dropzone.classList.contains("disabled")) return;
-    fileInput.click();
+    if (!dropzone.classList.contains("disabled")) fileInput.click();
   });
 
-  // Drag & drop
   dropzone.addEventListener("dragover", (e) => {
     e.preventDefault();
-    if (!dropzone.classList.contains("disabled")) {
-      dropzone.classList.add("dragover");
-    }
+    if (!dropzone.classList.contains("disabled")) dropzone.classList.add("dragover");
   });
 
-  dropzone.addEventListener("dragleave", () => {
-    dropzone.classList.remove("dragover");
-  });
+  dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
 
   dropzone.addEventListener("drop", (e) => {
     e.preventDefault();
     dropzone.classList.remove("dragover");
-
     if (dropzone.classList.contains("disabled")) return;
-
     const file = e.dataTransfer.files[0];
     if (file) handleFileSelect(type, file);
   });
 
-  // Sélection via input
   fileInput.addEventListener("change", () => {
     const file = fileInput.files[0];
     if (file) handleFileSelect(type, file);
   });
 
-  // Bouton supprimer
   if (removeBtn) {
     removeBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -622,14 +852,12 @@ function handleFileSelect(type, file) {
     return;
   }
 
-  // Stocker le fichier
   if (type === "vsdx") {
     wizardState.vsdxFile = file;
   } else {
     wizardState.svgFile = file;
   }
 
-  // Afficher l'aperçu
   const dropzone = $(`#${type}-dropzone`);
   const preview = $(`#${type}-preview`);
   const filenameEl = $(`#${type}-filename`);
@@ -640,7 +868,6 @@ function handleFileSelect(type, file) {
   if (filenameEl) filenameEl.textContent = file.name;
   if (filesizeEl) filesizeEl.textContent = formatFileSize(file.size);
 
-  // Si VSDX, lancer l'analyse des connexions
   if (type === "vsdx") {
     analyzeVsdxConnections(file);
   }
@@ -667,8 +894,11 @@ function clearFile(type) {
    WIZARD - ANALYSE VSDX
 ============================================================ */
 async function analyzeVsdxConnections(file) {
+  if (!wizardState.selectedEntity) return;
+
   const formData = new FormData();
   formData.append("file", file);
+  formData.append("entity_id", wizardState.selectedEntity.id);
 
   try {
     const response = await fetch("/activities/preview-connections", {
@@ -695,85 +925,74 @@ async function analyzeVsdxConnections(file) {
    WIZARD - RÉCAPITULATIF
 ============================================================ */
 function prepareRecap() {
+  const entity = wizardState.selectedEntity;
+  
+  // Nom de l'entité
+  $("#recap-entity-name").textContent = entity?.name || "-";
+
   // Récap VSDX
+  const recapVsdxCard = $("#recap-vsdx");
   const recapVsdxName = $("#recap-vsdx-name");
   const recapVsdxStatus = $("#recap-vsdx-status");
-  const recapVsdxCard = $("#recap-vsdx");
 
-  if (recapVsdxCard) {
-    recapVsdxCard.classList.remove("new-file", "kept-file");
-  }
+  recapVsdxCard?.classList.remove("new-file", "kept-file");
 
   if (wizardState.vsdxFile) {
-    if (recapVsdxName) recapVsdxName.textContent = wizardState.vsdxFile.name;
-    if (recapVsdxStatus) {
-      recapVsdxStatus.textContent = "Nouveau";
-      recapVsdxStatus.className = "recap-file-status new";
-    }
-    if (recapVsdxCard) recapVsdxCard.classList.add("new-file");
-  } else if (wizardState.keepVsdx && VSDX_EXISTS) {
-    if (recapVsdxName) recapVsdxName.textContent = CURRENT_VSDX || "Fichier actuel";
-    if (recapVsdxStatus) {
-      recapVsdxStatus.textContent = "Conservé";
-      recapVsdxStatus.className = "recap-file-status kept";
-    }
-    if (recapVsdxCard) recapVsdxCard.classList.add("kept-file");
+    recapVsdxName.textContent = wizardState.vsdxFile.name;
+    recapVsdxStatus.textContent = "Nouveau";
+    recapVsdxStatus.className = "recap-file-status new";
+    recapVsdxCard?.classList.add("new-file");
+  } else if (wizardState.keepVsdx && entity?.vsdx_exists) {
+    recapVsdxName.textContent = entity.current_vsdx || "Fichier actuel";
+    recapVsdxStatus.textContent = "Conservé";
+    recapVsdxStatus.className = "recap-file-status kept";
+    recapVsdxCard?.classList.add("kept-file");
   } else {
-    if (recapVsdxName) recapVsdxName.textContent = "Aucun fichier";
-    if (recapVsdxStatus) {
-      recapVsdxStatus.textContent = "-";
-      recapVsdxStatus.className = "recap-file-status none";
-    }
+    recapVsdxName.textContent = "Aucun fichier";
+    recapVsdxStatus.textContent = "-";
+    recapVsdxStatus.className = "recap-file-status none";
   }
 
   // Récap SVG
+  const recapSvgCard = $("#recap-svg");
   const recapSvgName = $("#recap-svg-name");
   const recapSvgStatus = $("#recap-svg-status");
-  const recapSvgCard = $("#recap-svg");
 
-  if (recapSvgCard) {
-    recapSvgCard.classList.remove("new-file", "kept-file");
-  }
+  recapSvgCard?.classList.remove("new-file", "kept-file");
 
   if (wizardState.svgFile) {
-    if (recapSvgName) recapSvgName.textContent = wizardState.svgFile.name;
-    if (recapSvgStatus) {
-      recapSvgStatus.textContent = "Nouveau";
-      recapSvgStatus.className = "recap-file-status new";
-    }
-    if (recapSvgCard) recapSvgCard.classList.add("new-file");
-  } else if (wizardState.keepSvg && SVG_EXISTS) {
-    if (recapSvgName) recapSvgName.textContent = CURRENT_SVG || "Fichier actuel";
-    if (recapSvgStatus) {
-      recapSvgStatus.textContent = "Conservé";
-      recapSvgStatus.className = "recap-file-status kept";
-    }
-    if (recapSvgCard) recapSvgCard.classList.add("kept-file");
+    recapSvgName.textContent = wizardState.svgFile.name;
+    recapSvgStatus.textContent = "Nouveau";
+    recapSvgStatus.className = "recap-file-status new";
+    recapSvgCard?.classList.add("new-file");
+  } else if (wizardState.keepSvg && (entity?.svg_filename || entity?.svg_exists)) {
+    recapSvgName.textContent = entity.current_svg || "Fichier actuel";
+    recapSvgStatus.textContent = "Conservé";
+    recapSvgStatus.className = "recap-file-status kept";
+    recapSvgCard?.classList.add("kept-file");
   } else {
-    if (recapSvgName) recapSvgName.textContent = "Aucun fichier";
-    if (recapSvgStatus) {
-      recapSvgStatus.textContent = "-";
-      recapSvgStatus.className = "recap-file-status none";
-    }
+    recapSvgName.textContent = "Aucun fichier";
+    recapSvgStatus.textContent = "-";
+    recapSvgStatus.className = "recap-file-status none";
   }
 
-  // Afficher ou cacher la section connexions
+  // Section connexions
   const connectionsSection = $("#connections-preview-section");
   const noVsdxMessage = $("#no-vsdx-message");
 
   if (wizardState.vsdxFile && wizardState.connectionsPreview) {
-    if (connectionsSection) connectionsSection.classList.remove("hidden");
-    if (noVsdxMessage) noVsdxMessage.classList.add("hidden");
+    connectionsSection?.classList.remove("hidden");
+    noVsdxMessage?.classList.add("hidden");
     displayConnectionsTable(wizardState.connectionsPreview);
-  } else if (wizardState.keepVsdx && VSDX_EXISTS) {
-    if (connectionsSection) connectionsSection.classList.add("hidden");
+  } else if (wizardState.keepVsdx && entity?.vsdx_exists) {
+    connectionsSection?.classList.add("hidden");
     if (noVsdxMessage) {
       noVsdxMessage.classList.remove("hidden");
       noVsdxMessage.querySelector("p").textContent =
         "Le fichier VSDX actuel sera conservé — les connexions ne seront pas modifiées.";
     }
   } else {
-    if (connectionsSection) connectionsSection.classList.add("hidden");
+    connectionsSection?.classList.add("hidden");
     if (noVsdxMessage) {
       noVsdxMessage.classList.remove("hidden");
       noVsdxMessage.querySelector("p").textContent =
@@ -783,7 +1002,6 @@ function prepareRecap() {
 }
 
 function displayConnectionsTable(data) {
-  // Stats
   const statsEl = $("#wizard-connections-stats");
   if (statsEl) {
     statsEl.innerHTML = `
@@ -802,22 +1020,18 @@ function displayConnectionsTable(data) {
     `;
   }
 
-  // Activités manquantes
   const missingWarning = $("#wizard-missing-warning");
   const missingList = $("#wizard-missing-list");
 
   if (data.missing_activities && data.missing_activities.length > 0) {
-    if (missingWarning) missingWarning.classList.remove("hidden");
+    missingWarning?.classList.remove("hidden");
     if (missingList) {
-      missingList.innerHTML = data.missing_activities
-        .map(name => `<li>${name}</li>`)
-        .join("");
+      missingList.innerHTML = data.missing_activities.map(name => `<li>${name}</li>`).join("");
     }
   } else {
-    if (missingWarning) missingWarning.classList.add("hidden");
+    missingWarning?.classList.add("hidden");
   }
 
-  // Tableau
   const tbody = $("#wizard-connections-tbody");
   if (tbody && data.connections) {
     tbody.innerHTML = data.connections.map(conn => {
@@ -845,20 +1059,24 @@ function displayConnectionsTable(data) {
    WIZARD - SOUMISSION
 ============================================================ */
 async function submitWizard() {
-  // Vérifier qu'on a au moins un fichier
-  const hasSvg = wizardState.svgFile || (wizardState.keepSvg && SVG_EXISTS);
-  const hasVsdx = wizardState.vsdxFile || (wizardState.keepVsdx && VSDX_EXISTS);
+  const entity = wizardState.selectedEntity;
+  if (!entity) {
+    alert("Aucune entité sélectionnée");
+    return;
+  }
+
+  const hasSvg = wizardState.svgFile || (wizardState.keepSvg && (entity.svg_filename || entity.svg_exists));
 
   if (!hasSvg && wizardState.mode === "new") {
     alert("Veuillez fournir au moins un fichier SVG pour créer une cartographie.");
     return;
   }
 
-  // Afficher l'écran de traitement
   goToScreen("processing");
   updateProcessingStep("svg", "active");
 
   const formData = new FormData();
+  formData.append("entity_id", entity.id);
   formData.append("mode", wizardState.mode);
 
   if (wizardState.svgFile) {
@@ -875,12 +1093,10 @@ async function submitWizard() {
   formData.append("clear_connections", clearConnections.toString());
 
   try {
-    // Simuler une progression visuelle
     await sleep(500);
     updateProcessingStep("svg", "done");
     updateProcessingStep("vsdx", "active");
 
-    // Envoyer la requête
     const response = await fetch("/activities/upload-cartography", {
       method: "POST",
       body: formData
@@ -900,7 +1116,6 @@ async function submitWizard() {
       return;
     }
 
-    // Succès
     showSuccess(data);
 
   } catch (err) {
@@ -950,249 +1165,8 @@ function showSuccess(data) {
 
 function showError(message) {
   goToScreen("error");
-
   const messageEl = $("#error-message");
   if (messageEl) messageEl.textContent = message;
-}
-
-/* ============================================================
-   GESTIONNAIRE D'ENTITÉS
-============================================================ */
-function initEntityManager() {
-  const popup = $("#entity-manager-popup");
-  const btnOpen = $("#entity-manager-btn");
-  const btnClose = $("#close-entity-manager");
-
-  if (!popup || !btnOpen) return;
-
-  btnOpen.onclick = () => {
-    loadEntitiesList();
-    popup.classList.remove("hidden");
-  };
-
-  if (btnClose) {
-    btnClose.onclick = () => popup.classList.add("hidden");
-  }
-
-  popup.addEventListener("click", (e) => {
-    if (e.target === popup) popup.classList.add("hidden");
-  });
-
-  // Création d'entité
-  $("#create-entity-btn")?.addEventListener("click", createEntity);
-  $("#new-entity-name")?.addEventListener("keypress", (e) => {
-    if (e.key === "Enter") createEntity();
-  });
-
-  // Actions entité
-  $("#activate-entity-btn")?.addEventListener("click", activateEntity);
-  $("#rename-entity-btn")?.addEventListener("click", showRenameModal);
-  $("#delete-entity-btn")?.addEventListener("click", showDeleteModal);
-
-  // Modal suppression
-  $("#cancel-delete-btn")?.addEventListener("click", hideDeleteModal);
-  $("#confirm-delete-btn")?.addEventListener("click", confirmDelete);
-
-  // Modal renommage
-  $("#cancel-rename-btn")?.addEventListener("click", hideRenameModal);
-  $("#confirm-rename-btn")?.addEventListener("click", confirmRename);
-}
-
-async function loadEntitiesList() {
-  try {
-    const response = await fetch("/activities/api/entities");
-    const entities = await response.json();
-
-    const list = $("#entities-list");
-    if (!list) return;
-
-    if (entities.length === 0) {
-      list.innerHTML = '<li class="no-entity">Aucune entité créée</li>';
-      return;
-    }
-
-    list.innerHTML = entities.map(e => `
-      <li class="entity-item ${e.is_active ? 'active' : ''}" data-id="${e.id}">
-        <span class="entity-name">${e.name}</span>
-        ${e.is_active ? '<span class="entity-active-badge">Active</span>' : ''}
-      </li>
-    `).join("");
-
-    // Ajouter les handlers de clic
-    list.querySelectorAll(".entity-item").forEach(item => {
-      item.addEventListener("click", () => selectEntity(item.dataset.id));
-    });
-
-  } catch (err) {
-    console.error("Erreur chargement entités:", err);
-  }
-}
-
-async function selectEntity(id) {
-  selectedEntityId = id;
-
-  // Highlight dans la liste
-  $$(".entity-item").forEach(item => {
-    item.classList.toggle("selected", item.dataset.id === id);
-  });
-
-  // Charger les détails
-  try {
-    const response = await fetch("/activities/api/entities");
-    const entities = await response.json();
-    const entity = entities.find(e => e.id == id);
-
-    if (!entity) return;
-
-    $("#entity-details-placeholder")?.classList.add("hidden");
-    $("#entity-details")?.classList.remove("hidden");
-
-    $("#entity-detail-name").textContent = entity.name;
-    $("#entity-detail-description").textContent = entity.description || "Aucune description";
-    $("#entity-activities-count").textContent = entity.activities_count || 0;
-    $("#entity-svg-status").textContent = entity.svg_filename ? "✓" : "—";
-
-    // Cacher le bouton activer si déjà active
-    const activateBtn = $("#activate-entity-btn");
-    if (activateBtn) {
-      activateBtn.style.display = entity.is_active ? "none" : "inline-block";
-    }
-
-  } catch (err) {
-    console.error("Erreur sélection entité:", err);
-  }
-}
-
-async function createEntity() {
-  const nameInput = $("#new-entity-name");
-  const name = nameInput?.value.trim();
-
-  if (!name) {
-    alert("Veuillez entrer un nom pour l'entité");
-    return;
-  }
-
-  try {
-    const response = await fetch("/activities/api/entities", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name })
-    });
-
-    const data = await response.json();
-
-    if (data.error) {
-      alert("Erreur: " + data.error);
-      return;
-    }
-
-    nameInput.value = "";
-    loadEntitiesList();
-    setTimeout(() => selectEntity(data.entity.id), 100);
-
-  } catch (err) {
-    alert("Erreur réseau");
-  }
-}
-
-async function activateEntity() {
-  if (!selectedEntityId) return;
-
-  try {
-    const response = await fetch(`/activities/api/entities/${selectedEntityId}/activate`, {
-      method: "POST"
-    });
-
-    const data = await response.json();
-
-    if (data.error) {
-      alert("Erreur: " + data.error);
-      return;
-    }
-
-    window.location.reload();
-
-  } catch (err) {
-    alert("Erreur réseau");
-  }
-}
-
-function showDeleteModal() {
-  if (!selectedEntityId) return;
-  $("#confirm-delete-modal")?.classList.remove("hidden");
-}
-
-function hideDeleteModal() {
-  $("#confirm-delete-modal")?.classList.add("hidden");
-}
-
-async function confirmDelete() {
-  if (!selectedEntityId) return;
-
-  try {
-    const response = await fetch(`/activities/api/entities/${selectedEntityId}`, {
-      method: "DELETE"
-    });
-
-    const data = await response.json();
-
-    if (data.error) {
-      alert("Erreur: " + data.error);
-      return;
-    }
-
-    hideDeleteModal();
-    window.location.reload();
-
-  } catch (err) {
-    alert("Erreur réseau");
-  }
-}
-
-function showRenameModal() {
-  if (!selectedEntityId) return;
-
-  const currentName = $("#entity-detail-name")?.textContent || "";
-  const input = $("#rename-input");
-  if (input) input.value = currentName;
-
-  $("#rename-modal")?.classList.remove("hidden");
-}
-
-function hideRenameModal() {
-  $("#rename-modal")?.classList.add("hidden");
-}
-
-async function confirmRename() {
-  if (!selectedEntityId) return;
-
-  const newName = $("#rename-input")?.value.trim();
-  if (!newName) {
-    alert("Veuillez entrer un nom");
-    return;
-  }
-
-  try {
-    const response = await fetch(`/activities/api/entities/${selectedEntityId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName })
-    });
-
-    const data = await response.json();
-
-    if (data.error) {
-      alert("Erreur: " + data.error);
-      return;
-    }
-
-    hideRenameModal();
-    loadEntitiesList();
-    selectEntity(selectedEntityId);
-
-  } catch (err) {
-    alert("Erreur réseau");
-  }
 }
 
 /* ============================================================
@@ -1200,20 +1174,12 @@ async function confirmRename() {
 ============================================================ */
 document.addEventListener("DOMContentLoaded", async () => {
   console.log("[CARTO] Initialisation...");
-  console.log("[CARTO] SVG_EXISTS:", SVG_EXISTS);
-  console.log("[CARTO] VSDX_EXISTS:", VSDX_EXISTS);
-  console.log("[CARTO] ACTIVE_ENTITY:", ACTIVE_ENTITY);
 
-  // Initialiser les composants
   initListClicks();
-  initEntityManager();
   initWizard();
-
-  // Initialiser pan et zoom
   initPan();
   initWheelZoom();
 
-  // Charger le SVG
   await loadSvgInline();
 
   console.log("[CARTO] Initialisation terminée");

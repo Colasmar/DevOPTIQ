@@ -62,17 +62,12 @@ def ensure_entity_dir(entity_id):
 
 
 def _normalize_link_type(raw):
-    """
-    Normalise le type de connexion pour la BDD.
-    Retourne 'déclenchante' | 'nourrissante' ou None si non déterminable.
-    """
+    """Normalise le type de connexion pour la BDD."""
     if raw is None:
         return None
-
     t = str(raw).strip().lower()
     if not t:
         return None
-
     mapping = {
         "t link": "déclenchante",
         "trigger": "déclenchante",
@@ -107,11 +102,10 @@ def activities_map_page():
         vsdx_path = get_entity_vsdx_path(active_entity.id)
         vsdx_exists = os.path.exists(vsdx_path)
         
-        # Noms des fichiers pour l'affichage
         if svg_exists:
             current_svg = active_entity.svg_filename or "carto.svg"
         if vsdx_exists:
-            current_vsdx = active_entity.vsdx_filename if hasattr(active_entity, 'vsdx_filename') else "connections.vsdx"
+            current_vsdx = "connections.vsdx"
     
     if active_entity:
         rows = Activities.query.filter_by(entity_id=active_entity.id).order_by(Activities.id).all()
@@ -207,6 +201,44 @@ def list_entities():
         }
         for e in entities
     ])
+
+
+@activities_map_bp.route("/api/entities/<int:entity_id>/details", methods=["GET"])
+def get_entity_details(entity_id):
+    """Récupère les détails d'une entité (fichiers, connexions, etc.)"""
+    from flask import session
+    
+    user_id = session.get('user_id')
+    
+    if not user_id:
+        return jsonify({"error": "Non connecté"}), 401
+    
+    entity = Entity.query.filter_by(id=entity_id, owner_id=user_id).first()
+    
+    if not entity:
+        return jsonify({"error": "Entité non trouvée"}), 404
+    
+    # Vérifier les fichiers
+    svg_path = get_entity_svg_path(entity_id)
+    vsdx_path = get_entity_vsdx_path(entity_id)
+    
+    svg_exists = os.path.exists(svg_path)
+    vsdx_exists = os.path.exists(vsdx_path)
+    
+    # Compter les connexions
+    connections_count = Link.query.filter_by(entity_id=entity_id).count()
+    
+    return jsonify({
+        "id": entity.id,
+        "name": entity.name,
+        "description": entity.description,
+        "svg_exists": svg_exists,
+        "vsdx_exists": vsdx_exists,
+        "current_svg": entity.svg_filename if svg_exists else None,
+        "current_vsdx": "connections.vsdx" if vsdx_exists else None,
+        "activities_count": Activities.query.filter_by(entity_id=entity_id).count(),
+        "connections_count": connections_count
+    })
 
 
 @activities_map_bp.route("/api/entities", methods=["POST"])
@@ -346,9 +378,7 @@ def update_entity(entity_id):
 # EXTRACTION DES ACTIVITÉS DEPUIS LE SVG
 # ============================================================
 def extract_activities_from_svg(svg_path):
-    """
-    Parse un fichier SVG Visio et extrait les activités valides.
-    """
+    """Parse un fichier SVG Visio et extrait les activités valides."""
     activities = []
     seen_names = set()
     
@@ -377,21 +407,15 @@ def extract_activities_from_svg(svg_path):
                     text_content = t
                     break
             
-            if not text_content:
-                continue
-            
-            if len(text_content) > 80:
+            if not text_content or len(text_content) > 80:
                 continue
             
             if text_content.lower() not in seen_names:
                 seen_names.add(text_content.lower())
-                activities.append({
-                    "shape_id": mid,
-                    "name": text_content
-                })
+                activities.append({"shape_id": mid, "name": text_content})
                 print(f"[EXTRACT] ✓ Activité: shape_id={mid}, name={text_content}")
         
-        print(f"[EXTRACT] Total activités extraites: {len(activities)}")
+        print(f"[EXTRACT] Total: {len(activities)}")
         
     except Exception as e:
         print(f"[EXTRACT] Erreur: {e}")
@@ -402,28 +426,22 @@ def extract_activities_from_svg(svg_path):
 
 
 def sync_activities_with_svg(entity_id, svg_path):
-    """
-    Synchronise les activités en base avec celles du SVG.
-    """
+    """Synchronise les activités en base avec celles du SVG."""
     stats = {
         "added": 0,
         "renamed": 0,
         "unchanged": 0,
         "deleted_warning": 0,
-        "skipped": 0,
         "total_in_svg": 0,
         "renamed_list": [],
         "deleted_list": [],
         "errors": []
     }
     
-    print(f"[SYNC] Démarrage pour entity_id={entity_id}")
-    
     svg_activities = extract_activities_from_svg(svg_path)
     stats["total_in_svg"] = len(svg_activities)
     
     if not svg_activities:
-        print("[SYNC] Aucune activité extraite!")
         return stats
     
     svg_shape_map = {str(act["shape_id"]): act["name"] for act in svg_activities}
@@ -433,11 +451,8 @@ def sync_activities_with_svg(entity_id, svg_path):
     existing_shape_map = {str(a.shape_id): a for a in existing_activities if a.shape_id}
     existing_shape_ids = set(existing_shape_map.keys())
     
-    print(f"[SYNC] SVG: {len(svg_shape_ids)} activités | Base: {len(existing_shape_ids)} activités")
-    
     # Nouvelles activités
-    new_shape_ids = svg_shape_ids - existing_shape_ids
-    for shape_id in new_shape_ids:
+    for shape_id in (svg_shape_ids - existing_shape_ids):
         name = svg_shape_map[shape_id]
         try:
             new_activity = Activities(
@@ -449,15 +464,12 @@ def sync_activities_with_svg(entity_id, svg_path):
             db.session.add(new_activity)
             db.session.flush()
             stats["added"] += 1
-            print(f"[SYNC] ➕ AJOUTÉ: '{name}' (shape_id={shape_id})")
         except Exception as e:
             db.session.rollback()
-            stats["errors"].append(f"Erreur création {name}: {str(e)[:50]}")
-            print(f"[SYNC] ❌ ERREUR création '{name}': {e}")
+            stats["errors"].append(str(e)[:50])
     
-    # Activités existantes (vérifier renommages)
-    common_shape_ids = svg_shape_ids & existing_shape_ids
-    for shape_id in common_shape_ids:
+    # Vérifier renommages
+    for shape_id in (svg_shape_ids & existing_shape_ids):
         svg_name = svg_shape_map[shape_id]
         db_activity = existing_shape_map[shape_id]
         
@@ -466,13 +478,11 @@ def sync_activities_with_svg(entity_id, svg_path):
             db_activity.name = svg_name
             stats["renamed"] += 1
             stats["renamed_list"].append({"old": old_name, "new": svg_name})
-            print(f"[SYNC] ✏️ RENOMMÉ: '{old_name}' → '{svg_name}'")
         else:
             stats["unchanged"] += 1
     
-    # Activités supprimées du SVG
-    deleted_shape_ids = existing_shape_ids - svg_shape_ids
-    for shape_id in deleted_shape_ids:
+    # Activités supprimées
+    for shape_id in (existing_shape_ids - svg_shape_ids):
         db_activity = existing_shape_map[shape_id]
         activity_id = db_activity.id
         activity_name = db_activity.name
@@ -487,42 +497,47 @@ def sync_activities_with_svg(entity_id, svg_path):
             db.session.commit()
             
             stats["deleted_warning"] += 1
-            stats["deleted_list"].append({
-                "id": activity_id,
-                "name": activity_name,
-                "shape_id": shape_id
-            })
-            print(f"[SYNC] 🗑️ SUPPRIMÉ: '{activity_name}' (shape_id={shape_id})")
+            stats["deleted_list"].append({"id": activity_id, "name": activity_name})
         except Exception as e:
             db.session.rollback()
-            print(f"[SYNC] ❌ ERREUR suppression '{activity_name}': {e}")
     
     db.session.commit()
-    print(f"[SYNC] Terminé: +{stats['added']} ajoutées, ✏️{stats['renamed']} renommées, 🗑️{stats['deleted_warning']} supprimées")
     return stats
 
 
 # ============================================================
-# WIZARD - UPLOAD CARTOGRAPHIE UNIFIÉ (SVG + VSDX)
+# WIZARD - UPLOAD CARTOGRAPHIE UNIFIÉ
 # ============================================================
 @activities_map_bp.route("/upload-cartography", methods=["POST"])
 def upload_cartography():
     """
     Route unifiée pour uploader SVG et/ou VSDX.
-    Traite d'abord le SVG (création des activités) puis le VSDX (connexions).
+    Peut cibler une entité spécifique via entity_id.
     """
+    from flask import session
+    
     print("[WIZARD] ========================================")
     print("[WIZARD] Début upload cartographie unifié")
     
-    active_entity = Entity.get_active()
+    # Déterminer l'entité cible
+    entity_id = request.form.get("entity_id")
     
-    if not active_entity:
-        return jsonify({"error": "Aucune entité active. Veuillez d'abord activer une entité."}), 400
+    if entity_id:
+        entity_id = int(entity_id)
+        user_id = session.get('user_id')
+        entity = Entity.query.filter_by(id=entity_id, owner_id=user_id).first()
+        
+        if not entity:
+            return jsonify({"error": "Entité non trouvée ou non autorisée"}), 404
+    else:
+        entity = Entity.get_active()
+        if not entity:
+            return jsonify({"error": "Aucune entité active"}), 400
+        entity_id = entity.id
     
-    entity_id = active_entity.id
-    print(f"[WIZARD] Entité: {active_entity.name} (id={entity_id})")
+    print(f"[WIZARD] Entité cible: {entity.name} (id={entity_id})")
     
-    # Récupérer les paramètres
+    # Paramètres
     mode = request.form.get("mode", "new")
     keep_svg = request.form.get("keep_svg", "false").lower() == "true"
     keep_vsdx = request.form.get("keep_vsdx", "false").lower() == "true"
@@ -531,10 +546,7 @@ def upload_cartography():
     svg_file = request.files.get("svg_file")
     vsdx_file = request.files.get("vsdx_file")
     
-    print(f"[WIZARD] Mode: {mode}")
-    print(f"[WIZARD] SVG file: {svg_file.filename if svg_file else 'None'} (keep={keep_svg})")
-    print(f"[WIZARD] VSDX file: {vsdx_file.filename if vsdx_file else 'None'} (keep={keep_vsdx})")
-    print(f"[WIZARD] Clear connections: {clear_connections}")
+    print(f"[WIZARD] Mode: {mode}, keep_svg={keep_svg}, keep_vsdx={keep_vsdx}")
     
     stats = {
         "activities": 0,
@@ -547,49 +559,41 @@ def upload_cartography():
     try:
         entity_dir = ensure_entity_dir(entity_id)
         
-        # ==================== TRAITEMENT SVG ====================
+        # ==================== SVG ====================
         if svg_file and svg_file.filename:
             if not svg_file.filename.lower().endswith(".svg"):
-                return jsonify({"error": "Le fichier cartographie doit être au format SVG"}), 400
+                return jsonify({"error": "Format SVG requis"}), 400
             
             svg_path = os.path.join(entity_dir, "carto.svg")
             svg_file.save(svg_path)
             print(f"[WIZARD] SVG sauvegardé: {svg_path}")
             
-            active_entity.svg_filename = svg_file.filename
+            entity.svg_filename = svg_file.filename
             db.session.commit()
             
-            # Synchroniser les activités
             sync_stats = sync_activities_with_svg(entity_id, svg_path)
             stats["sync"] = sync_stats
             stats["activities"] = sync_stats.get("total_in_svg", 0)
             stats["svg_updated"] = True
             
         elif not keep_svg and mode == "new":
-            return jsonify({"error": "Veuillez fournir un fichier SVG pour créer une cartographie"}), 400
+            return jsonify({"error": "Fichier SVG requis pour nouvelle cartographie"}), 400
         
-        # Compter les activités existantes si pas de nouveau SVG
         if not stats["activities"]:
             stats["activities"] = Activities.query.filter_by(entity_id=entity_id).count()
         
-        # ==================== TRAITEMENT VSDX ====================
+        # ==================== VSDX ====================
         if vsdx_file and vsdx_file.filename:
             if not vsdx_file.filename.lower().endswith(".vsdx"):
-                return jsonify({"error": "Le fichier connexions doit être au format VSDX"}), 400
+                return jsonify({"error": "Format VSDX requis"}), 400
             
-            # Sauvegarder le VSDX
             vsdx_path = os.path.join(entity_dir, "connections.vsdx")
             vsdx_file.save(vsdx_path)
             print(f"[WIZARD] VSDX sauvegardé: {vsdx_path}")
             
-            # Parser les connexions
             connections, errors = parse_vsdx_connections(vsdx_path)
             
-            if errors:
-                print(f"[WIZARD] Erreurs parsing VSDX: {errors}")
-            
             if connections:
-                # Récupérer les activités pour validation
                 activities = Activities.query.filter_by(entity_id=entity_id).all()
                 existing_activities = {act.name: act.id for act in activities}
                 
@@ -597,30 +601,23 @@ def upload_cartography():
                     connections, existing_activities
                 )
                 
-                print(f"[WIZARD] Connexions: {len(valid_conns)} valides, {len(invalid_conns)} invalides")
-                
-                # Supprimer les anciennes connexions si demandé
                 if clear_connections:
-                    deleted = Link.query.filter_by(entity_id=entity_id).delete()
-                    print(f"[WIZARD] {deleted} anciennes connexions supprimées")
+                    Link.query.filter_by(entity_id=entity_id).delete()
                 
-                # Importer les connexions valides
                 imported_count = 0
                 for conn in valid_conns:
-                    source_activity_id = conn['source_activity_id']
-                    target_activity_id = conn['target_activity_id']
+                    source_id = conn['source_activity_id']
+                    target_id = conn['target_activity_id']
                     
-                    # Vérifier si existe déjà
-                    existing_link = Link.query.filter_by(
+                    existing = Link.query.filter_by(
                         entity_id=entity_id,
-                        source_activity_id=source_activity_id,
-                        target_activity_id=target_activity_id
+                        source_activity_id=source_id,
+                        target_activity_id=target_id
                     ).first()
                     
-                    if existing_link:
+                    if existing:
                         continue
                     
-                    # Créer la Data si nécessaire
                     data_id = None
                     if conn.get('data_name'):
                         existing_data = Data.query.filter_by(
@@ -640,17 +637,15 @@ def upload_cartography():
                             db.session.flush()
                             data_id = new_data.id
                     
-                    # Type du lien
-                    raw_type = conn.get("data_type") or conn.get("type")
-                    link_type = _normalize_link_type(raw_type) or "nourrissante"
+                    link_type = _normalize_link_type(conn.get("data_type")) or "nourrissante"
                     
                     new_link = Link(
                         entity_id=entity_id,
-                        source_activity_id=source_activity_id,
-                        target_activity_id=target_activity_id,
+                        source_activity_id=source_id,
+                        target_activity_id=target_id,
                         source_data_id=data_id,
                         type=link_type,
-                        description=conn.get("data_name") or conn.get("description")
+                        description=conn.get("data_name")
                     )
                     
                     db.session.add(new_link)
@@ -659,98 +654,54 @@ def upload_cartography():
                 db.session.commit()
                 stats["connections"] = imported_count
                 stats["vsdx_updated"] = True
-                print(f"[WIZARD] {imported_count} connexions importées")
         
-        # Compter les connexions existantes si pas de nouveau VSDX
         if not stats["connections"]:
             stats["connections"] = Link.query.filter_by(entity_id=entity_id).count()
         
-        print(f"[WIZARD] ========================================")
         print(f"[WIZARD] Terminé: {stats['activities']} activités, {stats['connections']} connexions")
         
         return jsonify({
             "status": "ok",
-            "message": "Cartographie mise à jour avec succès",
+            "message": "Cartographie mise à jour",
             "stats": stats
         })
         
     except Exception as e:
         db.session.rollback()
-        print(f"[WIZARD] ❌ ERREUR: {e}")
+        print(f"[WIZARD] ERREUR: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 
 # ============================================================
-# UPLOAD CARTOGRAPHIE (ancien - conservé pour compatibilité)
-# ============================================================
-@activities_map_bp.route("/upload-carto", methods=["POST"])
-def upload_carto():
-    """Upload une nouvelle cartographie SVG."""
-    print("[UPLOAD] Début upload")
-    
-    if "file" not in request.files:
-        return jsonify({"error": "Aucun fichier reçu"}), 400
-    
-    file = request.files["file"]
-    
-    if file.filename == "":
-        return jsonify({"error": "Nom de fichier vide"}), 400
-    
-    filename_lower = file.filename.lower()
-    
-    if not filename_lower.endswith(".svg"):
-        return jsonify({"error": "Format SVG requis"}), 400
-    
-    active_entity = Entity.get_active()
-    
-    if not active_entity:
-        return jsonify({"error": "Aucune entité active"}), 400
-    
-    print(f"[UPLOAD] Entité: {active_entity.name} (id={active_entity.id})")
-    
-    try:
-        entity_dir = ensure_entity_dir(active_entity.id)
-        svg_path = os.path.join(entity_dir, "carto.svg")
-        
-        file.save(svg_path)
-        print(f"[UPLOAD] Fichier sauvegardé: {svg_path}")
-        
-        active_entity.svg_filename = "carto.svg"
-        db.session.commit()
-        
-        sync_stats = sync_activities_with_svg(active_entity.id, svg_path)
-        
-        return jsonify({
-            "status": "ok",
-            "message": f"Cartographie mise à jour",
-            "sync": sync_stats
-        })
-        
-    except Exception as e:
-        print(f"[UPLOAD] Erreur: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
-
-
-# ============================================================
-# CONNEXIONS - PREVIEW
+# PREVIEW CONNEXIONS
 # ============================================================
 @activities_map_bp.route("/preview-connections", methods=["POST"])
 def preview_connections():
     """Analyse un fichier VSDX et retourne un aperçu des connexions."""
+    from flask import session
+    
     if "file" not in request.files:
-        return jsonify({"error": "Aucun fichier reçu"}), 400
+        return jsonify({"error": "Aucun fichier"}), 400
 
     file = request.files["file"]
-
-    if file.filename == "":
-        return jsonify({"error": "Nom de fichier vide"}), 400
-
     if not file.filename.lower().endswith(".vsdx"):
-        return jsonify({"error": "Format non supporté (VSDX requis)"}), 400
+        return jsonify({"error": "Format VSDX requis"}), 400
+
+    # Entité cible
+    entity_id = request.form.get("entity_id")
+    if entity_id:
+        entity_id = int(entity_id)
+        user_id = session.get('user_id')
+        entity = Entity.query.filter_by(id=entity_id, owner_id=user_id).first()
+        if not entity:
+            return jsonify({"error": "Entité non trouvée"}), 404
+    else:
+        entity = Entity.get_active()
+        if not entity:
+            return jsonify({"error": "Aucune entité active"}), 400
+        entity_id = entity.id
 
     with tempfile.NamedTemporaryFile(delete=False, suffix='.vsdx') as tmp:
         file.save(tmp.name)
@@ -760,16 +711,9 @@ def preview_connections():
         connections, errors = parse_vsdx_connections(tmp_path)
 
         if errors:
-            return jsonify({
-                "status": "error",
-                "errors": errors
-            }), 400
+            return jsonify({"status": "error", "errors": errors}), 400
 
-        active_entity = Entity.get_active()
-        if not active_entity:
-            return jsonify({"error": "Aucune entité active"}), 400
-            
-        activities = Activities.query.filter_by(entity_id=active_entity.id).all()
+        activities = Activities.query.filter_by(entity_id=entity_id).all()
         existing_activities = {act.name: act.id for act in activities}
 
         valid, invalid, missing = validate_connections_against_activities(
@@ -793,146 +737,6 @@ def preview_connections():
             ],
             "missing_activities": missing
         })
-
-    finally:
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
-
-
-# ============================================================
-# CONNEXIONS - IMPORT
-# ============================================================
-@activities_map_bp.route("/import-connections", methods=["POST"])
-def import_connections():
-    """Importe les connexions d'un fichier VSDX dans la base de données."""
-    if "file" not in request.files:
-        return jsonify({"error": "Aucun fichier reçu"}), 400
-
-    file = request.files["file"]
-
-    if file.filename == "":
-        return jsonify({"error": "Nom de fichier vide"}), 400
-
-    if not file.filename.lower().endswith(".vsdx"):
-        return jsonify({"error": "Format non supporté (VSDX requis)"}), 400
-
-    clear_existing = request.form.get('clear_existing', 'false').lower() == 'true'
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.vsdx') as tmp:
-        file.save(tmp.name)
-        tmp_path = tmp.name
-
-    try:
-        connections, errors = parse_vsdx_connections(tmp_path)
-
-        if errors:
-            return jsonify({
-                "status": "error",
-                "errors": errors
-            }), 400
-
-        active_entity = Entity.get_active()
-        if not active_entity:
-            return jsonify({"error": "Aucune entité active"}), 400
-            
-        activities = Activities.query.filter_by(entity_id=active_entity.id).all()
-        existing_activities = {act.name: act.id for act in activities}
-
-        entity_id = active_entity.id
-
-        valid_conns, invalid_conns, missing = validate_connections_against_activities(
-            connections, existing_activities
-        )
-
-        if not valid_conns:
-            return jsonify({
-                "status": "error",
-                "error": "Aucune connexion valide trouvée",
-                "missing_activities": missing
-            }), 400
-
-        if clear_existing:
-            Link.query.filter_by(entity_id=entity_id).delete()
-            db.session.commit()
-
-        imported_count = 0
-        skipped_count = 0
-
-        for conn in valid_conns:
-            source_activity_id = conn['source_activity_id']
-            target_activity_id = conn['target_activity_id']
-
-            existing_link = Link.query.filter_by(
-                entity_id=entity_id,
-                source_activity_id=source_activity_id,
-                target_activity_id=target_activity_id
-            ).first()
-
-            if existing_link:
-                skipped_count += 1
-                continue
-
-            data_id = None
-            if conn.get('data_name'):
-                existing_data = Data.query.filter_by(
-                    entity_id=entity_id,
-                    name=conn['data_name']
-                ).first()
-
-                if existing_data:
-                    data_id = existing_data.id
-                else:
-                    new_data = Data(
-                        entity_id=entity_id,
-                        name=conn['data_name'],
-                        type=_normalize_link_type(conn.get("data_type")) or "nourrissante"
-                    )
-                    db.session.add(new_data)
-                    db.session.flush()
-                    data_id = new_data.id
-
-            raw_type = conn.get("data_type") or conn.get("type")
-            link_type = _normalize_link_type(raw_type)
-
-            if not link_type and data_id:
-                d = Data.query.get(data_id)
-                if d and getattr(d, "type", None):
-                    link_type = _normalize_link_type(d.type) or d.type
-
-            if not link_type:
-                link_type = "nourrissante"
-
-            description = conn.get("data_name") or conn.get("description")
-
-            new_link = Link(
-                entity_id=entity_id,
-                source_activity_id=source_activity_id,
-                target_activity_id=target_activity_id,
-                source_data_id=data_id,
-                type=link_type,
-                description=description
-            )
-
-            db.session.add(new_link)
-            imported_count += 1
-
-        db.session.commit()
-
-        return jsonify({
-            "status": "ok",
-            "message": f"{imported_count} connexion(s) importée(s)",
-            "imported": imported_count,
-            "skipped": skipped_count,
-            "invalid": len(invalid_conns),
-            "missing_activities": missing
-        })
-
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({
-            "status": "error",
-            "error": str(e)
-        }), 500
 
     finally:
         if os.path.exists(tmp_path):
@@ -983,61 +787,42 @@ def list_connections():
 
 
 # ============================================================
-# CONNEXIONS - SUPPRIMER UNE
+# CONNEXIONS - SUPPRIMER
 # ============================================================
 @activities_map_bp.route("/delete-connection/<int:link_id>", methods=["DELETE"])
 def delete_connection(link_id):
-    """Supprime une connexion spécifique."""
     link = Link.query.get(link_id)
-    
     if not link:
         return jsonify({"error": "Connexion non trouvée"}), 404
     
     db.session.delete(link)
     db.session.commit()
     
-    return jsonify({
-        "status": "ok",
-        "message": "Connexion supprimée"
-    })
+    return jsonify({"status": "ok", "message": "Connexion supprimée"})
 
 
-# ============================================================
-# CONNEXIONS - SUPPRIMER TOUTES
-# ============================================================
 @activities_map_bp.route("/clear-connections", methods=["DELETE"])
 def clear_connections():
-    """Supprime toutes les connexions de l'entité active."""
     active_entity = Entity.get_active()
-    
     if not active_entity:
         return jsonify({"status": "ok", "deleted": 0})
     
-    entity_id = active_entity.id
-    
-    deleted = Link.query.filter_by(entity_id=entity_id).delete()
+    deleted = Link.query.filter_by(entity_id=active_entity.id).delete()
     db.session.commit()
     
-    return jsonify({
-        "status": "ok",
-        "message": f"{deleted} connexion(s) supprimée(s)",
-        "deleted": deleted
-    })
+    return jsonify({"status": "ok", "deleted": deleted})
 
 
 # ============================================================
-# RE-SYNCHRONISATION MANUELLE
+# RE-SYNC
 # ============================================================
 @activities_map_bp.route("/resync", methods=["POST"])
 def resync_activities():
-    """Re-synchronise les activités depuis le SVG existant."""
     active_entity = Entity.get_active()
-    
     if not active_entity:
         return jsonify({"error": "Aucune entité active"}), 400
     
     svg_path = get_entity_svg_path(active_entity.id)
-    
     if not os.path.exists(svg_path) and os.path.exists(OLD_SVG_PATH):
         svg_path = OLD_SVG_PATH
     
@@ -1046,16 +831,38 @@ def resync_activities():
     
     try:
         sync_stats = sync_activities_with_svg(active_entity.id, svg_path)
-        
-        return jsonify({
-            "status": "ok",
-            "message": f"Re-synchronisation terminée",
-            "sync": sync_stats
-        })
+        return jsonify({"status": "ok", "sync": sync_stats})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@activities_map_bp.route("/update-cartography")
-def update_cartography():
-    return jsonify({"status": "ok", "message": "Cartographie rechargée"}), 200
+# ============================================================
+# UPLOAD CARTO (ancien - compatibilité)
+# ============================================================
+@activities_map_bp.route("/upload-carto", methods=["POST"])
+def upload_carto():
+    if "file" not in request.files:
+        return jsonify({"error": "Aucun fichier"}), 400
+    
+    file = request.files["file"]
+    if not file.filename.lower().endswith(".svg"):
+        return jsonify({"error": "Format SVG requis"}), 400
+    
+    active_entity = Entity.get_active()
+    if not active_entity:
+        return jsonify({"error": "Aucune entité active"}), 400
+    
+    try:
+        entity_dir = ensure_entity_dir(active_entity.id)
+        svg_path = os.path.join(entity_dir, "carto.svg")
+        file.save(svg_path)
+        
+        active_entity.svg_filename = "carto.svg"
+        db.session.commit()
+        
+        sync_stats = sync_activities_with_svg(active_entity.id, svg_path)
+        
+        return jsonify({"status": "ok", "sync": sync_stats})
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
