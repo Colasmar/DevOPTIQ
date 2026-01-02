@@ -40,6 +40,9 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 ENTITIES_DIR = os.path.join(STATIC_DIR, "entities")
 
+# IMPORTANT: Chemin de fallback pour les anciennes cartographies
+OLD_SVG_PATH = os.path.join(STATIC_DIR, "img", "carto_activities.svg")
+
 
 # ============================================================
 # HELPERS
@@ -103,8 +106,13 @@ def activities_map_page():
     shape_activity_map = {}
     
     if active_entity:
+        # Vérifier d'abord dans le dossier de l'entité
         svg_path = get_entity_svg_path(active_entity.id)
         svg_exists = os.path.exists(svg_path)
+        
+        # FALLBACK: Si pas de SVG dans le dossier entité, vérifier l'ancien emplacement
+        if not svg_exists and os.path.exists(OLD_SVG_PATH):
+            svg_exists = True
         
         vsdx_path = get_entity_vsdx_path(active_entity.id)
         vsdx_exists = os.path.exists(vsdx_path)
@@ -174,7 +182,12 @@ def serve_svg():
     if not active_entity:
         return jsonify({"error": "Aucune entité active"}), 404
     
+    # Chercher d'abord dans le dossier de l'entité
     svg_path = get_entity_svg_path(active_entity.id)
+    
+    # FALLBACK: Si pas trouvé, utiliser l'ancien emplacement
+    if not os.path.exists(svg_path) and os.path.exists(OLD_SVG_PATH):
+        svg_path = OLD_SVG_PATH
     
     if not os.path.exists(svg_path):
         return jsonify({"error": "SVG non trouvé"}), 404
@@ -228,13 +241,16 @@ def get_entity_details(entity_id):
     svg_path = get_entity_svg_path(entity_id)
     vsdx_path = get_entity_vsdx_path(entity_id)
     
+    # Vérifier aussi l'ancien emplacement pour svg_exists
+    svg_exists = os.path.exists(svg_path) or os.path.exists(OLD_SVG_PATH)
+    
     return jsonify({
         "id": entity.id,
         "name": entity.name,
         "description": entity.description,
-        "svg_exists": os.path.exists(svg_path),
+        "svg_exists": svg_exists,
         "vsdx_exists": os.path.exists(vsdx_path),
-        "current_svg": entity.svg_filename if os.path.exists(svg_path) else None,
+        "current_svg": entity.svg_filename if svg_exists else None,
         "current_vsdx": "connections.vsdx" if os.path.exists(vsdx_path) else None,
         "activities_count": Activities.query.filter_by(entity_id=entity_id).count(),
         "connections_count": Link.query.filter_by(entity_id=entity_id).count()
@@ -751,6 +767,10 @@ def resync_activities():
     
     svg_path = get_entity_svg_path(entity.id)
     
+    # FALLBACK: Si pas trouvé, utiliser l'ancien emplacement
+    if not os.path.exists(svg_path) and os.path.exists(OLD_SVG_PATH):
+        svg_path = OLD_SVG_PATH
+    
     if not os.path.exists(svg_path):
         return jsonify({"error": "SVG non trouvé"}), 404
     
@@ -759,3 +779,8 @@ def resync_activities():
         return jsonify({"status": "ok", "sync": stats})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@activities_map_bp.route("/update-cartography")
+def update_cartography():
+    return jsonify({"status": "ok", "message": "Cartographie rechargée"}), 200

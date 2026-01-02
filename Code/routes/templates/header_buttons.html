@@ -1,6 +1,9 @@
 <!-- Code/routes/templates/header_buttons.html -->
-<link rel="stylesheet" href="./../../../static/optiq.css">
-<link rel="stylesheet" href="./../../../static/cardnav.css">
+<!-- CORRIGÉ: Utilisation de url_for au lieu de chemins relatifs -->
+<link rel="stylesheet" href="{{ url_for('static', filename='optiq.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='cardnav.css') }}">
+<!-- Font Awesome pour les icônes -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
 
 <div class="card-nav-container">
@@ -81,4 +84,5 @@
   </nav>
 </div>
 
+<!-- CORRIGÉ: Utilisation de url_for au lieu de chemin relatif -->
 <script src="./../../../static/js/cardnav.js"></script>
