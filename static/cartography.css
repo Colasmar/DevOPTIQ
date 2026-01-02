@@ -916,6 +916,7 @@
 
 .connections-table .status-valid { color: #16a34a; }
 .connections-table .status-invalid { color: #dc2626; }
+.connections-table .status-new { color: #6b7280; }
 
 .data-type {
   display: inline-block;
@@ -976,6 +977,20 @@
 
 .no-vsdx-message .info-icon { font-size: 1.2rem; }
 .no-vsdx-message p { margin: 0; color: #6b7280; font-size: 0.85rem; }
+
+.new-mode-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #ecfdf5;
+  border: 1px solid #22c55e;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
+.new-mode-info .info-icon { font-size: 1.1rem; }
+.new-mode-info p { margin: 0; color: #065f46; font-size: 0.85rem; }
 
 /* Processing */
 .processing-content {
