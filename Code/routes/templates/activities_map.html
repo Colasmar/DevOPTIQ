@@ -2,7 +2,6 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='cartography.css') }}">
 
 <script>
-  // Variables globales pour le JavaScript
   window.CARTO_SHAPE_MAP = {{ shape_activity_map | tojson | safe }};
   window.SVG_EXISTS = {{ svg_exists | tojson }};
   window.VSDX_EXISTS = {{ vsdx_exists | tojson }};
@@ -20,50 +19,31 @@
   <div class="carto-header">
     <div class="carto-header-left">
       <h1>Cartographie des activités</h1>
-      
-      <!-- Badge entité active -->
       {% if active_entity %}
-        <span class="entity-badge active">
-          🏢 {{ active_entity.name }}
-        </span>
+        <span class="entity-badge active">🏢 {{ active_entity.name }}</span>
       {% else %}
-        <span class="entity-badge inactive">
-          ⚠️ Aucune entité active
-        </span>
+        <span class="entity-badge inactive">⚠️ Aucune entité active</span>
       {% endif %}
     </div>
-
-    <div class="carto-header-right">
-      <button id="carto-wizard-btn" class="carto-wizard-btn">
-        📦 Gérer la cartographie
-      </button>
-    </div>
+    <button id="carto-wizard-btn" class="carto-wizard-btn">📦 Gérer la cartographie</button>
   </div>
 
-  <!-- MESSAGE D'INFO NAVIGATION -->
+  <!-- INFO NAVIGATION -->
   <div class="carto-info-message">
-    <span>
-      <strong>Navigation :</strong> 
-      Clic gauche (drag) pour se déplacer • 
-      Molette pour zoomer • 
-      Clic gauche sur une activité pour y accéder
-    </span>
+    <strong>Navigation :</strong> 
+    Clic gauche maintenu pour se déplacer • Molette pour zoomer • Clic sur une activité pour y accéder
   </div>
 
-  <!-- ============================================================
-       WIZARD CARTOGRAPHIE UNIFIÉ
-  ============================================================ -->
+  <!-- WIZARD UNIFIÉ -->
   <div id="carto-wizard-popup" class="popup hidden">
     <div class="wizard-overlay"></div>
     <div class="wizard-container">
       
-      <!-- HEADER WIZARD -->
       <div class="wizard-header">
         <h2 id="wizard-title">📦 Gestion de la cartographie</h2>
         <button id="close-wizard" class="btn-close">✕</button>
       </div>
 
-      <!-- INDICATEUR DE PROGRESSION (caché sur les premiers écrans) -->
       <div class="wizard-progress hidden" id="wizard-progress">
         <div class="progress-step" data-step="1">
           <div class="step-circle">1</div>
@@ -81,28 +61,20 @@
         </div>
       </div>
 
-      <!-- CONTENU DES ÉTAPES -->
       <div class="wizard-content">
 
-        <!-- ==================== ÉCRAN 0 : SÉLECTION ENTITÉ ==================== -->
+        <!-- ÉCRAN 0 : SÉLECTION ENTITÉ -->
         <div id="wizard-screen-entities" class="wizard-screen active">
           <div class="entities-screen">
             <div class="entities-header">
               <h3>🏢 Sélectionnez une entité</h3>
               <p>Choisissez l'entité dont vous souhaitez gérer la cartographie</p>
             </div>
-
-            <!-- Formulaire nouvelle entité -->
             <div class="new-entity-inline">
               <input type="text" id="wizard-new-entity-name" placeholder="Nom de la nouvelle entité..." />
               <button id="wizard-create-entity-btn" class="btn-create-entity">+ Créer</button>
             </div>
-
-            <!-- Liste des entités -->
-            <div class="entities-grid" id="wizard-entities-list">
-              <!-- Rempli dynamiquement -->
-            </div>
-
+            <div class="entities-grid" id="wizard-entities-list"></div>
             <div class="wizard-entities-empty hidden" id="wizard-entities-empty">
               <div class="empty-icon">🏢</div>
               <p>Aucune entité créée</p>
@@ -111,11 +83,9 @@
           </div>
         </div>
 
-        <!-- ==================== ÉCRAN 1 : CHOIX ACTION ==================== -->
+        <!-- ÉCRAN 1 : CHOIX ACTION -->
         <div id="wizard-screen-action" class="wizard-screen">
           <div class="action-screen">
-            
-            <!-- Info entité sélectionnée -->
             <div class="selected-entity-card">
               <div class="entity-card-header">
                 <div class="entity-card-icon">🏢</div>
@@ -127,31 +97,23 @@
                     <span class="stat"><strong id="selected-entity-connections">0</strong> connexions</span>
                   </div>
                 </div>
-                <div class="entity-card-status">
-                  <span id="selected-entity-active-badge" class="active-badge hidden">Active</span>
-                </div>
+                <span id="selected-entity-active-badge" class="active-badge hidden">Active</span>
               </div>
-              
-              <!-- Fichiers actuels -->
               <div class="entity-files-status">
-                <div class="file-status-item" id="selected-entity-svg-status">
+                <div class="file-status-item">
                   <span class="file-icon">🖼️</span>
                   <span class="file-label">SVG</span>
-                  <span class="file-value">-</span>
+                  <span class="file-value" id="selected-entity-svg-value">-</span>
                 </div>
-                <div class="file-status-item" id="selected-entity-vsdx-status">
+                <div class="file-status-item">
                   <span class="file-icon">📄</span>
                   <span class="file-label">VSDX</span>
-                  <span class="file-value">-</span>
+                  <span class="file-value" id="selected-entity-vsdx-value">-</span>
                 </div>
               </div>
             </div>
 
-            <!-- Actions cartographie -->
-            <div class="action-section-title">
-              <h4>Actions cartographie</h4>
-            </div>
-            
+            <div class="action-section-title"><h4>Actions cartographie</h4></div>
             <div class="wizard-actions-grid">
               <button id="wizard-new-btn" class="wizard-action-card">
                 <div class="action-card-icon">✨</div>
@@ -160,7 +122,6 @@
                   <span>Remplacer tous les fichiers</span>
                 </div>
               </button>
-
               <button id="wizard-update-btn" class="wizard-action-card" disabled>
                 <div class="action-card-icon">🔄</div>
                 <div class="action-card-content">
@@ -170,41 +131,28 @@
               </button>
             </div>
 
-            <!-- Actions entité -->
-            <div class="action-section-title">
-              <h4>Actions entité</h4>
-            </div>
-            
+            <div class="action-section-title"><h4>Actions entité</h4></div>
             <div class="entity-actions-row">
-              <button id="wizard-activate-btn" class="btn-action activate">
-                ✔ Activer
-              </button>
-              <button id="wizard-rename-btn" class="btn-action rename">
-                ✏️ Renommer
-              </button>
-              <button id="wizard-delete-btn" class="btn-action delete">
-                🗑️ Supprimer
-              </button>
+              <button id="wizard-activate-btn" class="btn-action activate">✔ Activer</button>
+              <button id="wizard-rename-btn" class="btn-action rename">✏️ Renommer</button>
+              <button id="wizard-delete-btn" class="btn-action delete">🗑️ Supprimer</button>
             </div>
 
-            <!-- Navigation -->
             <div class="wizard-nav">
               <button id="action-back" class="wizard-btn-secondary">← Retour aux entités</button>
             </div>
           </div>
         </div>
 
-        <!-- ==================== ÉTAPE 1 : VSDX ==================== -->
+        <!-- ÉTAPE 1 : VSDX -->
         <div id="wizard-screen-step1" class="wizard-screen">
           <div class="wizard-step-header">
             <div class="step-icon vsdx">📄</div>
             <div class="step-info">
               <h3>Étape 1 : Fichier de connexions</h3>
-              <p>Importez votre fichier Visio (.vsdx) contenant les connexions entre activités</p>
+              <p>Importez votre fichier Visio (.vsdx) contenant les connexions</p>
             </div>
           </div>
-
-          <!-- Option garder l'actuel (mode update) -->
           <div id="keep-vsdx-option" class="keep-current-option hidden">
             <label class="keep-checkbox">
               <input type="checkbox" id="keep-vsdx-checkbox">
@@ -215,8 +163,6 @@
               </span>
             </label>
           </div>
-
-          <!-- Dropzone VSDX -->
           <div id="vsdx-dropzone-wrapper">
             <div id="vsdx-dropzone" class="wizard-dropzone">
               <div class="dropzone-content">
@@ -226,8 +172,6 @@
               </div>
               <input type="file" id="vsdx-file-input" accept=".vsdx" hidden>
             </div>
-
-            <!-- Aperçu fichier sélectionné -->
             <div id="vsdx-preview" class="file-preview hidden">
               <div class="preview-icon">📄</div>
               <div class="preview-info">
@@ -237,24 +181,17 @@
               <button class="preview-remove" id="vsdx-remove">✕</button>
             </div>
           </div>
-
-          <!-- Info -->
           <div class="wizard-step-info">
-            <div class="info-icon">💡</div>
-            <div class="info-text">
-              Le fichier VSDX contient les flèches de connexion entre vos activités.
-              Ces connexions définissent les flux entrants et sortants de chaque activité.
-            </div>
+            <span class="info-icon">💡</span>
+            <span class="info-text">Le fichier VSDX contient les flèches de connexion entre vos activités.</span>
           </div>
-
-          <!-- Navigation -->
           <div class="wizard-nav">
             <button id="step1-back" class="wizard-btn-secondary">← Retour</button>
             <button id="step1-next" class="wizard-btn-primary">Continuer →</button>
           </div>
         </div>
 
-        <!-- ==================== ÉTAPE 2 : SVG ==================== -->
+        <!-- ÉTAPE 2 : SVG -->
         <div id="wizard-screen-step2" class="wizard-screen">
           <div class="wizard-step-header">
             <div class="step-icon svg">🖼️</div>
@@ -263,8 +200,6 @@
               <p>Importez votre fichier SVG exporté depuis Visio</p>
             </div>
           </div>
-
-          <!-- Option garder l'actuel (mode update) -->
           <div id="keep-svg-option" class="keep-current-option hidden">
             <label class="keep-checkbox">
               <input type="checkbox" id="keep-svg-checkbox">
@@ -275,8 +210,6 @@
               </span>
             </label>
           </div>
-
-          <!-- Dropzone SVG -->
           <div id="svg-dropzone-wrapper">
             <div id="svg-dropzone" class="wizard-dropzone">
               <div class="dropzone-content">
@@ -286,8 +219,6 @@
               </div>
               <input type="file" id="svg-file-input" accept=".svg" hidden>
             </div>
-
-            <!-- Aperçu fichier sélectionné -->
             <div id="svg-preview" class="file-preview hidden">
               <div class="preview-icon">🖼️</div>
               <div class="preview-info">
@@ -297,24 +228,17 @@
               <button class="preview-remove" id="svg-remove">✕</button>
             </div>
           </div>
-
-          <!-- Info -->
           <div class="wizard-step-info">
-            <div class="info-icon">💡</div>
-            <div class="info-text">
-              Le fichier SVG est l'image de votre cartographie.
-              Exportez-le depuis Visio via <strong>Fichier → Exporter → SVG</strong>.
-            </div>
+            <span class="info-icon">💡</span>
+            <span class="info-text">Exportez depuis Visio via <strong>Fichier → Exporter → SVG</strong>.</span>
           </div>
-
-          <!-- Navigation -->
           <div class="wizard-nav">
             <button id="step2-back" class="wizard-btn-secondary">← Retour</button>
             <button id="step2-next" class="wizard-btn-primary">Continuer →</button>
           </div>
         </div>
 
-        <!-- ==================== ÉTAPE 3 : RÉCAPITULATIF ==================== -->
+        <!-- ÉTAPE 3 : RÉCAPITULATIF -->
         <div id="wizard-screen-step3" class="wizard-screen">
           <div class="wizard-step-header">
             <div class="step-icon recap">📋</div>
@@ -323,14 +247,10 @@
               <p>Vérifiez les informations avant de valider</p>
             </div>
           </div>
-
-          <!-- Entité cible -->
           <div class="recap-entity">
             <span class="recap-entity-label">Entité :</span>
             <span class="recap-entity-name" id="recap-entity-name">-</span>
           </div>
-
-          <!-- Récap des fichiers -->
           <div class="recap-files">
             <div class="recap-file-card" id="recap-vsdx">
               <div class="recap-file-icon vsdx">📄</div>
@@ -349,35 +269,19 @@
               <div class="recap-file-status" id="recap-svg-status"></div>
             </div>
           </div>
-
-          <!-- Aperçu des connexions (si VSDX fourni) -->
           <div id="connections-preview-section" class="connections-preview-section hidden">
             <h4>Aperçu des connexions</h4>
-            
             <div class="connections-stats" id="wizard-connections-stats"></div>
-
             <div id="wizard-missing-warning" class="warning-box hidden">
               <strong>⚠️ Activités non trouvées :</strong>
               <ul id="wizard-missing-list"></ul>
             </div>
-
             <div class="connections-table-wrapper">
               <table class="connections-table" id="wizard-connections-table">
-                <thead>
-                  <tr>
-                    <th>Source</th>
-                    <th class="arrow-col">→</th>
-                    <th>Cible</th>
-                    <th>Donnée</th>
-                    <th>Type</th>
-                    <th>Statut</th>
-                  </tr>
-                </thead>
+                <thead><tr><th>Source</th><th>→</th><th>Cible</th><th>Donnée</th><th>Type</th><th>Statut</th></tr></thead>
                 <tbody id="wizard-connections-tbody"></tbody>
               </table>
             </div>
-
-            <!-- Option suppression connexions existantes -->
             <div class="import-option">
               <label class="import-checkbox">
                 <input type="checkbox" id="clear-connections-checkbox">
@@ -386,68 +290,47 @@
               </label>
             </div>
           </div>
-
-          <!-- Message si pas de VSDX -->
           <div id="no-vsdx-message" class="no-vsdx-message hidden">
-            <div class="info-icon">ℹ️</div>
-            <p>Aucun fichier VSDX fourni — les connexions existantes seront conservées.</p>
+            <span class="info-icon">ℹ️</span>
+            <p>Aucun fichier VSDX — les connexions existantes seront conservées.</p>
           </div>
-
-          <!-- Navigation -->
           <div class="wizard-nav">
             <button id="step3-back" class="wizard-btn-secondary">← Retour</button>
             <button id="step3-submit" class="wizard-btn-success">✓ Valider et importer</button>
           </div>
         </div>
 
-        <!-- ==================== ÉCRAN TRAITEMENT ==================== -->
+        <!-- ÉCRAN TRAITEMENT -->
         <div id="wizard-screen-processing" class="wizard-screen">
           <div class="processing-content">
-            <div class="processing-spinner">
-              <div class="spinner-ring"></div>
-              <div class="spinner-ring"></div>
-              <div class="spinner-ring"></div>
-            </div>
-            <h3 id="processing-title">Traitement en cours...</h3>
-            <p id="processing-message">Veuillez patienter</p>
-            
+            <div class="processing-spinner"></div>
+            <h3>Traitement en cours...</h3>
+            <p>Veuillez patienter</p>
             <div class="processing-steps">
-              <div class="processing-step" id="proc-step-svg">
-                <span class="proc-icon">⏳</span>
-                <span class="proc-label">Importation de la cartographie</span>
-              </div>
-              <div class="processing-step" id="proc-step-vsdx">
-                <span class="proc-icon">⏳</span>
-                <span class="proc-label">Analyse des connexions</span>
-              </div>
-              <div class="processing-step" id="proc-step-save">
-                <span class="proc-icon">⏳</span>
-                <span class="proc-label">Enregistrement</span>
-              </div>
+              <div class="processing-step" id="proc-step-svg"><span class="proc-icon">⏳</span> Importation cartographie</div>
+              <div class="processing-step" id="proc-step-vsdx"><span class="proc-icon">⏳</span> Analyse connexions</div>
+              <div class="processing-step" id="proc-step-save"><span class="proc-icon">⏳</span> Enregistrement</div>
             </div>
           </div>
         </div>
 
-        <!-- ==================== ÉCRAN SUCCÈS ==================== -->
+        <!-- ÉCRAN SUCCÈS -->
         <div id="wizard-screen-success" class="wizard-screen">
           <div class="success-content">
             <div class="success-icon">✓</div>
             <h3>Importation réussie !</h3>
-            <p id="success-message">Votre cartographie a été mise à jour avec succès.</p>
-            
+            <p id="success-message">Cartographie mise à jour avec succès.</p>
             <div class="success-stats" id="success-stats"></div>
-
             <button id="success-close" class="wizard-btn-primary">Fermer et actualiser</button>
           </div>
         </div>
 
-        <!-- ==================== ÉCRAN ERREUR ==================== -->
+        <!-- ÉCRAN ERREUR -->
         <div id="wizard-screen-error" class="wizard-screen">
           <div class="error-content">
             <div class="error-icon">✕</div>
             <h3>Une erreur s'est produite</h3>
             <p id="error-message">Impossible de terminer l'importation.</p>
-            
             <div class="error-actions">
               <button id="error-retry" class="wizard-btn-secondary">Réessayer</button>
               <button id="error-close" class="wizard-btn-primary">Fermer</button>
@@ -459,38 +342,20 @@
     </div>
   </div>
 
-  <!-- ============================================================
-       MODAL DE CONFIRMATION SUPPRESSION
-  ============================================================ -->
+  <!-- MODAL SUPPRESSION -->
   <div id="confirm-delete-modal" class="modal hidden">
     <div class="modal-content modal-danger">
       <h3>⚠️ Confirmer la suppression</h3>
-      <p id="delete-warning-text">
-        Êtes-vous sûr de vouloir supprimer cette entité ?
-      </p>
-      <p class="delete-warning-detail">
-        <strong>ATTENTION :</strong> Cette action supprimera définitivement :
-      </p>
-      <ul class="delete-consequences">
-        <li>Toutes les activités de cette entité</li>
-        <li>Toutes les tâches associées</li>
-        <li>Tous les rôles et compétences</li>
-        <li>Tous les savoirs, savoir-faires et aptitudes</li>
-        <li>Toutes les analyses de temps</li>
-        <li>La cartographie SVG</li>
-      </ul>
+      <p>Cette action supprimera définitivement l'entité et toutes ses données.</p>
       <p class="delete-warning-final">Cette action est <strong>IRRÉVERSIBLE</strong>.</p>
-      
       <div class="modal-actions">
         <button id="cancel-delete-btn" class="btn-gray">Annuler</button>
-        <button id="confirm-delete-btn" class="btn-red">🗑️ Supprimer définitivement</button>
+        <button id="confirm-delete-btn" class="btn-red">🗑️ Supprimer</button>
       </div>
     </div>
   </div>
 
-  <!-- ============================================================
-       MODAL DE RENOMMAGE
-  ============================================================ -->
+  <!-- MODAL RENOMMAGE -->
   <div id="rename-modal" class="modal hidden">
     <div class="modal-content">
       <h3>✏️ Renommer l'entité</h3>
@@ -502,32 +367,22 @@
     </div>
   </div>
 
-  <!-- ============================================================
-       CONTENU PRINCIPAL
-  ============================================================ -->
+  <!-- CONTENU PRINCIPAL -->
   <div class="carto-container">
-
-    <!-- SVG (chargé inline par JavaScript) -->
     <div class="carto-left">
-
       <div class="carto-toolbar">
         <button id="carto-zoom-out">−</button>
         <button id="carto-zoom-reset">100%</button>
         <button id="carto-zoom-in">+</button>
       </div>
-
       <div id="carto-pan-wrapper" class="carto-pan-wrapper">
         <div id="pan-inner">
           <div id="svg-container"></div>
         </div>
       </div>
-
     </div>
-
-    <!-- LISTE ACTIVITÉS -->
     <div class="carto-right">
       <h2>Liste des activités</h2>
-
       {% if activities %}
         <ul class="activities-list">
           {% for a in activities %}
@@ -540,11 +395,10 @@
       {% else %}
         <div class="no-activities">
           <p>Aucune activité pour cette entité.</p>
-          <p class="hint">Utilisez "📦 Gérer la cartographie" pour importer vos fichiers.</p>
+          <p class="hint">Utilisez le bouton "📦 Gérer la cartographie" pour importer.</p>
         </div>
       {% endif %}
     </div>
-
   </div>
 
 </div>
