@@ -52,19 +52,24 @@ print(f"[CARTO] ENTITIES_DIR créé/vérifié: {ENTITIES_DIR}")
 # ============================================================
 # HELPERS
 # ============================================================
+def get_entity_dir(entity_id):
+    """Retourne le chemin du dossier d'une entité."""
+    return os.path.join(ENTITIES_DIR, f"entity_{entity_id}")
+
+
 def get_entity_svg_path(entity_id):
     """Retourne le chemin du fichier SVG pour une entité."""
-    return os.path.join(ENTITIES_DIR, f"entity_{entity_id}", "carto.svg")
+    return os.path.join(get_entity_dir(entity_id), "carto.svg")
 
 
 def get_entity_vsdx_path(entity_id):
     """Retourne le chemin du fichier VSDX pour une entité."""
-    return os.path.join(ENTITIES_DIR, f"entity_{entity_id}", "connections.vsdx")
+    return os.path.join(get_entity_dir(entity_id), "connections.vsdx")
 
 
 def ensure_entity_dir(entity_id):
     """Crée le dossier d'une entité s'il n'existe pas."""
-    entity_dir = os.path.join(ENTITIES_DIR, f"entity_{entity_id}")
+    entity_dir = get_entity_dir(entity_id)
     os.makedirs(entity_dir, exist_ok=True)
     print(f"[CARTO] Dossier entité créé/vérifié: {entity_dir}")
     return entity_dir
@@ -138,7 +143,8 @@ def activities_map_page():
         if svg_exists:
             current_svg = active_entity.svg_filename or "carto.svg"
         if vsdx_exists:
-            current_vsdx = "connections.vsdx"
+            # Utiliser le nom stocké en base ou le nom par défaut
+            current_vsdx = getattr(active_entity, 'vsdx_filename', None) or "connections.vsdx"
         
         # Log pour debug
         print(f"[CARTO] Entité {active_entity.id}: SVG={svg_exists} ({svg_path}), VSDX={vsdx_exists}")
@@ -160,14 +166,17 @@ def activities_map_page():
         all_entities = []
         for e in entities:
             e_svg_exists, _ = check_svg_exists(e.id)
+            e_vsdx_exists, _ = check_vsdx_exists(e.id)
             all_entities.append({
                 "id": e.id,
                 "name": e.name,
                 "description": e.description or "",
                 "svg_filename": e.svg_filename,
+                "vsdx_filename": getattr(e, 'vsdx_filename', None),
                 "is_active": (e.id == active_entity_id),
                 "activities_count": Activities.query.filter_by(entity_id=e.id).count(),
-                "svg_exists": e_svg_exists
+                "svg_exists": e_svg_exists,
+                "vsdx_exists": e_vsdx_exists
             })
     
     active_entity_dict = None
@@ -177,6 +186,7 @@ def activities_map_page():
             "name": active_entity.name,
             "description": active_entity.description or "",
             "svg_filename": active_entity.svg_filename,
+            "vsdx_filename": getattr(active_entity, 'vsdx_filename', None),
             "is_active": True
         }
     
@@ -240,6 +250,7 @@ def list_entities():
             "name": e.name,
             "description": e.description,
             "svg_filename": e.svg_filename,
+            "vsdx_filename": getattr(e, 'vsdx_filename', None),
             "is_active": (e.id == active_entity_id),
             "activities_count": Activities.query.filter_by(entity_id=e.id).count(),
             "svg_exists": svg_exists,
@@ -272,7 +283,7 @@ def get_entity_details(entity_id):
         "svg_exists": svg_exists,
         "vsdx_exists": vsdx_exists,
         "current_svg": entity.svg_filename if svg_exists else None,
-        "current_vsdx": "connections.vsdx" if vsdx_exists else None,
+        "current_vsdx": getattr(entity, 'vsdx_filename', None) or ("connections.vsdx" if vsdx_exists else None),
         "activities_count": Activities.query.filter_by(entity_id=entity_id).count(),
         "connections_count": Link.query.filter_by(entity_id=entity_id).count()
     })
@@ -347,7 +358,7 @@ def delete_entity(entity_id):
     entity_name = entity.name
     
     # Supprimer le dossier de l'entité
-    entity_dir = os.path.join(ENTITIES_DIR, f"entity_{entity_id}")
+    entity_dir = get_entity_dir(entity_id)
     if os.path.exists(entity_dir):
         shutil.rmtree(entity_dir)
         print(f"[CARTO] Dossier supprimé: {entity_dir}")
@@ -546,22 +557,30 @@ def upload_cartography():
         "connections": 0,
         "svg_updated": False,
         "vsdx_updated": False,
+        "svg_kept": False,
+        "vsdx_kept": False,
         "sync": None
     }
     
     try:
         entity_dir = ensure_entity_dir(entity_id)
         print(f"[CARTO] Upload pour entité {entity_id} dans {entity_dir}")
+        print(f"[CARTO] Mode: {mode}, keep_svg: {keep_svg}, keep_vsdx: {keep_vsdx}")
         
-        # === SVG ===
+        # Chemins des fichiers
+        svg_path = get_entity_svg_path(entity_id)
+        vsdx_path = get_entity_vsdx_path(entity_id)
+        
+        # === GESTION DU SVG ===
         if svg_file and svg_file.filename:
+            # Nouveau fichier SVG uploadé
             if not svg_file.filename.lower().endswith(".svg"):
                 return jsonify({"error": "Format SVG requis"}), 400
             
-            svg_path = os.path.join(entity_dir, "carto.svg")
             svg_file.save(svg_path)
             print(f"[CARTO] SVG sauvegardé: {svg_path} ({os.path.exists(svg_path)})")
             
+            # IMPORTANT: Sauvegarder le nom original en base
             entity.svg_filename = svg_file.filename
             db.session.commit()
             
@@ -570,21 +589,38 @@ def upload_cartography():
             stats["activities"] = sync_stats.get("total", 0)
             stats["svg_updated"] = True
             
-        elif not keep_svg and mode == "new":
+        elif keep_svg:
+            # Garder le SVG existant - vérifier qu'il existe
+            if os.path.exists(svg_path):
+                print(f"[CARTO] SVG conservé: {svg_path}")
+                stats["svg_kept"] = True
+                stats["activities"] = Activities.query.filter_by(entity_id=entity_id).count()
+            else:
+                print(f"[CARTO] ATTENTION: keep_svg=true mais fichier inexistant: {svg_path}")
+                
+        elif mode == "new":
+            # Mode création sans SVG et sans keep_svg -> erreur
             return jsonify({"error": "SVG requis pour nouvelle cartographie"}), 400
         
+        # Comptage des activités si pas déjà fait
         if not stats["activities"]:
             stats["activities"] = Activities.query.filter_by(entity_id=entity_id).count()
         
-        # === VSDX ===
+        # === GESTION DU VSDX ===
         if vsdx_file and vsdx_file.filename:
+            # Nouveau fichier VSDX uploadé
             if not vsdx_file.filename.lower().endswith(".vsdx"):
                 return jsonify({"error": "Format VSDX requis"}), 400
             
-            vsdx_path = os.path.join(entity_dir, "connections.vsdx")
             vsdx_file.save(vsdx_path)
             print(f"[CARTO] VSDX sauvegardé: {vsdx_path} ({os.path.exists(vsdx_path)})")
             
+            # IMPORTANT: Sauvegarder le nom original en base (si le champ existe)
+            if hasattr(entity, 'vsdx_filename'):
+                entity.vsdx_filename = vsdx_file.filename
+                db.session.commit()
+            
+            # Parser et importer les connexions
             connections, errors = parse_vsdx_connections(vsdx_path)
             
             if connections:
@@ -648,6 +684,15 @@ def upload_cartography():
                 
                 print(f"[CARTO] Connexions importées: {imported}, invalides: {len(invalid)}")
         
+        elif keep_vsdx:
+            # Garder le VSDX existant - vérifier qu'il existe
+            if os.path.exists(vsdx_path):
+                print(f"[CARTO] VSDX conservé: {vsdx_path}")
+                stats["vsdx_kept"] = True
+            else:
+                print(f"[CARTO] ATTENTION: keep_vsdx=true mais fichier inexistant: {vsdx_path}")
+        
+        # Comptage final des connexions
         if not stats["connections"]:
             stats["connections"] = Link.query.filter_by(entity_id=entity_id).count()
         
@@ -660,6 +705,8 @@ def upload_cartography():
     except Exception as e:
         db.session.rollback()
         print(f"[CARTO] Erreur upload: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 
@@ -832,14 +879,21 @@ def debug_files():
         for e in entities:
             svg_exists, svg_path = check_svg_exists(e.id)
             vsdx_exists, vsdx_path = check_vsdx_exists(e.id)
-            entity_dir = os.path.join(ENTITIES_DIR, f"entity_{e.id}")
+            entity_dir = get_entity_dir(e.id)
+            
+            # Lister les fichiers dans le dossier de l'entité
+            files_in_dir = []
+            if os.path.exists(entity_dir):
+                files_in_dir = os.listdir(entity_dir)
             
             result["entities"].append({
                 "id": e.id,
                 "name": e.name,
-                "svg_filename": e.svg_filename,
+                "svg_filename_in_db": e.svg_filename,
+                "vsdx_filename_in_db": getattr(e, 'vsdx_filename', 'CHAMP_INEXISTANT'),
                 "entity_dir": entity_dir,
                 "entity_dir_exists": os.path.exists(entity_dir),
+                "files_in_dir": files_in_dir,
                 "svg_path": svg_path,
                 "svg_exists": svg_exists,
                 "vsdx_path": vsdx_path,
