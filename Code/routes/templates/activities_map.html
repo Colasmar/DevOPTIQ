@@ -35,7 +35,7 @@
   </div>
 
   <!-- WIZARD UNIFIÉ -->
-  <div id="carto-wizard-popup" class="popup hidden">
+  <div id="carto-wizard-popup" class="popup hidden" style="display: none;">
     <div class="wizard-overlay"></div>
     <div class="wizard-container">
       
@@ -181,9 +181,9 @@
               <button class="preview-remove" id="vsdx-remove">✕</button>
             </div>
           </div>
-          <div class="wizard-step-info">
+          <div class="step-hint">
             <span class="info-icon">💡</span>
-            <span class="info-text">Le fichier VSDX contient les flèches de connexion entre vos activités.</span>
+            <span class="info-text">Ce fichier contient les connexions entre les activités (optionnel).</span>
           </div>
           <div class="wizard-nav">
             <button id="step1-back" class="wizard-btn-secondary">← Retour</button>
@@ -196,7 +196,7 @@
           <div class="wizard-step-header">
             <div class="step-icon svg">🖼️</div>
             <div class="step-info">
-              <h3>Étape 2 : Cartographie visuelle</h3>
+              <h3>Étape 2 : Fichier cartographie</h3>
               <p>Importez votre fichier SVG exporté depuis Visio</p>
             </div>
           </div>
@@ -213,7 +213,7 @@
           <div id="svg-dropzone-wrapper">
             <div id="svg-dropzone" class="wizard-dropzone">
               <div class="dropzone-content">
-                <div class="dropzone-icon">🖼️</div>
+                <div class="dropzone-icon">📁</div>
                 <p class="dropzone-text">Glissez votre fichier .svg ici</p>
                 <p class="dropzone-hint">ou cliquez pour sélectionner</p>
               </div>
@@ -228,7 +228,7 @@
               <button class="preview-remove" id="svg-remove">✕</button>
             </div>
           </div>
-          <div class="wizard-step-info">
+          <div class="step-hint">
             <span class="info-icon">💡</span>
             <span class="info-text">Exportez depuis Visio via <strong>Fichier → Exporter → SVG</strong>.</span>
           </div>
@@ -349,8 +349,8 @@
     </div>
   </div>
 
-  <!-- MODAL SUPPRESSION -->
-  <div id="confirm-delete-modal" class="modal hidden">
+  <!-- MODAL SUPPRESSION - Style inline de sécurité -->
+  <div id="confirm-delete-modal" class="modal hidden" style="display: none !important;">
     <div class="modal-content modal-danger">
       <h3>⚠️ Confirmer la suppression</h3>
       <p>Cette action supprimera définitivement l'entité et toutes ses données.</p>
@@ -362,8 +362,8 @@
     </div>
   </div>
 
-  <!-- MODAL RENOMMAGE -->
-  <div id="rename-modal" class="modal hidden">
+  <!-- MODAL RENOMMAGE - Style inline de sécurité -->
+  <div id="rename-modal" class="modal hidden" style="display: none !important;">
     <div class="modal-content">
       <h3>✏️ Renommer l'entité</h3>
       <input type="text" id="rename-input" placeholder="Nouveau nom" />
