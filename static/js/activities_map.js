@@ -260,8 +260,8 @@ function initWizard() {
 
   // Actions entité
   $("#wizard-activate-btn")?.addEventListener("click", activateEntity);
-  $("#wizard-rename-btn")?.addEventListener("click", () => $("#rename-modal")?.classList.remove("hidden"));
-  $("#wizard-delete-btn")?.addEventListener("click", () => $("#confirm-delete-modal")?.classList.remove("hidden"));
+  $("#wizard-rename-btn")?.addEventListener("click", () => showModal("rename-modal"));
+  $("#wizard-delete-btn")?.addEventListener("click", () => showModal("confirm-delete-modal"));
 
   // Étapes
   $("#step1-back")?.addEventListener("click", () => goToScreen("action"));
@@ -284,11 +284,72 @@ function initWizard() {
   initDropzone("vsdx");
   initDropzone("svg");
 
-  // Modals
-  $("#cancel-delete-btn")?.addEventListener("click", () => $("#confirm-delete-modal")?.classList.add("hidden"));
+  // Modals - boutons d'action
+  $("#cancel-delete-btn")?.addEventListener("click", () => hideModal("confirm-delete-modal"));
   $("#confirm-delete-btn")?.addEventListener("click", deleteEntity);
-  $("#cancel-rename-btn")?.addEventListener("click", () => $("#rename-modal")?.classList.add("hidden"));
+  $("#cancel-rename-btn")?.addEventListener("click", () => hideModal("rename-modal"));
   $("#confirm-rename-btn")?.addEventListener("click", renameEntity);
+
+  // Fermeture modals en cliquant sur le fond
+  initModalOverlays();
+}
+
+/* ============================================================
+   GESTION DES MODALS (SÉCURISÉE)
+============================================================ */
+function hideAllModals() {
+  // Cacher TOUS les modals au chargement
+  const modals = ["confirm-delete-modal", "rename-modal", "carto-wizard-popup"];
+  modals.forEach(id => {
+    const modal = document.getElementById(id);
+    if (modal) {
+      modal.classList.add("hidden");
+      modal.style.display = "none";
+    }
+  });
+}
+
+function showModal(id) {
+  const modal = document.getElementById(id);
+  if (modal) {
+    modal.classList.remove("hidden");
+    modal.style.display = "flex";
+  }
+}
+
+function hideModal(id) {
+  const modal = document.getElementById(id);
+  if (modal) {
+    modal.classList.add("hidden");
+    modal.style.display = "none";
+  }
+}
+
+function initModalOverlays() {
+  // Fermer les modals en cliquant sur le fond sombre
+  const deleteModal = $("#confirm-delete-modal");
+  const renameModal = $("#rename-modal");
+
+  if (deleteModal) {
+    deleteModal.addEventListener("click", (e) => {
+      if (e.target === deleteModal) hideModal("confirm-delete-modal");
+    });
+  }
+
+  if (renameModal) {
+    renameModal.addEventListener("click", (e) => {
+      if (e.target === renameModal) hideModal("rename-modal");
+    });
+  }
+
+  // Fermeture avec la touche Escape
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      hideModal("confirm-delete-modal");
+      hideModal("rename-modal");
+      // Ne pas fermer le wizard principal avec Escape (peut être en cours de saisie)
+    }
+  });
 }
 
 function resetWizard() {
@@ -422,7 +483,7 @@ async function deleteEntity() {
     const res = await fetch(`/activities/api/entities/${wizardState.selectedEntity.id}`, { method: "DELETE" });
     const data = await res.json();
     if (data.error) { alert(data.error); return; }
-    $("#confirm-delete-modal")?.classList.add("hidden");
+    hideModal("confirm-delete-modal");
     window.location.reload();
   } catch (e) { alert("Erreur réseau"); }
 }
@@ -439,7 +500,7 @@ async function renameEntity() {
     });
     const data = await res.json();
     if (data.error) { alert(data.error); return; }
-    $("#rename-modal")?.classList.add("hidden");
+    hideModal("rename-modal");
     wizardState.selectedEntity.name = name;
     $("#selected-entity-name").textContent = name;
     await loadEntitiesList();
@@ -765,9 +826,13 @@ function showError(msg) {
 }
 
 /* ============================================================
-   INIT
+   INIT - AVEC SÉCURITÉ MODALS
 ============================================================ */
 document.addEventListener("DOMContentLoaded", async () => {
+  // IMPORTANT: Cacher tous les modals immédiatement au chargement
+  hideAllModals();
+  
+  // Initialiser le reste
   initListClicks();
   initWizard();
   initPan();
