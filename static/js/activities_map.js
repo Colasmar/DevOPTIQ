@@ -1,6 +1,6 @@
 /* ============================================================
    CARTOGRAPHIE DES ACTIVITÉS - WIZARD UNIFIÉ
-   Version nettoyée et optimisée
+   Version corrigée - ouverture wizard
 ============================================================ */
 
 const SHAPE_ACTIVITY_MAP = window.CARTO_SHAPE_MAP || {};
@@ -238,67 +238,9 @@ function initListClicks() {
 }
 
 /* ============================================================
-   WIZARD
-============================================================ */
-function initWizard() {
-  const popup = $("#carto-wizard-popup");
-  const btnOpen = $("#carto-wizard-btn");
-  if (!popup || !btnOpen) return;
-
-  btnOpen.onclick = () => { resetWizard(); loadEntitiesList(); popup.classList.remove("hidden"); };
-  $("#close-wizard")?.addEventListener("click", () => popup.classList.add("hidden"));
-  popup.addEventListener("click", (e) => { if (e.target.classList.contains("wizard-overlay")) popup.classList.add("hidden"); });
-
-  // Création entité
-  $("#wizard-create-entity-btn")?.addEventListener("click", createEntity);
-  $("#wizard-new-entity-name")?.addEventListener("keypress", (e) => { if (e.key === "Enter") createEntity(); });
-
-  // Navigation
-  $("#action-back")?.addEventListener("click", () => goToScreen("entities"));
-  $("#wizard-new-btn")?.addEventListener("click", () => startSteps("new"));
-  $("#wizard-update-btn")?.addEventListener("click", () => startSteps("update"));
-
-  // Actions entité
-  $("#wizard-activate-btn")?.addEventListener("click", activateEntity);
-  $("#wizard-rename-btn")?.addEventListener("click", () => showModal("rename-modal"));
-  $("#wizard-delete-btn")?.addEventListener("click", () => showModal("confirm-delete-modal"));
-
-  // Étapes
-  $("#step1-back")?.addEventListener("click", () => goToScreen("action"));
-  $("#step1-next")?.addEventListener("click", () => goToStep(2));
-  $("#step2-back")?.addEventListener("click", () => goToStep(1));
-  $("#step2-next")?.addEventListener("click", () => goToStep(3));
-  $("#step3-back")?.addEventListener("click", () => goToStep(2));
-  $("#step3-submit")?.addEventListener("click", submitWizard);
-
-  // Écrans finaux
-  $("#success-close")?.addEventListener("click", () => window.location.reload());
-  $("#error-retry")?.addEventListener("click", () => goToStep(3));
-  $("#error-close")?.addEventListener("click", () => popup.classList.add("hidden"));
-
-  // Checkboxes
-  $("#keep-vsdx-checkbox")?.addEventListener("change", (e) => { wizardState.keepVsdx = e.target.checked; toggleDropzone("vsdx"); });
-  $("#keep-svg-checkbox")?.addEventListener("change", (e) => { wizardState.keepSvg = e.target.checked; toggleDropzone("svg"); });
-
-  // Dropzones
-  initDropzone("vsdx");
-  initDropzone("svg");
-
-  // Modals - boutons d'action
-  $("#cancel-delete-btn")?.addEventListener("click", () => hideModal("confirm-delete-modal"));
-  $("#confirm-delete-btn")?.addEventListener("click", deleteEntity);
-  $("#cancel-rename-btn")?.addEventListener("click", () => hideModal("rename-modal"));
-  $("#confirm-rename-btn")?.addEventListener("click", renameEntity);
-
-  // Fermeture modals en cliquant sur le fond
-  initModalOverlays();
-}
-
-/* ============================================================
    GESTION DES MODALS (SÉCURISÉE)
 ============================================================ */
 function hideAllModals() {
-  // Cacher TOUS les modals au chargement
   const modals = ["confirm-delete-modal", "rename-modal", "carto-wizard-popup"];
   modals.forEach(id => {
     const modal = document.getElementById(id);
@@ -326,7 +268,6 @@ function hideModal(id) {
 }
 
 function initModalOverlays() {
-  // Fermer les modals en cliquant sur le fond sombre
   const deleteModal = $("#confirm-delete-modal");
   const renameModal = $("#rename-modal");
 
@@ -342,14 +283,78 @@ function initModalOverlays() {
     });
   }
 
-  // Fermeture avec la touche Escape
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       hideModal("confirm-delete-modal");
       hideModal("rename-modal");
-      // Ne pas fermer le wizard principal avec Escape (peut être en cours de saisie)
+      hideModal("carto-wizard-popup");
     }
   });
+}
+
+/* ============================================================
+   WIZARD
+============================================================ */
+function initWizard() {
+  const popup = $("#carto-wizard-popup");
+  const btnOpen = $("#carto-wizard-btn");
+  
+  if (!popup || !btnOpen) return;
+
+  // CORRECTION: Utiliser showModal pour ouvrir
+  btnOpen.addEventListener("click", () => {
+    resetWizard();
+    loadEntitiesList();
+    showModal("carto-wizard-popup");
+  });
+
+  $("#close-wizard")?.addEventListener("click", () => hideModal("carto-wizard-popup"));
+  popup.addEventListener("click", (e) => {
+    if (e.target.classList.contains("wizard-overlay")) hideModal("carto-wizard-popup");
+  });
+
+  // Création entité
+  $("#wizard-create-entity-btn")?.addEventListener("click", createEntity);
+  $("#wizard-new-entity-name")?.addEventListener("keypress", (e) => { if (e.key === "Enter") createEntity(); });
+
+  // Navigation
+  $("#action-back")?.addEventListener("click", () => goToScreen("entities"));
+  $("#wizard-new-btn")?.addEventListener("click", () => startSteps("new"));
+  $("#wizard-update-btn")?.addEventListener("click", () => startSteps("update"));
+
+  // Actions entité
+  $("#wizard-activate-btn")?.addEventListener("click", activateEntity);
+  $("#wizard-rename-btn")?.addEventListener("click", () => showModal("rename-modal"));
+  $("#wizard-delete-btn")?.addEventListener("click", () => showModal("confirm-delete-modal"));
+
+  // Étapes
+  $("#step1-back")?.addEventListener("click", () => goToScreen("action"));
+  $("#step1-next")?.addEventListener("click", () => goToStep(2));
+  $("#step2-back")?.addEventListener("click", () => goToStep(1));
+  $("#step2-next")?.addEventListener("click", () => goToStep(3));
+  $("#step3-back")?.addEventListener("click", () => goToStep(2));
+  $("#step3-submit")?.addEventListener("click", submitWizard);
+
+  // Écrans finaux
+  $("#success-close")?.addEventListener("click", () => window.location.reload());
+  $("#error-retry")?.addEventListener("click", () => goToStep(3));
+  $("#error-close")?.addEventListener("click", () => hideModal("carto-wizard-popup"));
+
+  // Checkboxes
+  $("#keep-vsdx-checkbox")?.addEventListener("change", (e) => { wizardState.keepVsdx = e.target.checked; toggleDropzone("vsdx"); });
+  $("#keep-svg-checkbox")?.addEventListener("change", (e) => { wizardState.keepSvg = e.target.checked; toggleDropzone("svg"); });
+
+  // Dropzones
+  initDropzone("vsdx");
+  initDropzone("svg");
+
+  // Modals
+  $("#cancel-delete-btn")?.addEventListener("click", () => hideModal("confirm-delete-modal"));
+  $("#confirm-delete-btn")?.addEventListener("click", deleteEntity);
+  $("#cancel-rename-btn")?.addEventListener("click", () => hideModal("rename-modal"));
+  $("#confirm-rename-btn")?.addEventListener("click", renameEntity);
+
+  initModalOverlays();
 }
 
 function resetWizard() {
@@ -636,7 +641,6 @@ function prepareRecap() {
   const entity = wizardState.selectedEntity;
   $("#recap-entity-name").textContent = entity?.name || "-";
 
-  // VSDX
   const vCard = $("#recap-vsdx"), vName = $("#recap-vsdx-name"), vStatus = $("#recap-vsdx-status");
   vCard?.classList.remove("new-file", "kept-file");
   if (wizardState.vsdxFile) {
@@ -651,7 +655,6 @@ function prepareRecap() {
     vName.textContent = "Aucun"; vStatus.textContent = "-"; vStatus.className = "recap-file-status";
   }
 
-  // SVG
   const sCard = $("#recap-svg"), sName = $("#recap-svg-name"), sStatus = $("#recap-svg-status");
   sCard?.classList.remove("new-file", "kept-file");
   if (wizardState.svgFile) {
@@ -666,21 +669,13 @@ function prepareRecap() {
     sName.textContent = "Aucun"; sStatus.textContent = "-"; sStatus.className = "recap-file-status";
   }
 
-  // Connexions
   const connSection = $("#connections-preview-section"), noVsdx = $("#no-vsdx-message");
   const connTitle = connSection?.querySelector("h4");
   
   if (wizardState.vsdxFile && wizardState.connectionsPreview) {
     connSection?.classList.remove("hidden");
     noVsdx?.classList.add("hidden");
-    
-    // Adapter le titre selon le mode
-    if (connTitle) {
-      connTitle.textContent = wizardState.mode === "new" 
-        ? "Connexions à importer" 
-        : "Aperçu des connexions";
-    }
-    
+    if (connTitle) connTitle.textContent = wizardState.mode === "new" ? "Connexions à importer" : "Aperçu des connexions";
     displayConnections(wizardState.connectionsPreview);
   } else {
     connSection?.classList.add("hidden");
@@ -697,22 +692,16 @@ function displayConnections(data) {
   const missingCount = data.missing_activities?.length || 0;
   const invalidCount = data.invalid_connections || 0;
   
-  // Afficher le message info en mode création
-  if (newModeInfo) {
-    newModeInfo.classList.toggle("hidden", !isNewMode);
-  }
+  if (newModeInfo) newModeInfo.classList.toggle("hidden", !isNewMode);
   
-  // Stats adaptées au mode - TOUJOURS afficher les non compatibles
   if (stats) {
     if (isNewMode) {
-      // Mode création : afficher connexions + non compatibles
       stats.innerHTML = `
         <div class="stat-box"><div class="stat-value">${data.total_connections || 0}</div><div class="stat-label">Connexions</div></div>
         <div class="stat-box"><div class="stat-value">${data.valid_connections || 0}</div><div class="stat-label">Compatibles</div></div>
         <div class="stat-box ${missingCount > 0 ? 'warning' : ''}"><div class="stat-value">${missingCount}</div><div class="stat-label">Non compatibles</div></div>
       `;
     } else {
-      // Mode update : afficher valides/invalides
       stats.innerHTML = `
         <div class="stat-box"><div class="stat-value">${data.total_connections || 0}</div><div class="stat-label">Total</div></div>
         <div class="stat-box"><div class="stat-value">${data.valid_connections || 0}</div><div class="stat-label">Valides</div></div>
@@ -721,39 +710,23 @@ function displayConnections(data) {
     }
   }
 
-  // TOUJOURS afficher les activités manquantes si présentes (même en mode new)
   const warn = $("#wizard-missing-warning"), list = $("#wizard-missing-list");
   const warnTitle = warn?.querySelector("strong");
   
   if (missingCount > 0) {
     warn?.classList.remove("hidden");
-    // Adapter le titre selon le mode
-    if (warnTitle) {
-      warnTitle.textContent = isNewMode 
-        ? "⚠️ Activités non compatibles (absentes du SVG) :" 
-        : "⚠️ Activités non trouvées :";
-    }
-    if (list) {
-      list.innerHTML = data.missing_activities.map(n => `<li>${n}</li>`).join("");
-    }
+    if (warnTitle) warnTitle.textContent = isNewMode ? "⚠️ Activités non compatibles (absentes du SVG) :" : "⚠️ Activités non trouvées :";
+    if (list) list.innerHTML = data.missing_activities.map(n => `<li>${n}</li>`).join("");
   } else {
     warn?.classList.add("hidden");
   }
 
-  // Tableau des connexions
   const tbody = $("#wizard-connections-tbody");
   if (tbody && data.connections) {
     tbody.innerHTML = data.connections.slice(0, 50).map(c => {
       const tc = c.data_type === "déclenchante" ? "declenchante" : "nourrissante";
-      let statusClass, statusIcon;
-      
-      if (c.valid) {
-        statusClass = 'status-valid';
-        statusIcon = '✓';
-      } else {
-        statusClass = 'status-invalid';
-        statusIcon = '✗';
-      }
+      const statusClass = c.valid ? 'status-valid' : 'status-invalid';
+      const statusIcon = c.valid ? '✓' : '✗';
       
       return `<tr class="${c.valid ? '' : 'row-invalid'}">
         <td>${c.source || "-"}</td><td>→</td><td>${c.target || "-"}</td>
@@ -826,13 +799,13 @@ function showError(msg) {
 }
 
 /* ============================================================
-   INIT - AVEC SÉCURITÉ MODALS
+   INIT
 ============================================================ */
 document.addEventListener("DOMContentLoaded", async () => {
-  // IMPORTANT: Cacher tous les modals immédiatement au chargement
+  // Cacher tous les modals immédiatement
   hideAllModals();
   
-  // Initialiser le reste
+  // Initialiser
   initListClicks();
   initWizard();
   initPan();
