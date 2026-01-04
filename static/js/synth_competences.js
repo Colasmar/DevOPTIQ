@@ -1,4 +1,8 @@
 /* ════════════════════════════════════════════════════════════════════════════
+   FICHIER À PLACER DANS : static/js/synth_competences.js
+════════════════════════════════════════════════════════════════════════════ */
+
+/* ════════════════════════════════════════════════════════════════════════════
    SYNTH_COMPETENCES.JS - Gestion modulaire des compétences
    
    Architecture:
@@ -664,6 +668,16 @@ function initModalListeners() {
     document.querySelector('[data-action="load-prerequis"]')?.addEventListener('click', loadPrerequisComments);
     document.querySelector('[data-action="save-prerequis"]')?.addEventListener('click', savePrerequisComments);
     document.querySelector('[data-action="generate-plan"]')?.addEventListener('click', generatePlan);
+    
+    // Fermeture modal activité depuis le footer
+    document.querySelector('[data-action="close-activity-modal"]')?.addEventListener('click', () => {
+        closeModal('activity');
+    });
+    
+    // Boutons enregistrer dans les modales
+    document.getElementById('save-role-evals')?.addEventListener('click', saveEvaluationsFromModal);
+    document.getElementById('save-savoirs-evals')?.addEventListener('click', saveEvaluationsFromModal);
+    document.getElementById('save-activity-evals-btn')?.addEventListener('click', saveEvaluationsFromModal);
 }
 
 function initTabListeners() {
@@ -755,6 +769,19 @@ async function saveAllEvaluations() {
         return;
     }
     
+    await saveEvaluationsToServer();
+}
+
+async function saveEvaluationsFromModal() {
+    if (AppState.pendingChanges.length === 0) {
+        showToast('Aucune modification à enregistrer', 'warning');
+        return;
+    }
+    
+    await saveEvaluationsToServer();
+}
+
+async function saveEvaluationsToServer() {
     showLoader('Enregistrement...');
     
     try {
@@ -935,7 +962,18 @@ async function toggleGlobalSummary() {
         
         try {
             const res = await fetch(`/competences/global_summary/${AppState.selectedCollabId}`);
+            
+            // Vérifier si la réponse est OK
+            if (!res.ok) {
+                throw new Error(`Erreur serveur: ${res.status} ${res.statusText}`);
+            }
+            
             const html = await res.text();
+            
+            // Vérifier si on a reçu du contenu valide
+            if (!html || html.includes('Service unavailable') || html.includes('error')) {
+                throw new Error('Le serveur n\'a pas pu générer la synthèse');
+            }
             
             section.innerHTML = html;
             section.classList.remove('hidden');
@@ -948,7 +986,26 @@ async function toggleGlobalSummary() {
             `;
         } catch (err) {
             console.error('Erreur chargement synthèse:', err);
-            showToast('Erreur lors du chargement', 'error');
+            showToast('Erreur lors du chargement de la synthèse. Veuillez réessayer.', 'error');
+            
+            // Afficher un message dans la section
+            section.innerHTML = `
+                <div class="empty-state" style="padding: 40px;">
+                    <div class="empty-state-icon" style="background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="1.5">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="8" x2="12" y2="12"/>
+                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                    </div>
+                    <h2 style="color: #dc2626;">Erreur de chargement</h2>
+                    <p>Impossible de charger la synthèse globale. Le serveur est peut-être temporairement indisponible.</p>
+                    <button class="btn btn-outline" onclick="document.getElementById('global-summary-section').classList.add('hidden'); document.getElementById('toggle-summary').innerHTML = '<svg width=\\'18\\' height=\\'18\\' viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'currentColor\\' stroke-width=\\'2\\'><path d=\\'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\\'/><polyline points=\\'14,2 14,8 20,8\\'/><line x1=\\'16\\' y1=\\'13\\' x2=\\'8\\' y2=\\'13\\'/><line x1=\\'16\\' y1=\\'17\\' x2=\\'8\\' y2=\\'17\\'/><polyline points=\\'10,9 9,9 8,9\\'/></svg> Synthèse globale';">
+                        Fermer
+                    </button>
+                </div>
+            `;
+            section.classList.remove('hidden');
         }
         
         hideLoader();
@@ -1029,3 +1086,4 @@ window.hideLoader = hideLoader;
 window.showToast = showToast;
 window.openModal = openModal;
 window.closeModal = closeModal;
+window.saveEvaluationsFromModal = saveEvaluationsFromModal;

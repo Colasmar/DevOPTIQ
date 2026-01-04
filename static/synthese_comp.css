@@ -1,4 +1,8 @@
 /* ════════════════════════════════════════════════════════════════════════════
+   FICHIER À PLACER DANS : static/competences.css
+════════════════════════════════════════════════════════════════════════════ */
+
+/* ════════════════════════════════════════════════════════════════════════════
    COMPETENCES.CSS - Design System "Minimal Editorial"
    
    Palette:
@@ -891,7 +895,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .eval-cell:hover {
-    transform: scale(1.05);
+    filter: brightness(1.1);
+    box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.2);
 }
 
 .eval-cell.green {
@@ -943,6 +948,23 @@ h1, h2, h3, h4, h5, h6 {
 
 .knowledge-header h4 svg {
     color: #10b981;
+}
+
+/* Actions pour les savoirs */
+.savoirs-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding: 16px 0;
+    margin-top: 8px;
+}
+
+/* Actions savoirs/SF/HSC */
+.savoirs-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 20px;
+    margin-top: 20px;
+    border-top: 1px solid #e2e8f0;
 }
 
 /* ═══════════════════════════════════════════════════════════════
