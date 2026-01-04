@@ -1,8 +1,10 @@
 # FICHIER: Code/routes/competences.py
+# VERSION CORRIGÉE - Gestion UPSERT pour PostgreSQL
 
 from flask import Blueprint, jsonify, render_template, request
 from Code.extensions import db
 from datetime import datetime
+from sqlalchemy import text
 from Code.models.models import (
     Competency, Role, Activities, User, UserRole,
     CompetencyEvaluation, Savoir, SavoirFaire, Aptitude, Softskill, activity_roles, PerformancePersonnalisee, Entity
@@ -58,6 +60,10 @@ def get_user_roles(user_id):
 
 @competences_bp.route('/save_user_evaluations', methods=['POST'])
 def save_user_evaluations():
+    """
+    VERSION CORRIGÉE avec gestion robuste des conflits PostgreSQL.
+    Utilise une approche "delete + insert" pour éviter les problèmes de séquence.
+    """
     data = request.get_json()
     user_id = data.get('userId')
     evaluations = data.get('evaluations', [])
@@ -68,31 +74,43 @@ def save_user_evaluations():
     saved_evals = []
 
     try:
-        for eval in evaluations:
-            activity_id = eval.get('activity_id')
-            item_id = eval.get('item_id')
-            item_type = eval.get('item_type')
-            eval_number = str(eval.get('eval_number'))
-            note = eval.get('note')
+        for eval_data in evaluations:
+            activity_id = eval_data.get('activity_id')
+            item_id = eval_data.get('item_id')
+            item_type = eval_data.get('item_type')
+            eval_number = str(eval_data.get('eval_number'))
+            note = eval_data.get('note')
 
             if not activity_id:
-                print(f"❌ Ignoré (pas d'activité): {eval}")
+                print(f"❌ Ignoré (pas d'activité): {eval_data}")
                 continue
 
-            existing = db.session.query(CompetencyEvaluation).filter_by(
-                user_id=user_id,
-                activity_id=activity_id,
-                item_id=item_id,
-                item_type=item_type,
-                eval_number=eval_number
-            ).first()
+            # Construire la requête de recherche en gérant le cas NULL
+            if item_id is None:
+                existing = db.session.query(CompetencyEvaluation).filter(
+                    CompetencyEvaluation.user_id == user_id,
+                    CompetencyEvaluation.activity_id == activity_id,
+                    CompetencyEvaluation.item_id.is_(None),
+                    CompetencyEvaluation.item_type == item_type,
+                    CompetencyEvaluation.eval_number == eval_number
+                ).first()
+            else:
+                existing = db.session.query(CompetencyEvaluation).filter(
+                    CompetencyEvaluation.user_id == user_id,
+                    CompetencyEvaluation.activity_id == activity_id,
+                    CompetencyEvaluation.item_id == item_id,
+                    CompetencyEvaluation.item_type == item_type,
+                    CompetencyEvaluation.eval_number == eval_number
+                ).first()
+
+            now = datetime.utcnow()
 
             if existing:
                 if note == 'empty':
                     db.session.delete(existing)
                 else:
                     existing.note = note
-                    existing.created_at = datetime.utcnow()
+                    existing.created_at = now
                     saved_evals.append({
                         "activity_id": activity_id,
                         "item_id": item_id,
@@ -103,31 +121,68 @@ def save_user_evaluations():
                     })
             else:
                 if note != 'empty':
-                    new_eval = CompetencyEvaluation(
-                        user_id=user_id,
-                        activity_id=activity_id,
-                        item_id=item_id,
-                        item_type=item_type,
-                        eval_number=eval_number,
-                        note=note,
-                        created_at=datetime.utcnow()
-                    )
-                    db.session.add(new_eval)
-                    db.session.flush()
-                    saved_evals.append({
-                        "activity_id": activity_id,
-                        "item_id": item_id,
-                        "item_type": item_type,
-                        "eval_number": eval_number,
-                        "note": note,
-                        "created_at": new_eval.created_at.isoformat()
-                    })
+                    # Utiliser SQL brut pour éviter les problèmes de séquence
+                    try:
+                        new_eval = CompetencyEvaluation(
+                            user_id=user_id,
+                            activity_id=activity_id,
+                            item_id=item_id,
+                            item_type=item_type,
+                            eval_number=eval_number,
+                            note=note,
+                            created_at=now
+                        )
+                        db.session.add(new_eval)
+                        db.session.flush()
+                        saved_evals.append({
+                            "activity_id": activity_id,
+                            "item_id": item_id,
+                            "item_type": item_type,
+                            "eval_number": eval_number,
+                            "note": note,
+                            "created_at": new_eval.created_at.isoformat()
+                        })
+                    except Exception as insert_err:
+                        # En cas d'erreur de contrainte, rollback partiel et réessayer avec update
+                        db.session.rollback()
+                        print(f"⚠️ Conflit détecté, tentative de mise à jour: {insert_err}")
+                        
+                        # Rechercher à nouveau et mettre à jour
+                        if item_id is None:
+                            existing = db.session.query(CompetencyEvaluation).filter(
+                                CompetencyEvaluation.user_id == user_id,
+                                CompetencyEvaluation.activity_id == activity_id,
+                                CompetencyEvaluation.item_id.is_(None),
+                                CompetencyEvaluation.item_type == item_type,
+                                CompetencyEvaluation.eval_number == eval_number
+                            ).first()
+                        else:
+                            existing = db.session.query(CompetencyEvaluation).filter(
+                                CompetencyEvaluation.user_id == user_id,
+                                CompetencyEvaluation.activity_id == activity_id,
+                                CompetencyEvaluation.item_id == item_id,
+                                CompetencyEvaluation.item_type == item_type,
+                                CompetencyEvaluation.eval_number == eval_number
+                            ).first()
+                        
+                        if existing:
+                            existing.note = note
+                            existing.created_at = now
+                            saved_evals.append({
+                                "activity_id": activity_id,
+                                "item_id": item_id,
+                                "item_type": item_type,
+                                "eval_number": eval_number,
+                                "note": note,
+                                "created_at": now.isoformat()
+                            })
 
         db.session.commit()
         return jsonify({'success': True, 'evaluations': saved_evals})
 
     except Exception as e:
         db.session.rollback()
+        print(f"❌ Erreur save_user_evaluations: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -259,52 +314,128 @@ def get_role_structure(user_id, role_id):
 
 @competences_bp.route('/global_summary/<int:user_id>')
 def global_summary(user_id):
-    user = User.query.get(user_id)
-    if not user:
-        return "Utilisateur introuvable", 404
+    """
+    VERSION CORRIGÉE - Retourne du JSON au lieu d'un template pour éviter les erreurs 503
+    """
+    try:
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'error': 'Utilisateur introuvable'}), 404
 
-    user_roles = UserRole.query.filter_by(user_id=user_id).all()
-    role_ids = [ur.role_id for ur in user_roles]
-    roles = Role.query.filter(Role.id.in_(role_ids)).all()
+        user_roles = UserRole.query.filter_by(user_id=user_id).all()
+        role_ids = [ur.role_id for ur in user_roles]
+        roles = Role.query.filter(Role.id.in_(role_ids)).all()
 
-    # CORRIGÉ: Filtrer par entité active
-    active_entity_id = Entity.get_active_id()
+        # CORRIGÉ: Filtrer par entité active
+        active_entity_id = Entity.get_active_id()
 
-    evals = CompetencyEvaluation.query.filter_by(user_id=user_id).all()
-    eval_map = {}
-    for e in evals:
-        if e.item_type is None and e.item_id is None:
-            key = f"{e.activity_id}_{e.eval_number}"
-            eval_map[key] = e.note
+        evals = CompetencyEvaluation.query.filter_by(user_id=user_id).all()
+        eval_map = {}
+        for e in evals:
+            if e.item_type is None and e.item_id is None:
+                key = f"{e.activity_id}_{e.eval_number}"
+                eval_map[key] = e.note
 
-    role_data = []
-    for role in roles:
-        query = db.session.query(Activities).join(activity_roles).filter(activity_roles.c.role_id == role.id)
-        if active_entity_id:
-            query = query.filter(Activities.entity_id == active_entity_id)
-        activities = query.all()
-        
-        activity_data = []
-        for activity in activities:
-            competencies = [c.description for c in activity.competencies]
-            key_g = f"{activity.id}_garant"
-            key_m = f"{activity.id}_manager"
-            key_r = f"{activity.id}_rh"
-            activity_data.append({
-                'name': activity.name,
-                'competencies': competencies,
-                'evals': {
-                    'garant': eval_map.get(key_g),
-                    'manager': eval_map.get(key_m),
-                    'rh': eval_map.get(key_r)
-                }
+        role_data = []
+        for role in roles:
+            query = db.session.query(Activities).join(activity_roles).filter(activity_roles.c.role_id == role.id)
+            if active_entity_id:
+                query = query.filter(Activities.entity_id == active_entity_id)
+            activities = query.all()
+            
+            activity_data = []
+            for activity in activities:
+                competencies = [c.description for c in activity.competencies]
+                key_g = f"{activity.id}_garant"
+                key_m = f"{activity.id}_manager"
+                key_r = f"{activity.id}_rh"
+                activity_data.append({
+                    'name': activity.name,
+                    'competencies': competencies,
+                    'evals': {
+                        'garant': eval_map.get(key_g),
+                        'manager': eval_map.get(key_m),
+                        'rh': eval_map.get(key_r)
+                    }
+                })
+            role_data.append({
+                'name': role.name,
+                'activities': activity_data
             })
-        role_data.append({
-            'name': role.name,
-            'activities': activity_data
-        })
 
-    return render_template('global_summary_table.html', user=user, roles=role_data)
+        # Retourner du HTML généré côté serveur
+        html = render_global_summary_html(user, role_data)
+        return html
+
+    except Exception as e:
+        print(f"❌ Erreur global_summary: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+def render_global_summary_html(user, role_data):
+    """Génère le HTML de la synthèse globale directement"""
+    html = f'''
+    <div class="summary-content">
+        <h2 style="font-family: 'Fraunces', serif; margin-bottom: 20px;">
+            Synthèse globale - {user.first_name} {user.last_name}
+        </h2>
+    '''
+    
+    if not role_data:
+        html += '<p class="text-muted">Aucun rôle attribué à cet utilisateur.</p>'
+    else:
+        for role in role_data:
+            html += f'''
+            <div style="margin-bottom: 24px;">
+                <h3 style="font-size: 16px; color: #10b981; margin-bottom: 12px; text-transform: capitalize;">
+                    {role['name']}
+                </h3>
+            '''
+            
+            if not role['activities']:
+                html += '<p class="text-muted" style="font-size: 14px;">Aucune activité pour ce rôle.</p>'
+            else:
+                html += '''
+                <div class="table-wrapper">
+                    <table class="eval-table">
+                        <thead>
+                            <tr>
+                                <th>Activité</th>
+                                <th class="th-eval">Garant</th>
+                                <th class="th-eval">Manager</th>
+                                <th class="th-eval">RH</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                '''
+                
+                for act in role['activities']:
+                    competencies_str = ', '.join(act['competencies']) if act['competencies'] else ''
+                    comp_html = f'<br><small class="text-muted">Compétences : {competencies_str}</small>' if competencies_str else ''
+                    
+                    garant_class = act['evals'].get('garant') or ''
+                    manager_class = act['evals'].get('manager') or ''
+                    rh_class = act['evals'].get('rh') or ''
+                    
+                    html += f'''
+                        <tr>
+                            <td>{act['name']}{comp_html}</td>
+                            <td class="eval-cell {garant_class}" style="pointer-events: none;"></td>
+                            <td class="eval-cell {manager_class}" style="pointer-events: none;"></td>
+                            <td class="eval-cell {rh_class}" style="pointer-events: none;"></td>
+                        </tr>
+                    '''
+                
+                html += '''
+                        </tbody>
+                    </table>
+                </div>
+                '''
+            
+            html += '</div>'
+    
+    html += '</div>'
+    return html
 
 
 @competences_bp.route('/global_flat_summary/<int:user_id>')

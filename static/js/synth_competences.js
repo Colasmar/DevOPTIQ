@@ -669,15 +669,9 @@ function initModalListeners() {
     document.querySelector('[data-action="save-prerequis"]')?.addEventListener('click', savePrerequisComments);
     document.querySelector('[data-action="generate-plan"]')?.addEventListener('click', generatePlan);
     
-    // Fermeture modal activité depuis le footer
-    document.querySelector('[data-action="close-activity-modal"]')?.addEventListener('click', () => {
-        closeModal('activity');
-    });
-    
     // Boutons enregistrer dans les modales
     document.getElementById('save-role-evals')?.addEventListener('click', saveEvaluationsFromModal);
     document.getElementById('save-savoirs-evals')?.addEventListener('click', saveEvaluationsFromModal);
-    document.getElementById('save-activity-evals-btn')?.addEventListener('click', saveEvaluationsFromModal);
 }
 
 function initTabListeners() {
