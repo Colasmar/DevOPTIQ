@@ -244,13 +244,27 @@ def get_role_structure(user_id, role_id):
     activities = query.all()
 
     all_evaluations = CompetencyEvaluation.query.filter_by(user_id=user_id).all()
+    
+    # Dictionnaire pour les évaluations d'items (savoirs, SF, HSC)
     eval_dict = {}
+    # Dictionnaire séparé pour les évaluations d'activités
+    activity_eval_dict = {}
+    
     for e in all_evaluations:
-        key = (e.item_id, e.item_type, str(e.eval_number))
-        eval_dict[key] = {
-            'note': e.note,
-            'created_at': e.created_at
-        }
+        if e.item_type == 'activities' and e.item_id is None:
+            # Évaluation d'une activité entière (Garant/Manager/RH)
+            key = (e.activity_id, str(e.eval_number))
+            activity_eval_dict[key] = {
+                'note': e.note,
+                'created_at': e.created_at
+            }
+        else:
+            # Évaluation d'un item spécifique (savoir, SF, HSC)
+            key = (e.item_id, e.item_type, str(e.eval_number))
+            eval_dict[key] = {
+                'note': e.note,
+                'created_at': e.created_at
+            }
 
     activities_data = []
     for activity in activities:
@@ -299,8 +313,10 @@ def get_role_structure(user_id, role_id):
             'activity_name': activity.name,
             'competencies': [c.description for c in activity.competencies],
             'evals': {
-                role_name: eval_dict.get((activity.id, 'activities', role_name), {})
-                for role_name in ['garant', 'manager', 'rh']
+                # Utiliser le dictionnaire dédié aux évaluations d'activités
+                'garant': activity_eval_dict.get((activity.id, 'garant'), {}),
+                'manager': activity_eval_dict.get((activity.id, 'manager'), {}),
+                'rh': activity_eval_dict.get((activity.id, 'rh'), {})
             }
         })
 
@@ -330,11 +346,14 @@ def global_summary(user_id):
         active_entity_id = Entity.get_active_id()
 
         evals = CompetencyEvaluation.query.filter_by(user_id=user_id).all()
-        eval_map = {}
+        
+        # Construire un dictionnaire pour les évaluations d'activités
+        # Clé: (activity_id, eval_number) -> note
+        activity_eval_map = {}
         for e in evals:
-            if e.item_type is None and e.item_id is None:
-                key = f"{e.activity_id}_{e.eval_number}"
-                eval_map[key] = e.note
+            if e.item_type == 'activities' and e.item_id is None:
+                key = (e.activity_id, str(e.eval_number))
+                activity_eval_map[key] = e.note
 
         role_data = []
         for role in roles:
@@ -346,16 +365,13 @@ def global_summary(user_id):
             activity_data = []
             for activity in activities:
                 competencies = [c.description for c in activity.competencies]
-                key_g = f"{activity.id}_garant"
-                key_m = f"{activity.id}_manager"
-                key_r = f"{activity.id}_rh"
                 activity_data.append({
                     'name': activity.name,
                     'competencies': competencies,
                     'evals': {
-                        'garant': eval_map.get(key_g),
-                        'manager': eval_map.get(key_m),
-                        'rh': eval_map.get(key_r)
+                        'garant': activity_eval_map.get((activity.id, 'garant')),
+                        'manager': activity_eval_map.get((activity.id, 'manager')),
+                        'rh': activity_eval_map.get((activity.id, 'rh'))
                     }
                 })
             role_data.append({
@@ -452,11 +468,15 @@ def global_flat_summary(user_id):
     active_entity_id = Entity.get_active_id()
 
     evaluations = CompetencyEvaluation.query.filter_by(user_id=user_id).all()
+    
+    # Dictionnaire pour les évaluations d'activités
     eval_map = {}
     eval_date_map = {}
+    
     for e in evaluations:
-        if e.item_type is None and e.item_id is None:
-            key = f"{e.activity_id}_activity_{e.eval_number}"
+        # Évaluations d'activités: item_type='activities' et item_id=None
+        if e.item_type == 'activities' and e.item_id is None:
+            key = (e.activity_id, str(e.eval_number))
             eval_map[key] = e.note
             if e.created_at:
                 if isinstance(e.created_at, str):
@@ -466,7 +486,6 @@ def global_flat_summary(user_id):
                         parsed_date = datetime.strptime(e.created_at, "%d/%m/%Y")
                 else:
                     parsed_date = e.created_at
-
                 eval_date_map[key] = parsed_date.strftime('%d/%m/%Y')
             else:
                 eval_date_map[key] = ''
@@ -485,7 +504,7 @@ def global_flat_summary(user_id):
             continue
 
         all_green = all(
-            eval_map.get(f"{act.id}_activity_manager", '') == 'green'
+            eval_map.get((act.id, 'manager'), '') == 'green'
             for act in activities
         )
         role_status = 'green' if all_green else ''
@@ -498,7 +517,7 @@ def global_flat_summary(user_id):
 
         for act in activities:
             header_activities.append(act.name)
-            key = f"{act.id}_activity_manager"
+            key = (act.id, 'manager')
             row_manager.append({
                 'activity_id': act.id,
                 'note': eval_map.get(key, ''),
@@ -538,7 +557,13 @@ def users_global_summary():
 
     user_rows = []
     for user in users:
-        evals = CompetencyEvaluation.query.filter_by(user_id=user.id, eval_number='manager').all()
+        # CORRIGÉ: Filtrer uniquement les évaluations d'activités (pas les savoirs/SF/HSC)
+        evals = CompetencyEvaluation.query.filter(
+            CompetencyEvaluation.user_id == user.id,
+            CompetencyEvaluation.eval_number == 'manager',
+            CompetencyEvaluation.item_type == 'activities',
+            CompetencyEvaluation.item_id.is_(None)
+        ).all()
         notes = []
 
         for role in roles:
