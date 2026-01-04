@@ -1,4 +1,10 @@
-<!-- templates/competences_view.html -->
+<!-- 
+    FICHIER À PLACER DANS : templates/competences_view.html
+    
+    DÉPENDANCES REQUISES :
+    - static/competences.css
+    - static/js/synth_competences.js
+-->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -179,6 +185,17 @@
                 </section>
                 
             </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" data-action="close-modal">Fermer</button>
+                <button class="btn btn-primary" id="save-role-evals">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                        <polyline points="17,21 17,13 7,13 7,21"/>
+                        <polyline points="7,3 7,8 15,8"/>
+                    </svg>
+                    Enregistrer les évaluations
+                </button>
+            </div>
         </div>
     </div>
 
@@ -331,6 +348,18 @@
                         </div>
                     </div>
                     
+                    <!-- Bouton enregistrer pour les savoirs/SF/HSC -->
+                    <div class="savoirs-actions">
+                        <button class="btn btn-primary" id="save-savoirs-evals">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                                <polyline points="17,21 17,13 7,13 7,21"/>
+                                <polyline points="7,3 7,8 15,8"/>
+                            </svg>
+                            Enregistrer les évaluations
+                        </button>
+                    </div>
+                    
                 </div>
 
                 <!-- TAB : Prérequis & Plan -->
@@ -391,6 +420,19 @@
                     </div>
                 </div>
                 
+            </div>
+            
+            <!-- Footer avec bouton enregistrer -->
+            <div class="modal-footer">
+                <button class="btn btn-outline" data-action="close-activity-modal">Fermer</button>
+                <button class="btn btn-primary" id="save-activity-evals-btn">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                        <polyline points="17,21 17,13 7,13 7,21"/>
+                        <polyline points="7,3 7,8 15,8"/>
+                    </svg>
+                    Enregistrer les évaluations
+                </button>
             </div>
         </div>
     </div>
